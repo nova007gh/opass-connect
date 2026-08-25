@@ -8,7 +8,9 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:generate": "pnpm --filter @opass/db prisma:generate",
-    "db:migrate": "pnpm --filter @opass/db prisma:migrate"
+    "db:migrate": "pnpm --filter @opass/db prisma:migrate",
+    "prisma:generate": "pnpm --filter @opass/api prisma:generate",
+    "prisma:migrate": "pnpm --filter @opass/api prisma:migrate"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

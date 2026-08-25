@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { prisma } from './db.js';
+import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
 
 export function registerCoreRoutes(app:FastifyInstance){

@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+cmd = "cd apps/api && pnpm build"
+
+[deploy]
+startCommand = "cd apps/api && pnpm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3

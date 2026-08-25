@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { AccessToken } from 'livekit-server-sdk';
 import { z } from 'zod';
 import { env } from './config.js';
-import { prisma } from './db.js';
+import { prisma } from '@opass/db';
 
 export function registerLiveRoutes(app:FastifyInstance){
   app.get('/meetings', {preHandler:[app.authenticate]}, async () => {

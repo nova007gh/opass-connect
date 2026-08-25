@@ -1,11 +1,4 @@
-type QuoteRequest = {
-  requestType: 'advertising'|'sponsorship'|'event'|'partnership'|'other';
-  durationDays?: number;
-  placement?: 'year_group'|'home'|'events'|'platform_wide';
-  audienceSize?: number;
-  creativeType?: 'image'|'video'|'live';
-  rush?: boolean;
-};
+import type { QuoteRequest } from '@opass/shared';
 
 export function calculateQuote(input: QuoteRequest) {
   const base: Record<string, number> = { advertising: 600, sponsorship: 2500, event: 1500, partnership: 1800, other: 800 };

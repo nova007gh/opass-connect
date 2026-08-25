@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { prisma } from './db.js';
+import { prisma } from '@opass/db';
 
 export function registerAuthRoutes(app: FastifyInstance) {
   app.post('/auth/register', async (req, reply) => {

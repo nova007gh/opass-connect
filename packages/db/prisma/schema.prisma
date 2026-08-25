@@ -1,0 +1,366 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MEMBER
+  YEAR_ADMIN
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum MeetingMode {
+  INTERACTIVE
+  WEBINAR
+  BROADCAST
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  FUNDED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AdStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ACTIVE
+  ENDED
+}
+
+enum ElectionStatus {
+  DRAFT
+  SCHEDULED
+  OPEN
+  CLOSED
+  CERTIFIED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  phone String? @unique
+  passwordHash String
+  role UserRole @default(MEMBER)
+  verification VerificationStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  profile AlumniProfile?
+  memberships YearGroupMembership[]
+  messages Message[]
+  payments Payment[]
+  votes Vote[]
+  businesses Business[]
+  tickets SupportTicket[]
+  aiConversations AIConversation[]
+}
+
+model AlumniProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  fullName String
+  graduationYear Int
+  house String?
+  className String?
+  positionHeld String?
+  country String?
+  city String?
+  profession String?
+  bio String?
+  avatarUrl String?
+  searchable Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([graduationYear, house])
+}
+
+model YearGroup {
+  id String @id @default(cuid())
+  year Int @unique
+  name String
+  description String?
+  createdAt DateTime @default(now())
+  memberships YearGroupMembership[]
+  rooms ChatRoom[]
+  meetings Meeting[]
+  projects Project[]
+  elections Election[]
+}
+
+model YearGroupMembership {
+  id String @id @default(cuid())
+  userId String
+  yearGroupId String
+  title String?
+  isLeader Boolean @default(false)
+  joinedAt DateTime @default(now())
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  yearGroup YearGroup @relation(fields:[yearGroupId], references:[id], onDelete:Cascade)
+  @@unique([userId, yearGroupId])
+}
+
+model ChatRoom {
+  id String @id @default(cuid())
+  name String
+  yearGroupId String?
+  isAssemblyHall Boolean @default(false)
+  yearGroup YearGroup? @relation(fields:[yearGroupId], references:[id], onDelete:SetNull)
+  messages Message[]
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id String @id @default(cuid())
+  roomId String
+  userId String
+  body String
+  createdAt DateTime @default(now())
+  room ChatRoom @relation(fields:[roomId], references:[id], onDelete:Cascade)
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@index([roomId, createdAt])
+}
+
+model Meeting {
+  id String @id @default(cuid())
+  title String
+  description String?
+  mode MeetingMode @default(INTERACTIVE)
+  status MeetingStatus @default(SCHEDULED)
+  startsAt DateTime
+  endsAt DateTime?
+  roomKey String @unique
+  capacity Int @default(500)
+  hostUserId String
+  yearGroupId String?
+  yearGroup YearGroup? @relation(fields:[yearGroupId], references:[id], onDelete:SetNull)
+  createdAt DateTime @default(now())
+}
+
+model Event {
+  id String @id @default(cuid())
+  title String
+  description String?
+  startsAt DateTime
+  endsAt DateTime?
+  venue String?
+  streamUrl String?
+  ticketPrice Decimal? @db.Decimal(12,2)
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id String @id @default(cuid())
+  title String
+  description String
+  targetAmount Decimal @db.Decimal(14,2)
+  raisedAmount Decimal @default(0) @db.Decimal(14,2)
+  status ProjectStatus @default(DRAFT)
+  yearGroupId String?
+  yearGroup YearGroup? @relation(fields:[yearGroupId], references:[id], onDelete:SetNull)
+  contributions Contribution[]
+  createdAt DateTime @default(now())
+}
+
+model Contribution {
+  id String @id @default(cuid())
+  projectId String
+  userId String?
+  amount Decimal @db.Decimal(14,2)
+  anonymous Boolean @default(false)
+  createdAt DateTime @default(now())
+  project Project @relation(fields:[projectId], references:[id], onDelete:Cascade)
+}
+
+model Payment {
+  id String @id @default(cuid())
+  userId String
+  purpose String
+  reference String @unique
+  provider String
+  currency String @default("GHS")
+  amount Decimal @db.Decimal(14,2)
+  status PaymentStatus @default(PENDING)
+  providerPayload Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@index([userId, createdAt])
+}
+
+model Business {
+  id String @id @default(cuid())
+  ownerId String
+  name String
+  category String
+  description String?
+  website String?
+  phone String?
+  logoUrl String?
+  verified Boolean @default(false)
+  owner User @relation(fields:[ownerId], references:[id], onDelete:Cascade)
+  campaigns AdCampaign[]
+}
+
+model AdCampaign {
+  id String @id @default(cuid())
+  businessId String
+  placement String
+  durationDays Int
+  audience String
+  quotedAmount Decimal @db.Decimal(14,2)
+  status AdStatus @default(PENDING_APPROVAL)
+  creativeUrl String?
+  startsAt DateTime?
+  endsAt DateTime?
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+}
+
+model Election {
+  id String @id @default(cuid())
+  title String
+  description String?
+  yearGroupId String?
+  status ElectionStatus @default(DRAFT)
+  opensAt DateTime
+  closesAt DateTime
+  yearGroup YearGroup? @relation(fields:[yearGroupId], references:[id], onDelete:SetNull)
+  candidates Candidate[]
+  votes Vote[]
+}
+
+model Candidate {
+  id String @id @default(cuid())
+  electionId String
+  userId String
+  position String
+  manifesto String?
+  election Election @relation(fields:[electionId], references:[id], onDelete:Cascade)
+  votes Vote[]
+}
+
+model Vote {
+  id String @id @default(cuid())
+  electionId String
+  candidateId String
+  voterId String
+  position String
+  createdAt DateTime @default(now())
+  election Election @relation(fields:[electionId], references:[id], onDelete:Cascade)
+  candidate Candidate @relation(fields:[candidateId], references:[id], onDelete:Cascade)
+  voter User @relation(fields:[voterId], references:[id], onDelete:Cascade)
+  @@unique([electionId, voterId, position])
+}
+
+model SupportTicket {
+  id String @id @default(cuid())
+  userId String?
+  subject String
+  body String
+  status TicketStatus @default(OPEN)
+  assignedTo String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User? @relation(fields:[userId], references:[id], onDelete:SetNull)
+}
+
+model ContractIntake {
+  id String @id @default(cuid())
+  clientName String
+  clientEmail String
+  clientPhone String?
+  requestType String
+  requirements Json
+  notes String?
+  createdAt DateTime @default(now())
+  quotes Quote[]
+}
+
+model Quote {
+  id String @id @default(cuid())
+  intakeId String
+  quoteNumber String @unique
+  currency String @default("GHS")
+  subtotal Decimal @db.Decimal(14,2)
+  discount Decimal @default(0) @db.Decimal(14,2)
+  total Decimal @db.Decimal(14,2)
+  status QuoteStatus @default(DRAFT)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  intake ContractIntake @relation(fields:[intakeId], references:[id], onDelete:Cascade)
+  items QuoteItem[]
+}
+
+model QuoteItem {
+  id String @id @default(cuid())
+  quoteId String
+  description String
+  quantity Int @default(1)
+  unitPrice Decimal @db.Decimal(14,2)
+  quote Quote @relation(fields:[quoteId], references:[id], onDelete:Cascade)
+}
+
+model AIConversation {
+  id String @id @default(cuid())
+  userId String?
+  channel String @default("chat")
+  context Json?
+  createdAt DateTime @default(now())
+  user User? @relation(fields:[userId], references:[id], onDelete:SetNull)
+  messages AIMessage[]
+}
+
+model AIMessage {
+  id String @id @default(cuid())
+  conversationId String
+  role String
+  content String
+  createdAt DateTime @default(now())
+  conversation AIConversation @relation(fields:[conversationId], references:[id], onDelete:Cascade)
+}

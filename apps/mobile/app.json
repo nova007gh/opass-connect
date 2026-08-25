@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "OPASS CONNECT",
+    "slug": "opass-connect",
+    "scheme": "opassconnect",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smartthinkers.opassconnect"
+    },
+    "android": {
+      "package": "com.smartthinkers.opassconnect",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    }
+  }
+}

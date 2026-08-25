@@ -1,0 +1,23 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import jwt from '@fastify/jwt';
+import rateLimit from '@fastify/rate-limit';
+import { env } from './config.js';
+import { registerAuthRoutes } from './auth.js';
+import { registerCoreRoutes } from './routes.js';
+import { registerAiRoutes } from './ai.js';
+import { registerLiveRoutes } from './live.js';
+import { registerPaymentRoutes } from './payments.js';
+
+const app=Fastify({logger:{redact:['req.headers.authorization']},trustProxy:true,bodyLimit:2_000_000});
+await app.register(helmet,{global:true});
+const isDev = env.NODE_ENV !== 'production';
+await app.register(cors,{origin: isDev ? true : [env.WEB_URL],credentials:true});
+await app.register(rateLimit,{max:120,timeWindow:'1 minute'});
+await app.register(jwt,{secret:env.JWT_SECRET});
+app.decorate('authenticate',async function(request:any,reply:any){try{await request.jwtVerify();}catch{return reply.code(401).send({error:'Unauthorized'});}});
+app.get('/health',async()=>({ok:true,service:'opass-api',time:new Date().toISOString()}));
+registerAuthRoutes(app);registerCoreRoutes(app);registerAiRoutes(app);registerLiveRoutes(app);registerPaymentRoutes(app);
+app.setErrorHandler((err,req,reply)=>{req.log.error(err);if((err as any).name==='ZodError')return reply.code(400).send({error:'Invalid request',details:(err as any).issues});return reply.code((err as any).statusCode??500).send({error:'Request failed'});});
+await app.listen({port:env.API_PORT,host:'0.0.0.0'});

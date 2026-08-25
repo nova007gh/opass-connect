@@ -1,0 +1,6 @@
+{
+  "name":"@opass/mobile","version":"1.0.0","private":true,"main":"expo-router/entry",
+  "scripts":{"dev":"expo start","build":"echo Use EAS Build for production","lint":"tsc --noEmit","test":"echo mobile-tests-pending"},
+  "dependencies":{"expo":"^53.0.20","expo-router":"^5.1.4","expo-status-bar":"~2.2.3","react":"19.0.0","react-native":"0.79.5","@react-native-async-storage/async-storage":"^2.1.2"},
+  "devDependencies":{"@types/react":"~19.0.10","typescript":"~5.8.3"}
+}

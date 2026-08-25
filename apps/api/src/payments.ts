@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { env } from './config.js';
-import { prisma } from '@opass/db';
+import { prisma } from './db.js';
 
 export function registerPaymentRoutes(app:FastifyInstance){
   app.post('/payments/initialize',{preHandler:[app.authenticate]},async(req:any,reply)=>{

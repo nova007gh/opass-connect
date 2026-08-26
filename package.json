@@ -10,7 +10,8 @@
     "db:generate": "pnpm --filter @opass/db prisma:generate",
     "db:migrate": "pnpm --filter @opass/db prisma:migrate",
     "prisma:generate": "pnpm --filter @opass/api prisma:generate",
-    "prisma:migrate": "pnpm --filter @opass/api prisma:migrate"
+    "prisma:migrate": "pnpm --filter @opass/api prisma:migrate",
+    "db:push": "pnpm --filter @opass/api prisma:push"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

@@ -3,10 +3,11 @@ services:
     name: opass-connect-api
     runtime: node
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @opass/api build && pnpm --filter @opass/db prisma:generate
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm run prisma:generate && pnpm --filter @opass/api build
     startCommand: pnpm --filter @opass/api start
     rootDir: .
     healthCheckPath: /health
+    healthCheckTimeout: 30
     envVars:
       - key: NODE_ENV
         value: production
@@ -14,17 +15,5 @@ services:
         value: 4000
       - key: WEB_URL
         value: https://opass-connect.vercel.app
-      - key: DATABASE_URL
-        fromDatabase:
-          name: opass-connect-db
-          property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: PAYMENT_PROVIDER
-        value: paystack
-
-databases:
-  - name: opass-connect-db
-    databaseName: opass_connect
-    user: opass
-    plan: free

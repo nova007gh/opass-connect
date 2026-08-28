@@ -9,7 +9,6 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
-import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.resolve(__dirname, '../public/uploads');
@@ -37,11 +36,19 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<str
 }
 
 async function processAndStoreAvatar(fileBuffer: Buffer, mimetype: string, userId: string): Promise<string> {
-  // Resize to 400x400 JPEG for consistency and smaller size
-  const processed = await sharp(fileBuffer)
-    .resize(400, 400, { fit: 'cover', position: 'center' })
-    .jpeg({ quality: 85 })
-    .toBuffer();
+  // Try to resize with sharp (dynamic import in case sharp isn't available)
+  let processed: Buffer;
+  try {
+    const sharp = (await import('sharp')).default;
+    processed = await sharp(fileBuffer)
+      .resize(400, 400, { fit: 'cover', position: 'center' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+  } catch {
+    // If sharp isn't available, use raw buffer (limit to 1MB for base64 storage)
+    if (fileBuffer.length > 1_000_000) throw new Error('Image too large. Please use an image under 1MB.');
+    processed = fileBuffer;
+  }
 
   // Try Cloudinary first
   if (CLOUDINARY_CONFIGURED) {
@@ -55,7 +62,8 @@ async function processAndStoreAvatar(fileBuffer: Buffer, mimetype: string, userI
 
   // Fallback: store as base64 data URL in database
   const base64 = processed.toString('base64');
-  return `data:image/jpeg;base64,${base64}`;
+  const mime = processed === fileBuffer ? mimetype : 'image/jpeg';
+  return `data:${mime};base64,${base64}`;
 }
 
 export function registerCoreRoutes(app:FastifyInstance){

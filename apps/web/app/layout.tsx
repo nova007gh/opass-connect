@@ -12,7 +12,7 @@ const themeScript = `(function(){try{var t=localStorage.getItem('opass-theme');i
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
+      <head suppressHydrationWarning>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body suppressHydrationWarning>

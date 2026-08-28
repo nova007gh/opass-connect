@@ -68,12 +68,29 @@ export default function AssemblyPage() {
     try { const msgs = await apiGet<Message[]>(`/chat/rooms/${room.id}/messages`); setMessages(msgs.reverse()); } catch { setMessages([]); } finally { setChatLoading(false); }
   };
 
+  // Poll for new messages every 3 seconds
+  useEffect(() => {
+    if (!activeRoom) return;
+    const interval = setInterval(async () => {
+      try {
+        const msgs = await apiGet<Message[]>(`/chat/rooms/${activeRoom.id}/messages`);
+        const reversed = msgs.reverse();
+        // Only update if message count changed (avoid unnecessary re-renders)
+        setMessages(prev => prev.length !== reversed.length ? reversed : prev);
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeRoom]);
+
   const sendMessage = async () => {
     if (!chatInput.trim() || !activeRoom) return;
     const text = chatInput.trim();
     setChatInput('');
     setSending(true);
-    try { const msg = await apiPost<Message>(`/chat/rooms/${activeRoom.id}/messages`, { body: text }); setMessages(prev => [...prev, msg]); } catch (err: any) { setError(err.message); } finally { setSending(false); }
+    try {
+      const msg = await apiPost<Message>(`/chat/rooms/${activeRoom.id}/messages`, { body: text });
+      setMessages(prev => [...prev, msg]);
+    } catch (err: any) { setError(err.message); setChatInput(text); } finally { setSending(false); }
   };
 
   const createRoom = async () => {
@@ -85,20 +102,17 @@ export default function AssemblyPage() {
   return (
     <div className="app-screen" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
-        <Link href="/dashboard" className="back">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-        </Link>
         <h1>Assembly Hall</h1>
       </div>
 
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'white' }}>
-        <button onClick={() => setTab('meetings')} className="btn" style={{
-          flex: 1, borderRadius: 0, background: tab === 'meetings' ? 'var(--blue-bright)' : 'transparent',
-          color: tab === 'meetings' ? 'white' : 'var(--muted)', borderBottom: tab === 'meetings' ? '2px solid var(--blue-bright)' : 'none', fontSize: 14, padding: '14px', fontWeight: 700
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--white)' }}>
+        <button onClick={() => setTab('meetings')} className="assembly-tab" style={{
+          flex: 1, borderRadius: 0, background: 'transparent',
+          color: tab === 'meetings' ? 'var(--blue)' : 'var(--muted)', borderBottom: tab === 'meetings' ? '2px solid var(--blue-bright)' : '2px solid transparent', fontSize: 14, padding: '14px', fontWeight: 700
         }}>Meetings</button>
-        <button onClick={() => setTab('chat')} className="btn" style={{
-          flex: 1, borderRadius: 0, background: tab === 'chat' ? 'var(--blue-bright)' : 'transparent',
-          color: tab === 'chat' ? 'white' : 'var(--muted)', borderBottom: tab === 'chat' ? '2px solid var(--blue-bright)' : 'none', fontSize: 14, padding: '14px', fontWeight: 700
+        <button onClick={() => setTab('chat')} className="assembly-tab" style={{
+          flex: 1, borderRadius: 0, background: 'transparent',
+          color: tab === 'chat' ? 'var(--blue)' : 'var(--muted)', borderBottom: tab === 'chat' ? '2px solid var(--blue-bright)' : '2px solid transparent', fontSize: 14, padding: '14px', fontWeight: 700
         }}>Chat Rooms</button>
       </div>
 
@@ -190,19 +204,24 @@ export default function AssemblyPage() {
             ) : messages.map(m => (
               <div key={m.id} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
                 <div className="avatar" style={{ width: 36, height: 36, background: 'var(--blue)', color: 'white', fontSize: 14, flexShrink: 0 }}>
-                  {(m.user?.profile?.fullName || '?').charAt(0)}
+                  {m.user?.profile?.avatarUrl ? <img src={m.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (m.user?.profile?.fullName || '?').charAt(0)}
                 </div>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginBottom: 2 }}>{m.user?.profile?.fullName || 'Alumnus'}</div>
-                  <div style={{ padding: '10px 14px', borderRadius: '14px 14px 14px 4px', background: 'white', border: '1px solid var(--border)', fontSize: 14, lineHeight: 1.4 }}>{m.body}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, color: 'var(--blue)', fontWeight: 700 }}>{m.user?.profile?.fullName || 'Alumnus'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                  </div>
+                  <div style={{ padding: '10px 14px', borderRadius: '4px 14px 14px 14px', background: 'var(--white)', border: '1px solid var(--border)', fontSize: 14, lineHeight: 1.5, color: 'var(--black)', wordBreak: 'break-word' }}>{m.body}</div>
                 </div>
               </div>
             ))}
             <div ref={messagesEnd} />
           </div>
-          <div style={{ padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'white', display: 'flex', gap: 10 }}>
-            <input className="input" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type..." onKeyDown={e => e.key === 'Enter' && sendMessage()} disabled={sending} style={{ flex: 1, marginBottom: 0 }} />
-            <button className="btn" onClick={sendMessage} disabled={sending || !chatInput.trim()} style={{ minHeight: 48 }}>Send</button>
+          <div style={{ padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 10 }}>
+            <input className="input" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type a message..." onKeyDown={e => e.key === 'Enter' && sendMessage()} disabled={sending} style={{ flex: 1, marginBottom: 0 }} />
+            <button className="btn" onClick={sendMessage} disabled={sending || !chatInput.trim()} style={{ minHeight: 48, padding: '0 20px' }}>
+              {sending ? <span className="spinner" /> : <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>}
+            </button>
           </div>
         </>
       ) : (

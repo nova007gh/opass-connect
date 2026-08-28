@@ -146,8 +146,11 @@ label.switch span > span { transition: transform 0.2s; }
   flex-direction: column;
   background: var(--white);
 }
-.app-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.app-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
 .app-pad { padding: 20px; padding-bottom: calc(90px + var(--safe-bottom)); }
+@media (min-width: 769px) {
+  .app-scroll { padding-bottom: 0; }
+}
 
 /* ===== Splash & onboarding ===== */
 .splash-screen {
@@ -460,10 +463,21 @@ label.switch span > span { transition: transform 0.2s; }
 .tabbar-item svg { width: 24px; height: 24px; transition: transform 0.15s; }
 .tabbar-item .badge-red {
   position: absolute; top: 0; right: calc(50% - 16px);
-  width: 18px; height: 18px; border-radius: 50%;
+  min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px;
   background: var(--red); color: white; font-size: 10px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
-  border: 2px solid white;
+  border: 2px solid var(--white);
+  line-height: 1;
+  box-sizing: content-box;
+}
+.topbar-icon-btn .badge-red {
+  position: absolute; top: 4px; right: 4px;
+  min-width: 16px; height: 16px; border-radius: 8px; padding: 0 3px;
+  background: var(--red); color: white; font-size: 9px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--white);
+  line-height: 1;
+  box-sizing: content-box;
 }
 
 /* ===== Responsive sidebar ===== */
@@ -592,9 +606,9 @@ label.switch span > span { transition: transform 0.2s; }
   .dash-shell { flex-direction: row; }
   .dash-main { margin-left: 260px; }
 }
-.dash-content { padding: 0; flex: 1; max-width: 100%; width: 100%; margin: 0; }
+.dash-content { padding: 0; flex: 1; max-width: 100%; width: 100%; margin: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
 @media (min-width: 769px) {
-  .dash-content { padding: 24px 32px; max-width: 1000px; margin: 0 auto; }
+  .dash-content { padding: 24px 32px; max-width: 1000px; margin: 0 auto; padding-bottom: 32px; }
 }
 
 /* ===== Generic screen header ===== */
@@ -1073,3 +1087,21 @@ label.switch span > span { transition: transform 0.2s; }
 [data-theme="dark"] .feed-card-header .name { color: var(--black); }
 [data-theme="dark"] .feed-card-header .time { color: var(--muted); }
 [data-theme="dark"] .feed-card-body p { color: var(--black); }
+[data-theme="dark"] .assembly-tab { background: transparent !important; color: var(--muted) !important; }
+[data-theme="dark"] .assembly-tab[style*="var(--blue)"] { color: #7aa8ff !important; }
+[data-theme="dark"] .profile-cover { background: linear-gradient(135deg, var(--blue-dark) 0%, #050510 100%); }
+[data-theme="dark"] .alert { background: var(--blue-50); border-color: var(--border); color: var(--black); }
+[data-theme="dark"] .alert-error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #ff8888; }
+[data-theme="dark"] .alert-success { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #4ade80; }
+[data-theme="dark"] .alert-info { background: var(--blue-50); border-color: var(--border); color: #7aa8ff; }
+[data-theme="dark"] .input, [data-theme="dark"] .textarea, [data-theme="dark"] .select { background: var(--white); color: var(--black); border-color: var(--border); }
+[data-theme="dark"] .input-wrap svg { color: #7aa8ff !important; }
+[data-theme="dark"] .input-wrap input { background: var(--white); color: var(--black); border-color: var(--border); }
+[data-theme="dark"] .hint { color: var(--muted); }
+[data-theme="dark"] label { color: var(--black); }
+[data-theme="dark"] .form-group label { color: var(--black); }
+[data-theme="dark"] .badge-green { background: rgba(16,185,129,0.15); color: #4ade80; }
+[data-theme="dark"] .badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; }
+[data-theme="dark"] .badge-blue { background: rgba(37,99,235,0.15); color: #7aa8ff; }
+[data-theme="dark"] .badge-dark { background: var(--blue-50); color: var(--muted); }
+[data-theme="dark"] .badge-gray { background: var(--blue-50); color: var(--muted); }

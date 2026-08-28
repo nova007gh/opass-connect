@@ -4,7 +4,7 @@ buildCommand = "pnpm --filter @opass/api... build"
 
 [deploy]
 startCommand = "pnpm --filter @opass/api start"
-preDeployCommand = "cd apps/api && npx prisma migrate resolve --schema=../../packages/db/prisma/schema.prisma --rolled-back 20260828163129_add_business_location_candidate_user_security_notif && npx prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma"
+preDeployCommand = "pnpm --filter @opass/api prisma:migrate"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

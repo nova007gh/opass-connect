@@ -13,6 +13,10 @@ import { registerCoreRoutes } from './routes.js';
 import { registerAiRoutes } from './ai.js';
 import { registerLiveRoutes } from './live.js';
 import { registerPaymentRoutes } from './payments.js';
+import { runSeedIfNeeded } from './seed.js';
+
+// Auto-seed on first boot (when no users exist)
+await runSeedIfNeeded().catch(e => console.error('[seed] failed:', e));
 
 const app=Fastify({logger:{redact:['req.headers.authorization']},trustProxy:true,bodyLimit:10_000_000});
 await app.register(helmet,{global:true});

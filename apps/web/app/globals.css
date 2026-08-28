@@ -845,10 +845,9 @@ label.switch span > span { transition: transform 0.2s; }
 .profile-cover {
   background: linear-gradient(180deg, var(--blue) 0%, var(--blue-dark) 100%);
   color: white;
-  padding: 24px 20px;
+  padding: 28px 20px 24px;
   text-align: center;
   position: relative;
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 .profile-cover .avatar-xl {
   width: 90px; height: 90px;
@@ -858,6 +857,7 @@ label.switch span > span { transition: transform 0.2s; }
   margin: 0 auto 12px;
   display: flex; align-items: center; justify-content: center;
   font-size: 36px; font-weight: 800;
+  overflow: hidden;
 }
 .profile-cover h2 { margin: 0 0 4px; font-size: 22px; }
 .profile-cover p { margin: 0; opacity: 0.85; font-size: 14px; }
@@ -874,7 +874,8 @@ label.switch span > span { transition: transform 0.2s; }
   align-items: center;
   justify-content: center;
 }
-.avatar-uploader .avatar-xl { margin: 0; }
+.avatar-uploader .avatar-xl { margin: 0; width: 100%; height: 100%; }
+.avatar-uploader img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-uploader-overlay {
   position: absolute;
   inset: 0;
@@ -891,6 +892,7 @@ label.switch span > span { transition: transform 0.2s; }
   font-weight: 700;
   text-align: center;
   padding: 6px;
+  border-radius: 50%;
 }
 .avatar-uploader:hover .avatar-uploader-overlay,
 .avatar-uploader:active .avatar-uploader-overlay { opacity: 1; }
@@ -1089,6 +1091,7 @@ label.switch span > span { transition: transform 0.2s; }
 [data-theme="dark"] .feed-card-body p { color: var(--black); }
 [data-theme="dark"] .assembly-tab { background: transparent !important; color: var(--muted) !important; }
 [data-theme="dark"] .assembly-tab[style*="var(--blue)"] { color: #7aa8ff !important; }
+[data-theme="dark"] .event-date-badge { background: rgba(122,168,255,0.15) !important; color: #7aa8ff !important; }
 [data-theme="dark"] .profile-cover { background: linear-gradient(135deg, var(--blue-dark) 0%, #050510 100%); }
 [data-theme="dark"] .alert { background: var(--blue-50); border-color: var(--border); color: var(--black); }
 [data-theme="dark"] .alert-error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #ff8888; }

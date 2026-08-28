@@ -7,7 +7,7 @@ import { useAuth } from '../../../lib/auth';
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
   const [form, setForm] = useState({
-    fullName: '', house: '', className: '', positionHeld: '',
+    fullName: '', graduationYear: '', house: '', className: '', positionHeld: '',
     country: '', city: '', profession: '', bio: '', avatarUrl: '', searchable: true,
   });
   const [saved, setSaved] = useState(false);
@@ -21,6 +21,7 @@ export default function ProfilePage() {
     if (user?.profile) {
       setForm({
         fullName: user.profile.fullName || '',
+        graduationYear: user.profile.graduationYear ? String(user.profile.graduationYear) : '',
         house: user.profile.house || '',
         className: user.profile.className || '',
         positionHeld: user.profile.positionHeld || '',
@@ -57,6 +58,7 @@ export default function ProfilePage() {
       set('avatarUrl', avatarUrl);
       await refresh();
       setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
       setError(err.message || 'Upload failed');
       setAvatarPreview(null);
@@ -72,9 +74,13 @@ export default function ProfilePage() {
     setSaved(false);
     setLoading(true);
     try {
-      await apiPatch('/profile', form);
+      const payload: any = { ...form };
+      if (payload.graduationYear) payload.graduationYear = parseInt(payload.graduationYear, 10);
+      else delete payload.graduationYear;
+      await apiPatch('/profile', payload);
       await refresh();
       setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to save profile');
     } finally {
@@ -85,15 +91,14 @@ export default function ProfilePage() {
   if (!user) return null;
   const p = user.profile;
   const initials = (p?.fullName || user.email).charAt(0).toUpperCase();
-  const firstName = p?.fullName?.split(' ')[0] || 'Alumnus';
 
   return (
-    <div className="app-screen" style={{ background: 'var(--bg)' }}>
+    <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="app-scroll">
         <div className="profile-cover">
           <div className="avatar-uploader" onClick={pickFile}>
             {avatarPreview || p?.avatarUrl ? (
-              <img src={avatarPreview || p?.avatarUrl || ''} alt="" className="avatar avatar-xl" style={{ objectFit: 'cover', border: 0, padding: 0 }} />
+              <img src={avatarPreview || p?.avatarUrl || ''} alt="" className="avatar avatar-xl" style={{ objectFit: 'cover', border: 0, padding: 0, width: '100%', height: '100%' }} />
             ) : (
               <div className="avatar avatar-xl">{initials}</div>
             )}
@@ -122,7 +127,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="app-pad">
+        <div className="app-pad" style={{ paddingTop: 20 }}>
           {error && <div className="alert alert-error">{error}</div>}
           {saved && <div className="alert alert-success">Profile saved successfully.</div>}
           <form onSubmit={submit}>
@@ -143,7 +148,7 @@ export default function ProfilePage() {
               <div className="form-group">
                 <label>Year of Graduation</label>
                 <div className="input-wrap">
-                  <input type="text" value={p?.graduationYear ? String(p.graduationYear) : ''} disabled style={{ color: 'var(--muted)' }} />
+                  <input type="number" value={form.graduationYear} onChange={e => set('graduationYear', e.target.value)} placeholder="e.g. 2006" min="1960" max="2030" />
                 </div>
               </div>
             </div>
@@ -172,12 +177,8 @@ export default function ProfilePage() {
             </div>
             <div className="form-group">
               <label>Bio</label>
-              <textarea className="textarea" value={form.bio} onChange={e => set('bio', e.target.value)} maxLength={1000} placeholder="Tell fellow alumni about yourself..." style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14 }} />
+              <textarea className="textarea" value={form.bio} onChange={e => set('bio', e.target.value)} maxLength={1000} placeholder="Tell fellow alumni about yourself..." style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, minHeight: 100 }} />
               <div className="hint">{form.bio.length}/1000</div>
-            </div>
-            <div className="form-group">
-              <label>Profile Picture</label>
-              <div className="hint">Use the camera button on your avatar above to upload a new photo (JPEG, PNG, WebP or GIF, max 5MB).</div>
             </div>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -185,7 +186,7 @@ export default function ProfilePage() {
                 Visible in alumni directory
               </label>
             </div>
-            <button className="btn btn-block" type="submit" disabled={loading}>
+            <button className="btn btn-block" type="submit" disabled={loading} style={{ marginTop: 8 }}>
               {loading ? <span className="spinner" /> : 'Save Changes'}
             </button>
           </form>

@@ -137,6 +137,7 @@ model YearGroup {
   year Int @unique
   name String
   description String?
+  imageUrl String?
   createdAt DateTime @default(now())
   memberships YearGroupMembership[]
   rooms ChatRoom[]
@@ -162,6 +163,7 @@ model ChatRoom {
   name String
   yearGroupId String?
   isAssemblyHall Boolean @default(false)
+  imageUrl String?
   yearGroup YearGroup? @relation(fields:[yearGroupId], references:[id], onDelete:SetNull)
   messages Message[]
   createdAt DateTime @default(now())
@@ -202,6 +204,7 @@ model Event {
   endsAt DateTime?
   venue String?
   streamUrl String?
+  imageUrl String?
   ticketPrice Decimal? @db.Decimal(12,2)
   createdAt DateTime @default(now())
 }
@@ -210,6 +213,7 @@ model Project {
   id String @id @default(cuid())
   title String
   description String
+  imageUrl String?
   targetAmount Decimal @db.Decimal(14,2)
   raisedAmount Decimal @default(0) @db.Decimal(14,2)
   status ProjectStatus @default(DRAFT)

@@ -18,7 +18,7 @@ const MAX_BYTES = 5_000_000;
 // Cloudinary config check
 const CLOUDINARY_CONFIGURED = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
 
-async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<string> {
+async function uploadToCloudinary(buffer: Buffer, publicId: string, folder: string, width: number, height: number): Promise<string> {
   const cloudinary = await import('cloudinary');
   const cloud = cloudinary.v2;
   cloud.config({
@@ -28,68 +28,74 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<str
   });
   return new Promise((resolve, reject) => {
     const stream = cloud.uploader.upload_stream(
-      { public_id: publicId, folder: 'opass-avatars', transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }] },
+      { public_id: publicId, folder, transformation: [{ width, height, crop: 'fill', gravity: 'face' }] },
       (err, result) => { if (err) reject(err); else resolve(result!.secure_url); }
     );
     stream.end(buffer);
   });
 }
 
-async function processAndStoreAvatar(fileBuffer: Buffer, mimetype: string, userId: string): Promise<string> {
-  // Try to resize with sharp (dynamic import in case sharp isn't available)
+async function processAndStoreImage(fileBuffer: Buffer, mimetype: string, id: string, folder: string, width: number, height: number): Promise<string> {
   let processed: Buffer;
   try {
     const sharp = (await import('sharp')).default;
     processed = await sharp(fileBuffer)
-      .resize(400, 400, { fit: 'cover', position: 'center' })
+      .resize(width, height, { fit: 'cover', position: 'center' })
       .jpeg({ quality: 85 })
       .toBuffer();
   } catch {
-    // If sharp isn't available, use raw buffer (limit to 1MB for base64 storage)
     if (fileBuffer.length > 1_000_000) throw new Error('Image too large. Please use an image under 1MB.');
     processed = fileBuffer;
   }
 
-  // Try Cloudinary first
   if (CLOUDINARY_CONFIGURED) {
     try {
-      const publicId = `avatar-${userId}-${randomUUID()}`;
-      return await uploadToCloudinary(processed, publicId);
+      const publicId = `${folder}-${id}-${randomUUID()}`;
+      return await uploadToCloudinary(processed, publicId, `opass-${folder}`, width, height);
     } catch (e) {
       console.error('Cloudinary upload failed, falling back to base64:', e);
     }
   }
 
-  // Fallback: store as base64 data URL in database
   const base64 = processed.toString('base64');
   const mime = processed === fileBuffer ? mimetype : 'image/jpeg';
   return `data:${mime};base64,${base64}`;
 }
 
+async function processAndStoreAvatar(fileBuffer: Buffer, mimetype: string, userId: string): Promise<string> {
+  return processAndStoreImage(fileBuffer, mimetype, userId, 'avatars', 400, 400);
+}
+
+async function readFileFromRequest(req: any): Promise<{ buffer: Buffer; mimetype: string }> {
+  const file = await req.file();
+  if (!file) throw new Error('No file uploaded');
+  if (!ALLOWED_MIME.has(file.mimetype)) throw new Error('Only JPEG, PNG, WebP or GIF images are allowed');
+  const chunks: Buffer[] = [];
+  for await (const chunk of file.file) { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)); }
+  const buffer = Buffer.concat(chunks);
+  if (buffer.length > MAX_BYTES) throw new Error('Image must be under 5MB');
+  return { buffer, mimetype: file.mimetype };
+}
+
 export function registerCoreRoutes(app:FastifyInstance){
   app.get('/year-groups',async()=>prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:true}}}}));
-  app.post('/year-groups',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req)=>{const b=z.object({year:z.number().int(),name:z.string().min(2),description:z.string().optional()}).parse(req.body);return prisma.yearGroup.create({data:b});});
+  app.post('/year-groups',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req)=>{const b=z.object({year:z.number().int(),name:z.string().min(2),description:z.string().optional(),imageUrl:z.string().optional()}).parse(req.body);return prisma.yearGroup.create({data:b});});
+  app.post('/year-groups/:id/image',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'yeargroups',200,200);await prisma.yearGroup.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.post('/year-groups/:id/join',{preHandler:[app.authenticate]},async(req:any)=>prisma.yearGroupMembership.upsert({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:req.params.id}},update:{},create:{userId:req.user.sub,yearGroupId:req.params.id}}));
 
   app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:100,select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,avatarUrl:true,userId:true}})});
-  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
+  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
   app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{
-    const file=await req.file();
-    if(!file)return reply.code(400).send({error:'No file uploaded'});
-    if(!ALLOWED_MIME.has(file.mimetype))return reply.code(415).send({error:'Only JPEG, PNG, WebP or GIF images are allowed'});
-    // Read file into buffer
-    const chunks:Buffer[]=[];
-    for await (const chunk of file.file) { chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk)); }
-    const buffer=Buffer.concat(chunks);
-    if(buffer.length>MAX_BYTES)return reply.code(413).send({error:'Image must be under 5MB'});
     try {
-      const avatarUrl=await processAndStoreAvatar(buffer,file.mimetype,req.user.sub);
+      const { buffer, mimetype } = await readFileFromRequest(req);
+      const avatarUrl = await processAndStoreAvatar(buffer, mimetype, req.user.sub);
       await prisma.alumniProfile.update({where:{userId:req.user.sub},data:{avatarUrl}});
       const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
       notifyAdmins('PROFILE',`Profile photo updated`,`${profile?.fullName||'A member'} updated their profile picture`,'/dashboard/alumni').catch(()=>{});
       return{avatarUrl};
     } catch(err:any) {
+      if (err.message.includes('No file') || err.message.includes('Only') || err.message.includes('under 5MB')) return reply.code(400).send({error:err.message});
       console.error('Avatar upload error:',err);
       return reply.code(500).send({error:'Failed to process image: '+err.message});
     }
@@ -99,7 +105,8 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.get('/support/my',{preHandler:[app.authenticate]},async(req:any)=>prisma.supportTicket.findMany({where:{userId:req.user.sub},orderBy:{createdAt:'desc'}}));
 
   app.get('/projects',async()=>prisma.project.findMany({where:{status:{in:['ACTIVE','FUNDED','IN_PROGRESS','COMPLETED']}},orderBy:{createdAt:'desc'}}));
-  app.post('/projects',{preHandler:[app.authenticate,requireRoles('YEAR_ADMIN','ADMIN','SUPER_ADMIN')]},async(req)=>{const b=z.object({title:z.string(),description:z.string(),targetAmount:z.number().positive(),yearGroupId:z.string().optional()}).parse(req.body);return prisma.project.create({data:{...b,status:'ACTIVE'}})});
+  app.post('/projects',{preHandler:[app.authenticate,requireRoles('YEAR_ADMIN','ADMIN','SUPER_ADMIN')]},async(req)=>{const b=z.object({title:z.string(),description:z.string(),targetAmount:z.number().positive(),yearGroupId:z.string().optional(),imageUrl:z.string().optional()}).parse(req.body);return prisma.project.create({data:{...b,status:'ACTIVE'}})});
+  app.post('/projects/:id/image',{preHandler:[app.authenticate,requireRoles('YEAR_ADMIN','ADMIN','SUPER_ADMIN')]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'projects',400,300);await prisma.project.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.post('/projects/:id/contribute',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({amount:z.number().positive(),anonymous:z.boolean().default(false)}).parse(req.body);const result=await prisma.$transaction(async tx=>{const c=await tx.contribution.create({data:{projectId:req.params.id,userId:req.user.sub,amount:b.amount,anonymous:b.anonymous}});const proj=await tx.project.update({where:{id:req.params.id},data:{raisedAmount:{increment:b.amount}},select:{title:true}});return{c,proj};});const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});const donorName=b.anonymous?'An anonymous donor':(profile?.fullName||'A member');notifyAdmins('PROJECT',`New contribution to ${result.proj.title}`,`${donorName} contributed GHS ${b.amount.toLocaleString()}`,'/dashboard/projects').catch(()=>{});return result.c;});
 
   app.get('/events',async()=>prisma.event.findMany({orderBy:{startsAt:'asc'}}));
@@ -110,7 +117,8 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.post('/businesses/:id/ads',{preHandler:[app.authenticate]},async(req:any,reply)=>{const business=await prisma.business.findFirst({where:{id:req.params.id,ownerId:req.user.sub}});if(!business)return reply.code(404).send({error:'Business not found'});const b=z.object({placement:z.enum(['year_group','home','events','platform_wide']),durationDays:z.number().int().positive(),audience:z.string(),quotedAmount:z.number().positive(),creativeUrl:z.string().url().optional()}).parse(req.body);return prisma.adCampaign.create({data:{businessId:business.id,...b,status:'PENDING_APPROVAL'}})});
 
   app.get('/chat/rooms',{preHandler:[app.authenticate]},async()=>prisma.chatRoom.findMany({orderBy:{createdAt:'asc'},include:{_count:{select:{messages:true}},yearGroup:{select:{year:true,name:true}}}}));
-  app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req)=>{const b=z.object({name:z.string().min(2),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false)}).parse(req.body);return prisma.chatRoom.create({data:b})});
+  app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req)=>{const b=z.object({name:z.string().min(2),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false),imageUrl:z.string().optional()}).parse(req.body);return prisma.chatRoom.create({data:b})});
+  app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{profile:{select:{fullName:true,avatarUrl:true}}}}}})});
   app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().min(1).max(4000)}).parse(req.body);const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id}});if(room){const senderName=msg.user?.profile?.fullName||'A member';notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${b.body.slice(0,100)}`,`/dashboard/assembly`,req.user.sub).catch(()=>{});notifyAdmins('CHAT',`New chat message`,`${senderName} posted in ${room.name}`,'/dashboard/assembly').catch(()=>{});}return msg;});
 

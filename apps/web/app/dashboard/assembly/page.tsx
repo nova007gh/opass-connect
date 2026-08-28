@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost } from '../../../lib/api';
+import { apiGet, apiPost, apiUpload } from '../../../lib/api';
 
 interface Meeting { id: string; title: string; description?: string | null; mode: string; status: string; startsAt: string; capacity: number; roomKey: string; yearGroup?: { year: number; name: string } | null; }
-interface ChatRoom { id: string; name: string; isAssemblyHall: boolean; yearGroup?: { year: number; name: string } | null; _count: { messages: number }; }
+interface ChatRoom { id: string; name: string; isAssemblyHall: boolean; imageUrl?: string | null; yearGroup?: { year: number; name: string } | null; _count: { messages: number }; }
 interface Message { id: string; body: string; createdAt: string; user: { profile: { fullName: string; avatarUrl?: string | null } | null }; }
 
 const modeBadge: Record<string, string> = { INTERACTIVE: 'badge-blue', WEBINAR: 'badge-amber', BROADCAST: 'badge-dark' };
@@ -28,6 +28,9 @@ export default function AssemblyPage() {
   const [sending, setSending] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [roomName, setRoomName] = useState('');
+  const [uploadingRoomId, setUploadingRoomId] = useState<string | null>(null);
+  const roomFileRef = useRef<HTMLInputElement>(null);
+  const [roomUploadTarget, setRoomUploadTarget] = useState<string | null>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -97,6 +100,25 @@ export default function AssemblyPage() {
     if (!roomName.trim()) return;
     setSending(true);
     try { const room = await apiPost<ChatRoom>('/chat/rooms', { name: roomName, isAssemblyHall: false }); setRooms(prev => [...prev, room]); setRoomName(''); setShowCreateRoom(false); } catch (err: any) { setError(err.message); } finally { setSending(false); }
+  };
+
+  const pickRoomImage = (id: string) => {
+    setRoomUploadTarget(id);
+    roomFileRef.current?.click();
+  };
+
+  const onRoomImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !roomUploadTarget) return;
+    if (!/image\/(jpeg|png|webp|gif)/.test(file.type)) { setError('Please choose a valid image.'); return; }
+    if (file.size > 5_000_000) { setError('Image must be under 5MB.'); return; }
+    setError('');
+    setUploadingRoomId(roomUploadTarget);
+    try {
+      const { imageUrl } = await apiUpload<{ imageUrl: string }>(`/chat/rooms/${roomUploadTarget}/image`, file);
+      setRooms(prev => prev.map(r => r.id === roomUploadTarget ? { ...r, imageUrl } : r));
+    } catch (err: any) { setError(err.message || 'Upload failed'); }
+    finally { setUploadingRoomId(null); setRoomUploadTarget(null); if (roomFileRef.current) roomFileRef.current.value = ''; }
   };
 
   return (
@@ -245,10 +267,21 @@ export default function AssemblyPage() {
                 {rooms.map(r => (
                   <div className="feed-card" key={r.id} onClick={() => openRoom(r)} style={{ cursor: 'pointer' }}>
                     <div className="feed-card-header">
-                      <div className="avatar" style={{ width: 48, height: 48, background: r.isAssemblyHall ? 'var(--blue-dark)' : 'var(--blue)', color: 'white', fontSize: 20 }}>
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 24, height: 24 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                      <div className="avatar" style={{ width: 52, height: 52, background: r.isAssemblyHall ? 'var(--blue-dark)' : 'var(--blue)', color: 'white', fontSize: 20, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                        {r.imageUrl ? <img src={r.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 24, height: 24 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                        )}
+                        {!r.isAssemblyHall && (
+                          <button onClick={(e) => { e.stopPropagation(); pickRoomImage(r.id); }} style={{
+                            position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: '50%',
+                            background: 'var(--blue-bright)', border: '2px solid var(--white)', color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10,
+                          }} title="Upload room photo">
+                            {uploadingRoomId === r.id ? '...' : '+'}
+                          </button>
+                        )}
                       </div>
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="name">{r.name}</div>
                         <div className="time">{r._count.messages} messages</div>
                       </div>
@@ -261,6 +294,7 @@ export default function AssemblyPage() {
           </div>
         </div>
       )}
+      <input ref={roomFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onRoomImageChange} style={{ display: 'none' }} />
     </div>
   );
 }

@@ -46,11 +46,8 @@ export default function AlumniPage() {
   useEffect(() => { searchAlumni({ search: searchParams.get('search') || '' }); }, []);
 
   return (
-    <div className="app-screen" style={{ background: 'var(--bg)' }}>
+    <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
-        <Link href="/dashboard" className="back">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-        </Link>
         <h1>Alumni Directory</h1>
       </div>
       <div className="app-scroll">

@@ -154,7 +154,18 @@ export default function RegisterPage() {
                 </svg>
                 <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Minimum 10 characters" />
               </div>
-              <div className="hint">Password must be at least 10 characters long.</div>
+              {form.password.length > 0 && (
+                <div className="password-strength">
+                  <div className="password-strength-bar" style={{
+                    width: `${Math.min(100, (form.password.length / 10) * 100)}%`,
+                    background: form.password.length >= 10 ? 'var(--green)' : form.password.length >= 7 ? 'var(--amber)' : 'var(--red)',
+                  }} />
+                  <span className="hint" style={{ marginTop: 4 }}>
+                    {form.password.length >= 10 ? 'Strong password' : form.password.length >= 7 ? 'Getting there...' : `${10 - form.password.length} more characters needed`}
+                  </span>
+                </div>
+              )}
+              {form.password.length === 0 && <div className="hint">Password must be at least 10 characters long.</div>}
             </div>
             <div style={{ marginTop: 'auto', paddingBottom: 24 }}>
               <button className="btn btn-block" type="button" onClick={next}>Get Started</button>

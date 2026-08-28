@@ -33,10 +33,11 @@ export class ApiError extends Error {
 
 export async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
+  const hasBody = options.body != null;
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },

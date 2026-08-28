@@ -267,17 +267,17 @@ export default function MamaaaPage() {
                 <div className="card" style={{ margin: 20, marginTop: 0, background: 'var(--blue-50)', borderColor: 'var(--blue-100)' }}>
                   {quoteResult.ready ? (
                     <>
-                      <h3 style={{ color: 'var(--blue)', margin: '0 0 8px' }}>Quote {quoteResult.quote.quoteNumber}</h3>
+                      <h3 style={{ color: 'var(--blue)', margin: '0 0 8px' }}>Quote {quoteResult.quote?.quoteNumber ?? '—'}</h3>
                       <p style={{ margin: '0 0 12px', color: 'var(--muted)' }}>Estimated total</p>
-                      <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--blue)', marginBottom: 8 }}>GHS {Number(quoteResult.quote.total).toLocaleString()}</div>
-                      <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 12 }}>Subtotal: GHS {Number(quoteResult.quote.subtotal).toLocaleString()}</div>
-                      <div className="text-sm text-muted mb-16" style={{ marginBottom: 8 }}>Valid until {new Date(quoteResult.quote.expiresAt).toLocaleDateString()}</div>
+                      <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--blue)', marginBottom: 8 }}>GHS {Number(quoteResult.quote?.total ?? 0).toLocaleString()}</div>
+                      <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 12 }}>Subtotal: GHS {Number(quoteResult.quote?.subtotal ?? 0).toLocaleString()}</div>
+                      <div className="text-sm text-muted mb-16" style={{ marginBottom: 8 }}>Valid until {quoteResult.quote?.expiresAt ? new Date(quoteResult.quote.expiresAt).toLocaleDateString() : '—'}</div>
                       <div className="alert alert-warning">{quoteResult.notice}</div>
                     </>
                   ) : (
                     <>
                       <h3 style={{ color: 'var(--blue)', margin: '0 0 8px' }}>More information needed</h3>
-                      <ul style={{ margin: 0, paddingLeft: 18 }}>{quoteResult.questions.map((q: string, i: number) => <li key={i} style={{ marginBottom: 6 }}>{q}</li>)}</ul>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>{Array.isArray(quoteResult.questions) ? quoteResult.questions.map((q: string, i: number) => <li key={i} style={{ marginBottom: 6 }}>{q}</li>) : null}</ul>
                     </>
                   )}
                 </div>

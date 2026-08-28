@@ -254,11 +254,11 @@ export default function AdminPage() {
                     ads.map(a => (
                       <div key={a.id} className="admin-ad-row">
                         <div className="admin-ad-logo">
-                          {a.business.logoUrl ? <img src={a.business.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : a.business.name.charAt(0).toUpperCase()}
+                          {a.business?.logoUrl ? <img src={a.business.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : (a.business?.name ?? '?').charAt(0).toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <strong style={{ display: 'block', fontSize: 14 }}>{a.business.name}</strong>
-                          <div className="text-muted text-sm">{a.placement.replace(/_/g, ' ')} · {a.durationDays}d · GHS {Number(a.quotedAmount).toLocaleString()}</div>
+                          <strong style={{ display: 'block', fontSize: 14 }}>{a.business?.name ?? 'Unknown'}</strong>
+                          <div className="text-muted text-sm">{a.placement?.replace(/_/g, ' ') ?? '—'} · {a.durationDays}d · GHS {Number(a.quotedAmount ?? 0).toLocaleString()}</div>
                         </div>
                         <div className="flex gap-8" style={{ flexShrink: 0 }}>
                           <button className="admin-icon-btn admin-icon-btn-approve" onClick={() => approveAd(a.id)} disabled={action === a.id} aria-label="Approve">
@@ -285,7 +285,7 @@ export default function AdminPage() {
                       <div key={q.id} className="list-item" style={{ flexWrap: 'wrap' }}>
                         <div>
                           <strong style={{ display: 'block' }}>{q.quoteNumber}</strong>
-                          <div className="text-muted text-sm">{q.intake.clientName} · {q.intake.requestType} · {q.currency} {Number(q.total).toLocaleString()}</div>
+                          <div className="text-muted text-sm">{q.intake?.clientName ?? '—'} · {q.intake?.requestType ?? '—'} · {q.currency} {Number(q.total ?? 0).toLocaleString()}</div>
                         </div>
                         {q.status === 'DRAFT' || q.status === 'SENT' ? (
                           <button className="btn btn-sm" onClick={() => approveQuote(q.id)} disabled={action === q.id}>

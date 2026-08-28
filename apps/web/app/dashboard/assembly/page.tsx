@@ -181,7 +181,7 @@ export default function AssemblyPage() {
               <div className="card mb-16" style={{ borderColor: 'var(--blue)', borderWidth: 2 }}>
                 <h3>Meeting token</h3>
                 <p>Mode: <span className={`badge ${modeBadge[tokenInfo.mode]}`}>{tokenInfo.mode}</span></p>
-                <div className="alert alert-info">URL: {tokenInfo.url}<br />Token: {tokenInfo.token.slice(0, 40)}...</div>
+                <div className="alert alert-info">URL: {tokenInfo.url}<br />Token: {tokenInfo.token?.slice(0, 40) ?? '—'}...</div>
               </div>
             )}
             {loading ? <div className="loading-center"><span className="spinner" /></div> : meetings.length === 0 ? (
@@ -285,7 +285,7 @@ export default function AssemblyPage() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="name">{r.name}</div>
-                        <div className="time">{r._count.messages} messages</div>
+                        <div className="time">{r._count?.messages ?? 0} messages</div>
                       </div>
                       {r.isAssemblyHall && <span className="badge badge-dark">Assembly</span>}
                     </div>

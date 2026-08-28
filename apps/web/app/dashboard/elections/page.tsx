@@ -64,11 +64,11 @@ export default function ElectionsPage() {
   const getVoteCount = (candidateId: string) => {
     if (!results) return 0;
     const r = results.find(v => v.candidateId === candidateId);
-    return r ? r._count._all : 0;
+    return r ? (r._count?._all ?? 0) : 0;
   };
 
-  const totalVotes = results ? results.reduce((sum, r) => sum + r._count._all, 0) : 0;
-  const maxVotes = results ? Math.max(...results.map(r => r._count._all), 0) : 0;
+  const totalVotes = results ? results.reduce((sum, r) => sum + (r._count?._all ?? 0), 0) : 0;
+  const maxVotes = results ? Math.max(...results.map(r => r._count?._all ?? 0), 0) : 0;
 
   if (selected) {
     return (
@@ -132,7 +132,7 @@ export default function ElectionsPage() {
                   const voteCount = getVoteCount(c.id);
                   const pct = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0;
                   const isLeading = maxVotes > 0 && voteCount === maxVotes && voteCount > 0;
-                  const name = c.user?.profile?.fullName || `Candidate ${c.userId.slice(-6)}`;
+                  const name = c.user?.profile?.fullName || `Candidate ${c.userId?.slice(-6) ?? ''}`;
                   const initials = name.charAt(0).toUpperCase();
                   return (
                     <div className="feed-card" key={c.id} style={{ border: isLeading ? '2px solid var(--green)' : '1px solid var(--border)' }}>

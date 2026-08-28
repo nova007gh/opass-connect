@@ -151,7 +151,7 @@ export default function BusinessPage() {
                   )}
                   <div className="feed-card-header">
                     <div style={{ width: 48, height: 48, borderRadius: 12, overflow: 'hidden', background: 'var(--blue)', color: 'white', fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {b.logoUrl ? <img src={b.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : b.name.charAt(0)}
+                      {b.logoUrl ? <img src={b.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (b.name ?? '?').charAt(0)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

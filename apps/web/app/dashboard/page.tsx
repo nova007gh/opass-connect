@@ -212,7 +212,7 @@ export default function DashboardHome() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{myYearGroup.name}</div>
-                  <div className="text-sm text-muted">{myYearGroup._count.memberships} members</div>
+                  <div className="text-sm text-muted">{myYearGroup._count?.memberships ?? 0} members</div>
                 </div>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
               </Link>

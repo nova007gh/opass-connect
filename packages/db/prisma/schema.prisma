@@ -82,6 +82,16 @@ enum QuoteStatus {
   EXPIRED
 }
 
+enum NotificationType {
+  CHAT
+  EVENT
+  PROJECT
+  ELECTION
+  PROFILE
+  ANNOUNCEMENT
+  SYSTEM
+}
+
 model User {
   id String @id @default(cuid())
   email String @unique
@@ -99,6 +109,7 @@ model User {
   businesses Business[]
   tickets SupportTicket[]
   aiConversations AIConversation[]
+  notifications Notification[]
 }
 
 model AlumniProfile {
@@ -363,4 +374,17 @@ model AIMessage {
   content String
   createdAt DateTime @default(now())
   conversation AIConversation @relation(fields:[conversationId], references:[id], onDelete:Cascade)
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  type NotificationType
+  title String
+  body String
+  link String?
+  read Boolean @default(false)
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@index([userId, read, createdAt])
 }

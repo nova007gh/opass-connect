@@ -4,16 +4,59 @@ import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
 import { notifyUser, notifyAllUsers, notifyAdmins } from './notifications.js';
 import { createWriteStream } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.resolve(__dirname, '../public/uploads');
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_BYTES = 5_000_000;
+
+// Cloudinary config check
+const CLOUDINARY_CONFIGURED = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+
+async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<string> {
+  const cloudinary = await import('cloudinary');
+  const cloud = cloudinary.v2;
+  cloud.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+  return new Promise((resolve, reject) => {
+    const stream = cloud.uploader.upload_stream(
+      { public_id: publicId, folder: 'opass-avatars', transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }] },
+      (err, result) => { if (err) reject(err); else resolve(result!.secure_url); }
+    );
+    stream.end(buffer);
+  });
+}
+
+async function processAndStoreAvatar(fileBuffer: Buffer, mimetype: string, userId: string): Promise<string> {
+  // Resize to 400x400 JPEG for consistency and smaller size
+  const processed = await sharp(fileBuffer)
+    .resize(400, 400, { fit: 'cover', position: 'center' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  // Try Cloudinary first
+  if (CLOUDINARY_CONFIGURED) {
+    try {
+      const publicId = `avatar-${userId}-${randomUUID()}`;
+      return await uploadToCloudinary(processed, publicId);
+    } catch (e) {
+      console.error('Cloudinary upload failed, falling back to base64:', e);
+    }
+  }
+
+  // Fallback: store as base64 data URL in database
+  const base64 = processed.toString('base64');
+  return `data:image/jpeg;base64,${base64}`;
+}
 
 export function registerCoreRoutes(app:FastifyInstance){
   app.get('/year-groups',async()=>prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:true}}}}));
@@ -21,9 +64,28 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.post('/year-groups/:id/join',{preHandler:[app.authenticate]},async(req:any)=>prisma.yearGroupMembership.upsert({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:req.params.id}},update:{},create:{userId:req.user.sub,yearGroupId:req.params.id}}));
 
   app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:100,select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,avatarUrl:true,userId:true}})});
-  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.string().url().optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
+  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
-  app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{const file=await req.file();if(!file)return reply.code(400).send({error:'No file uploaded'});if(!ALLOWED_MIME.has(file.mimetype))return reply.code(415).send({error:'Only JPEG, PNG, WebP or GIF images are allowed'});await mkdir(UPLOAD_DIR,{recursive:true});const ext=file.filename?.match(/\.(\w+)$/)?.[1]?.toLowerCase()||(file.mimetype.split('/')[1]);const filename=`avatar-${req.user.sub}-${randomUUID()}.${ext}`;const dest=path.join(UPLOAD_DIR,filename);await pipeline(file.file,createWriteStream(dest));const s=await stat(dest);if(s.size>MAX_BYTES){return reply.code(413).send({error:'Image must be under 5MB'});}const proto=req.protocol||'https';const host=req.hostname||process.env.RAILWAY_PUBLIC_DOMAIN||'localhost';const port=process.env.PORT&&process.env.PORT!=='80'&&process.env.PORT!=='443'?`:${process.env.PORT}`:'';const apiUrl=process.env.API_URL||`${proto}://${host}${port}`;const avatarUrl=`${apiUrl}/uploads/${filename}`;await prisma.alumniProfile.update({where:{userId:req.user.sub},data:{avatarUrl}});const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});notifyAdmins('PROFILE',`Profile photo updated`,`${profile?.fullName||'A member'} updated their profile picture`,'/dashboard/alumni').catch(()=>{});return{avatarUrl};});
+  app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const file=await req.file();
+    if(!file)return reply.code(400).send({error:'No file uploaded'});
+    if(!ALLOWED_MIME.has(file.mimetype))return reply.code(415).send({error:'Only JPEG, PNG, WebP or GIF images are allowed'});
+    // Read file into buffer
+    const chunks:Buffer[]=[];
+    for await (const chunk of file.file) { chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk)); }
+    const buffer=Buffer.concat(chunks);
+    if(buffer.length>MAX_BYTES)return reply.code(413).send({error:'Image must be under 5MB'});
+    try {
+      const avatarUrl=await processAndStoreAvatar(buffer,file.mimetype,req.user.sub);
+      await prisma.alumniProfile.update({where:{userId:req.user.sub},data:{avatarUrl}});
+      const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+      notifyAdmins('PROFILE',`Profile photo updated`,`${profile?.fullName||'A member'} updated their profile picture`,'/dashboard/alumni').catch(()=>{});
+      return{avatarUrl};
+    } catch(err:any) {
+      console.error('Avatar upload error:',err);
+      return reply.code(500).send({error:'Failed to process image: '+err.message});
+    }
+  });
 
   app.post('/support',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({subject:z.string().min(3),body:z.string().min(5)}).parse(req.body);return prisma.supportTicket.create({data:{userId:req.user.sub,...b}})});
   app.get('/support/my',{preHandler:[app.authenticate]},async(req:any)=>prisma.supportTicket.findMany({where:{userId:req.user.sub},orderBy:{createdAt:'desc'}}));

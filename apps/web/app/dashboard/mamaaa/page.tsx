@@ -9,14 +9,16 @@ interface ChatMsg { role: 'user' | 'assistant'; content: string }
 const quickActions = [
   'How do I pay my dues?',
   'Tell me about upcoming events',
-  'Generate a quote for advertising',
+  'Who is leading the election?',
+  'Tell me about active projects',
   'How can I join a year group?',
+  'Tell me a school joke!',
 ];
 
 export default function MamaaaPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: 'Akwaaba! I am Mr. Atsu, also known as Mamaaa — your OPASS CONNECT AI assistant. I can help you navigate the platform, answer questions about year groups, events, dues, projects, or generate a quote for advertising and sponsorship. How can I help you today?' },
+    { role: 'assistant', content: `Akwaaba${user?.profile?.fullName ? ', ' + user.profile.fullName.split(' ')[0] : ''}! I am Mr. Atsu Clements, affectionately known as Mamaaa — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?` },
   ]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | undefined>();
@@ -88,38 +90,51 @@ export default function MamaaaPage() {
   };
 
   return (
-    <div className="app-screen" style={{ background: 'var(--bg)' }}>
-      <div className="screen-header">
-        <h1 style={{ flex: 1 }}>Mr. Atsu (Mamaaa)</h1>
+    <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
+      <div className="screen-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 18, flexShrink: 0, boxShadow: '0 2px 8px rgba(11,45,107,0.3)' }}>M</div>
+        <div>
+          <h1 style={{ fontSize: 18, margin: 0 }}>Mr. Atsu (Mamaaa)</h1>
+          <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} /> Online
+          </div>
+        </div>
       </div>
 
-      <div className="flex gap-8" style={{ padding: '0 16px', marginBottom: 12 }}>
-        <button className={`btn btn-sm ${tab === 'chat' ? '' : 'btn-outline'}`} onClick={() => setTab('chat')} style={{ flex: 1 }}>
-          Chat
-        </button>
-        <button className={`btn btn-sm ${tab === 'quote' ? '' : 'btn-outline'}`} onClick={() => setTab('quote')} style={{ flex: 1 }}>
-          Quote
-        </button>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', background: 'var(--white)' }}>
+        <button onClick={() => setTab('chat')} style={{
+          flex: 1, borderRadius: 0, background: 'transparent',
+          color: tab === 'chat' ? 'var(--blue)' : 'var(--muted)',
+          borderBottom: tab === 'chat' ? '2px solid var(--blue-bright)' : '2px solid transparent',
+          fontSize: 14, padding: '14px', fontWeight: 700, border: 'none', cursor: 'pointer',
+        }}>Chat</button>
+        <button onClick={() => setTab('quote')} style={{
+          flex: 1, borderRadius: 0, background: 'transparent',
+          color: tab === 'quote' ? 'var(--blue)' : 'var(--muted)',
+          borderBottom: tab === 'quote' ? '2px solid var(--blue-bright)' : '2px solid transparent',
+          fontSize: 14, padding: '14px', fontWeight: 700, border: 'none', cursor: 'pointer',
+        }}>Quote</button>
       </div>
 
       {tab === 'chat' ? (
         <>
-          <div className="app-scroll" style={{ flex: 1, padding: '0 16px 16px' }}>
+          <div className="app-scroll" style={{ flex: 1, padding: '16px 16px 8px' }}>
             {messages.map((m, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 16, justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 {m.role === 'assistant' && (
-                  <div className="avatar" style={{ width: 36, height: 36, background: 'var(--blue)', fontSize: 14, flexShrink: 0 }}>M</div>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 14, flexShrink: 0, boxShadow: '0 2px 6px rgba(11,45,107,0.2)' }}>M</div>
                 )}
                 <div style={{
-                  maxWidth: '75%',
+                  maxWidth: '78%',
                   padding: '14px 18px',
                   borderRadius: m.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                  background: m.role === 'user' ? 'var(--blue)' : 'white',
+                  background: m.role === 'user' ? 'var(--blue)' : 'var(--white)',
                   color: m.role === 'user' ? 'white' : 'var(--black)',
                   fontSize: 15,
-                  lineHeight: 1.45,
+                  lineHeight: 1.5,
                   boxShadow: 'var(--shadow-sm)',
-                  border: m.role === 'user' ? 'none' : '1px solid var(--border)'
+                  border: m.role === 'user' ? 'none' : '1px solid var(--border)',
+                  whiteSpace: 'pre-wrap',
                 }}>
                   {m.content}
                 </div>
@@ -127,35 +142,41 @@ export default function MamaaaPage() {
             ))}
             {loading && (
               <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                <div className="avatar" style={{ width: 36, height: 36, background: 'var(--blue)', fontSize: 14 }}>M</div>
-                <div style={{ padding: '14px 18px', borderRadius: '18px 18px 18px 4px', background: 'white', border: '1px solid var(--border)' }}>
-                  <span className="spinner" />
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 14, flexShrink: 0 }}>M</div>
+                <div style={{ padding: '14px 18px', borderRadius: '18px 18px 18px 4px', background: 'var(--white)', border: '1px solid var(--border)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--muted)', animation: 'bounce 1.4s infinite', opacity: 0.4 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--muted)', animation: 'bounce 1.4s infinite 0.2s', opacity: 0.4 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--muted)', animation: 'bounce 1.4s infinite 0.4s', opacity: 0.4 }} />
                 </div>
               </div>
             )}
             <div ref={messagesEnd} />
-            {!loading && (
+            {!loading && messages.length <= 2 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                 {quickActions.map(q => (
-                  <button key={q} onClick={() => send(q)} style={{ padding: '8px 14px', borderRadius: 999, background: 'white', border: '1px solid var(--border)', fontSize: 12, color: 'var(--blue)', fontWeight: 600, cursor: 'pointer' }}>
+                  <button key={q} onClick={() => send(q)} style={{
+                    padding: '8px 14px', borderRadius: 999, background: 'var(--white)',
+                    border: '1px solid var(--border)', fontSize: 12, color: 'var(--blue)',
+                    fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                  }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--blue-50)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--white)')}>
                     {q}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <div style={{ padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'white', display: 'flex', gap: 10 }}>
+          <div style={{ padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 10, position: 'sticky', bottom: 0 }}>
             <input
               className="input"
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Type your message..."
+              placeholder="Type your message to Mamaaa..."
               onKeyDown={e => e.key === 'Enter' && send()}
               disabled={loading}
               style={{ flex: 1, marginBottom: 0 }}
             />
-            <button className="btn" onClick={() => send()} disabled={loading || !input.trim()} style={{ minHeight: 48 }}>
-              Send
+            <button className="btn" onClick={() => send()} disabled={loading || !input.trim()} style={{ minHeight: 48, padding: '0 20px' }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
             </button>
           </div>
         </>

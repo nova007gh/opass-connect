@@ -90,6 +90,7 @@ enum NotificationType {
   PROFILE
   ANNOUNCEMENT
   SYSTEM
+  SECURITY
 }
 
 model User {
@@ -106,6 +107,7 @@ model User {
   messages Message[]
   payments Payment[]
   votes Vote[]
+  candidates Candidate[]
   businesses Business[]
   tickets SupportTicket[]
   aiConversations AIConversation[]
@@ -258,6 +260,7 @@ model Business {
   website String?
   phone String?
   logoUrl String?
+  location String?
   verified Boolean @default(false)
   owner User @relation(fields:[ownerId], references:[id], onDelete:Cascade)
   campaigns AdCampaign[]
@@ -297,6 +300,7 @@ model Candidate {
   position String
   manifesto String?
   election Election @relation(fields:[electionId], references:[id], onDelete:Cascade)
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
   votes Vote[]
 }
 
@@ -367,6 +371,7 @@ model AIConversation {
   channel String @default("chat")
   context Json?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   user User? @relation(fields:[userId], references:[id], onDelete:SetNull)
   messages AIMessage[]
 }

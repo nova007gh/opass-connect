@@ -108,21 +108,19 @@ export default function PaymentsPage() {
               {/* Payment form */}
               <div className="card" style={{ padding: 16 }}>
                 <form onSubmit={initialize}>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Amount</label>
-                      <div className="input-wrap">
-                        <span style={{ color: 'var(--muted)', fontWeight: 600 }}>{form.currency}</span>
-                        <input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} required placeholder="0.00" />
-                      </div>
+                  <div className="form-group">
+                    <label>Amount</label>
+                    <div className="input-wrap">
+                      <span style={{ color: 'var(--muted)', fontWeight: 600, flexShrink: 0 }}>{form.currency}</span>
+                      <input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} required placeholder="0.00" style={{ minWidth: 0 }} />
                     </div>
-                    <div className="form-group">
-                      <label>Currency</label>
-                      <select className="select" value={form.currency} onChange={e => set('currency', e.target.value)} style={{ width: '100%' }}>
-                        <option>GHS</option>
-                        <option>USD</option>
-                      </select>
-                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Currency</label>
+                    <select className="select" value={form.currency} onChange={e => set('currency', e.target.value)} style={{ width: '100%' }}>
+                      <option>GHS</option>
+                      <option>USD</option>
+                    </select>
                   </div>
                   <div className="form-group">
                     <label>Mobile Money Number</label>

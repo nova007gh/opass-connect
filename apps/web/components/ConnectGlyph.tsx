@@ -7,7 +7,10 @@ import { useId } from 'react';
  * replacing the "O" in CONNECT with two interlocking ring hooks.
  */
 export default function ConnectGlyph({ size = '1.35em' }: { size?: string }) {
-  const uid = useId().replace(/[^a-zA-Z0-9-_]/g, '');
+  // useId() can return colons (e.g. ":r0:") which break SVG url(#id) refs.
+  // Strip to safe alphanumeric characters.
+  const rawId = useId();
+  const uid = rawId.replace(/[^a-zA-Z0-9-_]/g, '');
   const g1 = `cg1-${uid}`;
   const g2 = `cg2-${uid}`;
 
@@ -16,8 +19,9 @@ export default function ConnectGlyph({ size = '1.35em' }: { size?: string }) {
       viewBox="0 0 24 24"
       width={size}
       height={size}
-      style={{ display: 'inline-block', verticalAlign: '-0.28em' }}
+      style={{ display: 'inline-block', verticalAlign: '-0.28em', overflow: 'visible' }}
       aria-hidden="true"
+      focusable="false"
     >
       <defs>
         <linearGradient id={g1} x1="0%" y1="0%" x2="100%" y2="100%">

@@ -29,6 +29,16 @@ const tabItems = [
   { href: '/dashboard/menu', label: 'Menu', icon: 'M4 6h16M4 12h16M4 18h16' },
 ];
 
+function getBreadcrumb(pathname: string): { label: string; href: string }[] {
+  const parts = pathname.replace('/dashboard', '').split('/').filter(Boolean);
+  const crumbs = [{ label: 'Home', href: '/dashboard' }];
+  for (const p of parts) {
+    const label = p.charAt(0).toUpperCase() + p.slice(1).replace(/-/g, ' ');
+    crumbs.push({ label, href: `/dashboard/${p}` });
+  }
+  return crumbs;
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -40,6 +50,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!loading && !user) router.replace('/login');
   }, [loading, user, router]);
 
+  useEffect(() => { setOpen(false); }, [pathname]);
+
   if (loading || !user) {
     return <div className="loading-center" style={{ minHeight: '100vh' }}><span className="spinner" /></div>;
   }
@@ -47,14 +59,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isActive = (href: string) => pathname === href;
   const initials = (user.profile?.fullName || user.email).charAt(0).toUpperCase();
   const menu = isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin');
+  const crumbs = getBreadcrumb(pathname);
+  const pageTitle = crumbs[crumbs.length - 1].label;
 
   const handleLogout = () => { logout(); router.replace('/'); };
 
   return (
     <div className="dash-shell">
-      <button className="sidebar-toggle" onClick={() => setOpen(!open)} aria-label="Toggle menu">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-      </button>
+      {/* ===== Sidebar ===== */}
       <aside className={'sidebar ' + (open ? 'open' : '')}>
         <Link href="/dashboard" className="sidebar-brand" onClick={closeSidebar}>
           <img src="/opass-crest.jpeg" alt="OPASS" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover' }} />
@@ -89,13 +101,49 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
       <div className={'sidebar-overlay' + (open ? ' visible' : '')} onClick={closeSidebar} aria-hidden="true" />
 
+      {/* ===== Main area ===== */}
       <div className="dash-main">
-        <div className="dash-content" style={{ padding: 0, maxWidth: '100%' }}>
+        {/* ===== Topbar ===== */}
+        <header className="topbar">
+          <div className="topbar-left">
+            <button className="topbar-hamburger" onClick={() => setOpen(!open)} aria-label="Toggle menu">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              {crumbs.map((c, i) => (
+                <span key={c.href} className="breadcrumb-item">
+                  {i < crumbs.length - 1 ? (
+                    <Link href={c.href}>{c.label}</Link>
+                  ) : (
+                    <span className="breadcrumb-current">{c.label}</span>
+                  )}
+                  {i < crumbs.length - 1 && <svg className="breadcrumb-sep" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>}
+                </span>
+              ))}
+            </nav>
+          </div>
+          <div className="topbar-right">
+            <Link href="/dashboard/notifications" className="topbar-icon-btn" aria-label="Notifications">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              <span className="badge-red" style={{ position: 'absolute', top: 6, right: 6, width: 16, height: 16, fontSize: 9 }}>3</span>
+            </Link>
+            <Link href="/dashboard/profile" className="topbar-avatar" aria-label="Profile">
+              {user.profile?.avatarUrl ? (
+                <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              ) : (
+                <span>{initials}</span>
+              )}
+            </Link>
+          </div>
+        </header>
+
+        {/* ===== Page content ===== */}
+        <div className="dash-content">
           {children}
         </div>
       </div>
 
-      {/* Mobile tab bar */}
+      {/* ===== Mobile tab bar ===== */}
       <nav className="tabbar">
         {tabItems.map(item => (
           <Link key={item.href} href={item.href} className={`tabbar-item ${isActive(item.href) ? 'active' : ''}`}>

@@ -56,12 +56,6 @@ export default function MenuPage() {
 
   return (
     <div className="app-screen">
-      {/* Header */}
-      <div className="screen-header">
-        <div className="profile-thumb" style={{ background: 'var(--blue)', color: 'white' }}>{initials}</div>
-        <h1>Menu</h1>
-      </div>
-
       <div className="app-scroll" style={{ background: 'var(--bg)' }}>
         <div className="app-pad">
           {/* Profile summary card */}

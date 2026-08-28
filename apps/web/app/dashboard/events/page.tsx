@@ -93,7 +93,7 @@ export default function EventsPage() {
                     ) : (
                       <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--muted)', fontSize: 14, fontWeight: 600 }}>
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        {new Date(ev.startsAt).toLocaleDateString('en-US', { timeStyle: 'short' })}
+                        {new Date(ev.startsAt).toLocaleTimeString('en-US', { timeStyle: 'short' })}
                       </span>
                     )}
                   </div>

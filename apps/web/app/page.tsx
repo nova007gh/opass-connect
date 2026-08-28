@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../lib/auth';
+import ConnectGlyph from '../components/ConnectGlyph';
 
 export default function Home() {
   const { user } = useAuth();
@@ -26,7 +27,7 @@ export default function Home() {
     return (
       <div className="splash-screen">
         <img src="/opass-crest.jpeg" alt="OPASS Crest" className="crest" style={{ mixBlendMode: 'screen' }} />
-        <div className="logo-text">OPASS <span className="c-link">C</span>ONNECT</div>
+        <div className="logo-text">OPASS C<span className="c-link"><ConnectGlyph /></span>NNECT</div>
         <div className="sub">OFORI PANIN SENIOR HIGH SCHOOL</div>
         <div className="tagline">One School. One Network. One Legacy.</div>
         <div className="splash-loader">
@@ -67,7 +68,7 @@ export default function Home() {
         </div>
         <div className="onboarding-body">
           <img src="/opass-crest.jpeg" alt="OPASS" className="crest" />
-          <div className="logo-text">OPASS <span className="c-link">C</span>ONNECT</div>
+          <div className="logo-text">OPASS C<span className="c-link"><ConnectGlyph /></span>NNECT</div>
           <div className="sub">OFORI PANIN SENIOR HIGH SCHOOL</div>
           <h1>{slides[step].title}</h1>
           <p>{slides[step].desc}</p>

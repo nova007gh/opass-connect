@@ -2,6 +2,17 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
+import { createWriteStream } from 'node:fs';
+import { mkdir, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.resolve(__dirname, '../public/uploads');
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_BYTES = 5_000_000;
 
 export function registerCoreRoutes(app:FastifyInstance){
   app.get('/year-groups',async()=>prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:true}}}}));
@@ -10,6 +21,8 @@ export function registerCoreRoutes(app:FastifyInstance){
 
   app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:100,select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,avatarUrl:true,userId:true}})});
   app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.string().url().optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
+
+  app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{const file=await req.file();if(!file)return reply.code(400).send({error:'No file uploaded'});if(!ALLOWED_MIME.has(file.mimetype))return reply.code(415).send({error:'Only JPEG, PNG, WebP or GIF images are allowed'});await mkdir(UPLOAD_DIR,{recursive:true});const ext=file.filename?.match(/\.(\w+)$/)?.[1]?.toLowerCase()||(file.mimetype.split('/')[1]);const filename=`avatar-${req.user.sub}-${randomUUID()}.${ext}`;const dest=path.join(UPLOAD_DIR,filename);await pipeline(file.file,createWriteStream(dest));const s=await stat(dest);if(s.size>MAX_BYTES){return reply.code(413).send({error:'Image must be under 5MB'});}const apiUrl=process.env.API_URL||`http://localhost:${process.env.PORT||4000}`;const avatarUrl=`${apiUrl}/uploads/${filename}`;await prisma.alumniProfile.update({where:{userId:req.user.sub},data:{avatarUrl}});return{avatarUrl};});
 
   app.post('/support',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({subject:z.string().min(3),body:z.string().min(5)}).parse(req.body);return prisma.supportTicket.create({data:{userId:req.user.sub,...b}})});
   app.get('/support/my',{preHandler:[app.authenticate]},async(req:any)=>prisma.supportTicket.findMany({where:{userId:req.user.sub},orderBy:{createdAt:'desc'}}));
@@ -40,7 +53,11 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.get('/admin/stats',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>{const [users,verified,projects,payments,openTickets,pendingAds,pendingQuotes]=await Promise.all([prisma.user.count(),prisma.user.count({where:{verification:'VERIFIED'}}),prisma.project.count(),prisma.payment.aggregate({_sum:{amount:true},where:{status:'PAID'}}),prisma.supportTicket.count({where:{status:{in:['OPEN','IN_PROGRESS']}}}),prisma.adCampaign.count({where:{status:'PENDING_APPROVAL'}}),prisma.quote.count({where:{status:{in:['DRAFT','SENT']}}})]);return{users,verified,projects,revenue:payments._sum.amount??0,openTickets,pendingAds,pendingQuotes};});
   app.get('/admin/members/pending',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>prisma.user.findMany({where:{verification:'PENDING'},select:{id:true,email:true,phone:true,createdAt:true,profile:true}}));
   app.post('/admin/members/:id/verify',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>prisma.user.update({where:{id:req.params.id},data:{verification:'VERIFIED'}}));
+  app.get('/admin/ads',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{const q=z.object({status:z.string().optional()}).parse(req.query);return prisma.adCampaign.findMany({where:q.status?{status:q.status as any}:undefined,orderBy:{id:'desc'},include:{business:{select:{name:true,logoUrl:true,category:true}}}});});
   app.post('/admin/ads/:id/approve',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>prisma.adCampaign.update({where:{id:req.params.id},data:{status:'APPROVED'}}));
+  app.post('/admin/ads/:id/reject',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>prisma.adCampaign.update({where:{id:req.params.id},data:{status:'REJECTED'}}));
   app.get('/admin/quotes',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>prisma.quote.findMany({orderBy:{createdAt:'desc'},include:{intake:true,items:true}}));
   app.post('/admin/quotes/:id/approve',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>prisma.quote.update({where:{id:req.params.id},data:{status:'SENT'}}));
+  app.get('/admin/activity',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>{const [users,payments]=await Promise.all([prisma.user.findMany({orderBy:{createdAt:'desc'},take:5,select:{id:true,email:true,createdAt:true,profile:{select:{fullName:true}}}}),prisma.payment.findMany({where:{status:'PAID'},orderBy:{updatedAt:'desc'},take:5,select:{id:true,purpose:true,amount:true,currency:true,updatedAt:true,user:{select:{profile:{select:{fullName:true}}}}}})]);const events=[...users.map(u=>({id:'u-'+u.id,type:'user' as const,label:`${u.profile?.fullName||u.email} registered`,at:u.createdAt})),...payments.map(p=>({id:'p-'+p.id,type:'payment' as const,label:`${p.user.profile?.fullName||'Someone'} paid ${p.currency} ${Number(p.amount).toLocaleString()} for ${p.purpose}`,at:p.updatedAt}))];events.sort((a,b)=>new Date(b.at).getTime()-new Date(a.at).getTime());return events.slice(0,8);});
+  app.get('/admin/users',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{const q=z.object({search:z.string().optional()}).parse(req.query);return prisma.user.findMany({where:q.search?{OR:[{email:{contains:q.search,mode:'insensitive'}},{profile:{fullName:{contains:q.search,mode:'insensitive'}}}]}:undefined,orderBy:{createdAt:'desc'},take:100,select:{id:true,email:true,role:true,verification:true,createdAt:true,profile:{select:{fullName:true,graduationYear:true,avatarUrl:true}}}});});
 }

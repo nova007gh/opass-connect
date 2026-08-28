@@ -50,4 +50,21 @@ export const apiPost = <T = any>(path: string, body?: any) =>
 export const apiPatch = <T = any>(path: string, body?: any) =>
   api<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined });
 
+export async function apiUpload<T = any>(path: string, file: File): Promise<T> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) clearToken();
+    throw new ApiError(data.error || 'Upload failed', res.status);
+  }
+  return data as T;
+}
+
 export { API_URL };

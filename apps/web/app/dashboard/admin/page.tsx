@@ -29,13 +29,41 @@ interface Quote {
   status: string;
   intake: { clientName: string; clientEmail: string; requestType: string };
 }
+interface AdCampaign {
+  id: string;
+  placement: string;
+  durationDays: number;
+  audience: string;
+  quotedAmount: string;
+  status: string;
+  creativeUrl?: string | null;
+  business: { name: string; logoUrl?: string | null; category: string };
+}
+interface ActivityItem {
+  id: string;
+  type: 'user' | 'payment';
+  label: string;
+  at: string;
+}
+
+const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
+  'Total users': { icon: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 100-8 4 4 0 000 8z', color: 'var(--blue)', bg: 'var(--blue-50)' },
+  Verified: { icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: '#22C55E', bg: '#ECFDF5' },
+  Projects: { icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', color: 'var(--blue)', bg: 'var(--blue-50)' },
+  Revenue: { icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z', color: 'var(--blue)', bg: 'var(--blue-50)' },
+  'Open tickets': { icon: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M5.636 5.636l3.536 3.536m0 5.656l-3.536 3.536M12 12a3 3 0 11-6 0 3 3 0 016 0z', color: '#D97706', bg: '#FFFBEB' },
+  'Pending ads': { icon: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z', color: '#DC2626', bg: '#FEF2F2' },
+  'Pending quotes': { icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', color: '#DC2626', bg: '#FEF2F2' },
+};
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<'overview' | 'members' | 'quotes'>('overview');
+  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [pending, setPending] = useState<PendingMember[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [ads, setAds] = useState<AdCampaign[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
 
@@ -44,10 +72,14 @@ export default function AdminPage() {
       apiGet<Stats>('/admin/stats').catch(() => null),
       apiGet<PendingMember[]>('/admin/members/pending').catch(() => []),
       apiGet<Quote[]>('/admin/quotes').catch(() => []),
-    ]).then(([s, p, q]) => {
+      apiGet<AdCampaign[]>('/admin/ads?status=PENDING_APPROVAL').catch(() => []),
+      apiGet<ActivityItem[]>('/admin/activity').catch(() => []),
+    ]).then(([s, p, q, a, act]) => {
       setStats(s);
       setPending(p);
       setQuotes(q);
+      setAds(a);
+      setActivity(act);
       setLoading(false);
     });
   };
@@ -83,30 +115,88 @@ export default function AdminPage() {
     }
   };
 
+  const approveAd = async (id: string) => {
+    setAction(id);
+    try {
+      await apiPost(`/admin/ads/${id}/approve`);
+      setAds(prev => prev.filter(a => a.id !== id));
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const rejectAd = async (id: string) => {
+    setAction(id);
+    try {
+      await apiPost(`/admin/ads/${id}/reject`);
+      setAds(prev => prev.filter(a => a.id !== id));
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const timeAgo = (iso: string) => {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+  };
+
   const statCards = stats ? [
-    { label: 'Total users', value: stats.users, color: 'var(--blue)' },
-    { label: 'Verified', value: stats.verified, color: 'var(--green)' },
-    { label: 'Projects', value: stats.projects, color: 'var(--blue)' },
-    { label: 'Revenue', value: `GHS ${Number(stats.revenue).toLocaleString()}`, color: 'var(--blue)' },
-    { label: 'Open tickets', value: stats.openTickets, color: 'var(--amber)' },
-    { label: 'Pending ads', value: stats.pendingAds, color: 'var(--red)' },
-    { label: 'Pending quotes', value: stats.pendingQuotes, color: 'var(--red)' },
-    { label: 'Active events', value: 3, color: 'var(--blue)' },
+    { label: 'Total users', value: stats.users },
+    { label: 'Verified', value: stats.verified },
+    { label: 'Projects', value: stats.projects },
+    { label: 'Revenue', value: `GHS ${Number(stats.revenue).toLocaleString()}` },
+    { label: 'Open tickets', value: stats.openTickets },
+    { label: 'Pending ads', value: stats.pendingAds },
+    { label: 'Pending quotes', value: stats.pendingQuotes },
   ] : [];
 
   const renderOverview = () => (
     <>
-      <div className="grid-cards" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-        {statCards.map(s => (
-          <div key={s.label} className="card" style={{ textAlign: 'center', padding: 16 }}>
-            <strong style={{ fontSize: 28, color: s.color, display: 'block' }}>{s.value}</strong>
-            <small className="text-muted" style={{ fontSize: 12 }}>{s.label}</small>
-          </div>
-        ))}
+      <div className="admin-stat-grid">
+        {statCards.map(s => {
+          const meta = statMeta[s.label];
+          return (
+            <div key={s.label} className="admin-stat-card">
+              <div className="admin-stat-icon" style={{ background: meta.bg, color: meta.color }}>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d={meta.icon} /></svg>
+              </div>
+              <div>
+                <strong className="admin-stat-value">{s.value}</strong>
+                <small className="admin-stat-label">{s.label}</small>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div className="card mt-24">
-        <h3>Quick actions</h3>
-        <p>Review pending member verifications, approve advertising campaigns, and manage quote requests from the tabs above.</p>
+
+      <div className="section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 0 12px' }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: 'var(--blue)', fontWeight: 800 }}>Recent Activity</h3>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {activity.length === 0 ? (
+          <div className="empty-state"><p>No recent activity.</p></div>
+        ) : (
+          activity.map((a, i) => (
+            <div key={a.id} className="admin-activity-row" style={{ borderBottom: i < activity.length - 1 ? '1px solid var(--border)' : 0 }}>
+              <div className="admin-activity-icon" style={{ background: a.type === 'user' ? 'var(--blue-50)' : '#ECFDF5', color: a.type === 'user' ? 'var(--blue)' : '#22C55E' }}>
+                {a.type === 'user' ? (
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                ) : (
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label}</div>
+              </div>
+              <span className="text-muted text-sm" style={{ flexShrink: 0 }}>{timeAgo(a.at)}</span>
+            </div>
+          ))
+        )}
       </div>
     </>
   );
@@ -127,11 +217,15 @@ export default function AdminPage() {
                 <button className={`btn btn-sm ${tab === 'members' ? '' : 'btn-outline'}`} onClick={() => setTab('members')}>
                   Members {pending.length > 0 && <span className="badge badge-amber" style={{ marginLeft: 6 }}>{pending.length}</span>}
                 </button>
+                <button className={`btn btn-sm ${tab === 'ads' ? '' : 'btn-outline'}`} onClick={() => setTab('ads')}>
+                  Ad Approvals {ads.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{ads.length}</span>}
+                </button>
                 <button className={`btn btn-sm ${tab === 'quotes' ? '' : 'btn-outline'}`} onClick={() => setTab('quotes')}>
                   Quotes {quotes.length > 0 && <span className="badge badge-blue" style={{ marginLeft: 6 }}>{quotes.length}</span>}
                 </button>
               </div>
-              {tab === 'overview' ? renderOverview() : tab === 'members' ? (
+              {tab === 'overview' && renderOverview()}
+              {tab === 'members' && (
                 <div className="card">
                   <h3>Pending member verifications</h3>
                   {pending.length === 0 ? (
@@ -150,7 +244,38 @@ export default function AdminPage() {
                     ))
                   )}
                 </div>
-              ) : (
+              )}
+              {tab === 'ads' && (
+                <div className="card">
+                  <h3>Pending ad campaigns</h3>
+                  {ads.length === 0 ? (
+                    <div className="empty-state"><p>No pending ad campaigns.</p></div>
+                  ) : (
+                    ads.map(a => (
+                      <div key={a.id} className="admin-ad-row">
+                        <div className="admin-ad-logo">
+                          {a.business.logoUrl ? <img src={a.business.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : a.business.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ display: 'block', fontSize: 14 }}>{a.business.name}</strong>
+                          <div className="text-muted text-sm">{a.placement.replace(/_/g, ' ')} · {a.durationDays}d · GHS {Number(a.quotedAmount).toLocaleString()}</div>
+                        </div>
+                        <div className="flex gap-8" style={{ flexShrink: 0 }}>
+                          <button className="admin-icon-btn admin-icon-btn-approve" onClick={() => approveAd(a.id)} disabled={action === a.id} aria-label="Approve">
+                            {action === a.id ? <span className="spinner" style={{ width: 16, height: 16 }} /> : (
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            )}
+                          </button>
+                          <button className="admin-icon-btn admin-icon-btn-reject" onClick={() => rejectAd(a.id)} disabled={action === a.id} aria-label="Reject">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              {tab === 'quotes' && (
                 <div className="card">
                   <h3>Quote requests</h3>
                   {quotes.length === 0 ? (

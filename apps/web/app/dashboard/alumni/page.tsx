@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { apiGet } from '../../../lib/api';
 
 interface Alumni {
@@ -16,19 +17,21 @@ interface Alumni {
 }
 
 export default function AlumniPage() {
+  const searchParams = useSearchParams();
   const [results, setResults] = useState<Alumni[]>([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [year, setYear] = useState('');
   const [house, setHouse] = useState('');
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  const searchAlumni = async () => {
+  const searchAlumni = async (overrides?: { search?: string }) => {
     setLoading(true);
     setSearched(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.set('search', search);
+      const q = overrides?.search ?? search;
+      if (q) params.set('search', q);
       if (year) params.set('year', year);
       if (house) params.set('house', house);
       const data = await apiGet<Alumni[]>(`/alumni?${params.toString()}`);
@@ -40,7 +43,7 @@ export default function AlumniPage() {
     }
   };
 
-  useEffect(() => { searchAlumni(); }, []);
+  useEffect(() => { searchAlumni({ search: searchParams.get('search') || '' }); }, []);
 
   return (
     <div className="app-screen" style={{ background: 'var(--bg)' }}>
@@ -64,7 +67,7 @@ export default function AlumniPage() {
               <input className="input" type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="Year" style={{ flex: 1, marginBottom: 0 }} onKeyDown={e => e.key === 'Enter' && searchAlumni()} />
               <input className="input" value={house} onChange={e => setHouse(e.target.value)} placeholder="House" style={{ flex: 1, marginBottom: 0 }} onKeyDown={e => e.key === 'Enter' && searchAlumni()} />
             </div>
-            <button className="btn btn-block btn-sm" onClick={searchAlumni} disabled={loading}>
+            <button className="btn btn-block btn-sm" onClick={() => searchAlumni()} disabled={loading}>
               {loading ? <span className="spinner" /> : 'Search'}
             </button>
           </div>

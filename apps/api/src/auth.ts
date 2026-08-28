@@ -27,6 +27,15 @@ export function registerAuthRoutes(app: FastifyInstance) {
   app.get('/auth/me', {preHandler:[app.authenticate]}, async (req:any) => {
     return prisma.user.findUnique({where:{id:req.user.sub}, select:{id:true,email:true,phone:true,role:true,verification:true,profile:true,memberships:{include:{yearGroup:true}}}});
   });
+
+  app.post('/auth/change-password', {preHandler:[app.authenticate]}, async (req:any, reply) => {
+    const body = z.object({currentPassword:z.string(), newPassword:z.string().min(10)}).parse(req.body);
+    const user = await prisma.user.findUnique({where:{id:req.user.sub}});
+    if (!user || !(await bcrypt.compare(body.currentPassword, user.passwordHash))) return reply.code(401).send({error:'Current password is incorrect'});
+    const passwordHash = await bcrypt.hash(body.newPassword, 12);
+    await prisma.user.update({where:{id:user.id}, data:{passwordHash}});
+    return {ok:true};
+  });
 }
 
 export function safeUser(user:any){ const {passwordHash,...safe}=user; return safe; }

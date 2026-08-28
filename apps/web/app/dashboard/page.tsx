@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { apiGet } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import ConnectGlyph from '../../components/ConnectGlyph';
 
 interface YearGroup { id: string; year: number; name: string; _count: { memberships: number } }
 interface Project { id: string; title: string; description: string; targetAmount: string; raisedAmount: string; status: string }
@@ -20,12 +22,26 @@ const menuItems = [
   { label: 'More', href: '/dashboard/menu', icon: 'M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z' },
 ];
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good Morning';
+  if (h < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
 export default function DashboardHome() {
   const { user } = useAuth();
+  const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [yearGroups, setYearGroups] = useState<YearGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (search.trim()) router.push(`/dashboard/alumni?search=${encodeURIComponent(search.trim())}`);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -66,21 +82,21 @@ export default function DashboardHome() {
               )}
             </Link>
           </div>
-          <div className="home-greeting">Good Morning, {firstName}!</div>
+          <div className="home-greeting">{getGreeting()}, {firstName}!</div>
           <div className="home-brand">
             <img src="/opass-crest.jpeg" alt="OPASS" className="home-crest" />
             <div className="home-brand-text">
-              <div className="home-logo-text">OPASS <span className="c-link">C</span>ONNECT</div>
+              <div className="home-logo-text">OPASS C<span className="c-link"><ConnectGlyph /></span>NNECT</div>
               <div className="home-sub">OFORI PANIN SENIOR HIGH SCHOOL</div>
             </div>
           </div>
           <div className="home-tagline">ONE SCHOOL. ONE NETWORK. ONE <span>LEGACY.</span></div>
-          <div className="home-search">
+          <form className="home-search" onSubmit={submitSearch}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input type="text" placeholder="Search classmates, groups, events..." />
-          </div>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search classmates, groups, events..." />
+          </form>
         </div>
 
         {/* Menu grid */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth';
+import ConnectGlyph from '../../components/ConnectGlyph';
 
 const allItems = [
   { href: '/dashboard', label: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -32,6 +33,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, logout, isAdmin } = useAuth();
+  const [open, setOpen] = useState(false);
+  const closeSidebar = () => setOpen(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
@@ -49,16 +52,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="dash-shell">
-      {/* Desktop sidebar */}
-      <aside className="sidebar">
-        <Link href="/dashboard" className="sidebar-brand">
+      <button className="sidebar-toggle" onClick={() => setOpen(!open)} aria-label="Toggle menu">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
+      <aside className={'sidebar ' + (open ? 'open' : '')}>
+        <Link href="/dashboard" className="sidebar-brand" onClick={closeSidebar}>
           <img src="/opass-crest.jpeg" alt="OPASS" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover' }} />
           <div className="sidebar-brand-text">
-            <span className="sidebar-brand-title">OPASS <span style={{ color: 'var(--blue-bright)' }}>C</span>ONNECT</span>
+            <span className="sidebar-brand-title">OPASS C<span className="c-link"><ConnectGlyph /></span>NNECT</span>
             <span className="sidebar-brand-sub">Ofori Panin SHS</span>
           </div>
         </Link>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" onClick={e => { if ((e.target as HTMLElement).closest('a')) setOpen(false); }}>
           {menu.map(item => (
             <Link key={item.href} href={item.href} className={`sidebar-link ${isActive(item.href) ? 'active' : ''}`}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d={item.icon} /></svg>
@@ -82,6 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
       </aside>
+      <div className={'sidebar-overlay' + (open ? ' visible' : '')} onClick={closeSidebar} aria-hidden="true" />
 
       <div className="dash-main">
         <div className="dash-content" style={{ padding: 0, maxWidth: '100%' }}>

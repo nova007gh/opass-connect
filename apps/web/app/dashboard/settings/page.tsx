@@ -1,10 +1,64 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { apiPatch, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="switch" style={{ position: 'relative', display: 'inline-block', width: 48, height: 28 }}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+      <span style={{ position: 'absolute', cursor: 'pointer', inset: 0, background: checked ? 'var(--blue-bright)' : '#D1D5DB', borderRadius: 999, transition: 'background 0.2s' }}>
+        <span style={{ position: 'absolute', top: 3, left: checked ? 23 : 3, width: 22, height: 22, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+      </span>
+    </label>
+  );
+}
+
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
+  const [push, setPush] = useState(true);
+  const [emailUpdates, setEmailUpdates] = useState(true);
+  const [visible, setVisible] = useState(true);
+  const [visibleSaving, setVisibleSaving] = useState(false);
+
+  useEffect(() => {
+    if (user?.profile) setVisible(user.profile.searchable !== false);
+  }, [user]);
+
+  const toggleVisible = async (v: boolean) => {
+    setVisible(v);
+    setVisibleSaving(true);
+    try {
+      await apiPatch('/profile', { searchable: v });
+      await refresh();
+    } finally {
+      setVisibleSaving(false);
+    }
+  };
+  const [showPwd, setShowPwd] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '' });
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+
+  const submitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess(false);
+    if (pwdForm.newPassword.length < 10) return setPwdError('New password must be at least 10 characters.');
+    setPwdLoading(true);
+    try {
+      await apiPost('/auth/change-password', pwdForm);
+      setPwdSuccess(true);
+      setPwdForm({ currentPassword: '', newPassword: '' });
+    } catch (err: any) {
+      setPwdError(err.message || 'Failed to change password');
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   return (
     <div className="app-screen" style={{ background: 'var(--bg)' }}>
@@ -27,10 +81,32 @@ export default function SettingsPage() {
               <span style={{ fontWeight: 600, fontSize: 15 }}>Email</span>
               <span className="text-muted" style={{ fontSize: 14 }}>{user?.email}</span>
             </div>
-            <div className="flex-between" style={{ padding: '16px 20px' }}>
+            <button onClick={() => setShowPwd(s => !s)} className="flex-between" style={{ width: '100%', padding: '16px 20px', background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }}>
               <span style={{ fontWeight: 600, fontSize: 15 }}>Change Password</span>
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-            </div>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, color: 'var(--muted)', transform: showPwd ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            </button>
+            {showPwd && (
+              <form onSubmit={submitPassword} style={{ padding: '0 20px 20px', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                {pwdError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{pwdError}</div>}
+                {pwdSuccess && <div className="alert alert-success" style={{ marginBottom: 12 }}>Password updated successfully.</div>}
+                <div className="form-group">
+                  <label>Current password</label>
+                  <div className="input-wrap">
+                    <input type="password" value={pwdForm.currentPassword} onChange={e => setPwdForm(f => ({ ...f, currentPassword: e.target.value }))} required />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>New password</label>
+                  <div className="input-wrap">
+                    <input type="password" value={pwdForm.newPassword} onChange={e => setPwdForm(f => ({ ...f, newPassword: e.target.value }))} required />
+                  </div>
+                  <div className="hint">Minimum 10 characters.</div>
+                </div>
+                <button className="btn btn-block btn-sm" type="submit" disabled={pwdLoading}>
+                  {pwdLoading ? <span className="spinner" /> : 'Update Password'}
+                </button>
+              </form>
+            )}
           </div>
 
           {/* Preferences */}
@@ -38,30 +114,15 @@ export default function SettingsPage() {
             <div className="sidebar-section" style={{ padding: '16px 20px 8px', color: 'var(--muted)', fontWeight: 700 }}>Preferences</div>
             <div className="flex-between" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontWeight: 600, fontSize: 15 }}>Push Notifications</span>
-              <label className="switch" style={{ position: 'relative', display: 'inline-block', width: 48, height: 28 }}>
-                <input type="checkbox" defaultChecked style={{ opacity: 0, width: 0, height: 0 }} />
-                <span style={{ position: 'absolute', cursor: 'pointer', inset: 0, background: 'var(--blue-bright)', borderRadius: 999 }}>
-                  <span style={{ position: 'absolute', top: 3, right: 3, width: 22, height: 22, borderRadius: '50%', background: 'white' }} />
-                </span>
-              </label>
+              <Toggle checked={push} onChange={setPush} />
             </div>
             <div className="flex-between" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontWeight: 600, fontSize: 15 }}>Email Updates</span>
-              <label className="switch" style={{ position: 'relative', display: 'inline-block', width: 48, height: 28 }}>
-                <input type="checkbox" defaultChecked style={{ opacity: 0, width: 0, height: 0 }} />
-                <span style={{ position: 'absolute', cursor: 'pointer', inset: 0, background: 'var(--blue-bright)', borderRadius: 999 }}>
-                  <span style={{ position: 'absolute', top: 3, right: 3, width: 22, height: 22, borderRadius: '50%', background: 'white' }} />
-                </span>
-              </label>
+              <Toggle checked={emailUpdates} onChange={setEmailUpdates} />
             </div>
             <div className="flex-between" style={{ padding: '16px 20px' }}>
               <span style={{ fontWeight: 600, fontSize: 15 }}>Profile Visible in Directory</span>
-              <label className="switch" style={{ position: 'relative', display: 'inline-block', width: 48, height: 28 }}>
-                <input type="checkbox" defaultChecked style={{ opacity: 0, width: 0, height: 0 }} />
-                <span style={{ position: 'absolute', cursor: 'pointer', inset: 0, background: 'var(--blue-bright)', borderRadius: 999 }}>
-                  <span style={{ position: 'absolute', top: 3, right: 3, width: 22, height: 22, borderRadius: '50%', background: 'white' }} />
-                </span>
-              </label>
+              <Toggle checked={visible} onChange={toggleVisible} />
             </div>
           </div>
 

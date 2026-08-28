@@ -8,3 +8,5 @@ dist
 coverage
 .DS_Store
 *.log
+apps/api/public/uploads/*
+!apps/api/public/uploads/.gitkeep

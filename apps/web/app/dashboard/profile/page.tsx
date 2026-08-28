@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { apiPatch } from '../../../lib/api';
+import { apiPatch, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
 export default function ProfilePage() {
@@ -14,6 +14,9 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user?.profile) {
@@ -33,6 +36,36 @@ export default function ProfilePage() {
   }, [user]);
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const pickFile = () => fileInputRef.current?.click();
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/image\/(jpeg|png|webp|gif)/.test(file.type)) {
+      setError('Please choose a JPEG, PNG, WebP or GIF image.');
+      return;
+    }
+    if (file.size > 5_000_000) {
+      setError('Image must be under 5MB.');
+      return;
+    }
+    setError('');
+    setAvatarPreview(URL.createObjectURL(file));
+    setUploading(true);
+    try {
+      const { avatarUrl } = await apiUpload<{ avatarUrl: string }>('/profile/avatar', file);
+      set('avatarUrl', avatarUrl);
+      await refresh();
+      setSaved(true);
+    } catch (err: any) {
+      setError(err.message || 'Upload failed');
+      setAvatarPreview(null);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,11 +98,24 @@ export default function ProfilePage() {
       </div>
       <div className="app-scroll">
         <div className="profile-cover">
-          {p?.avatarUrl ? (
-            <img src={p.avatarUrl} alt="" className="avatar avatar-xl" style={{ objectFit: 'cover', border: 0, padding: 0 }} />
-          ) : (
-            <div className="avatar avatar-xl">{initials}</div>
-          )}
+          <div className="avatar-uploader" onClick={pickFile}>
+            {avatarPreview || p?.avatarUrl ? (
+              <img src={avatarPreview || p?.avatarUrl || ''} alt="" className="avatar avatar-xl" style={{ objectFit: 'cover', border: 0, padding: 0 }} />
+            ) : (
+              <div className="avatar avatar-xl">{initials}</div>
+            )}
+            <div className="avatar-uploader-overlay">
+              {uploading ? <span className="spinner" /> : (
+                <>
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Change Photo</span>
+                </>
+              )}
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onFileChange} style={{ display: 'none' }} />
+          </div>
           <h2 style={{ color: 'white' }}>{p?.fullName || 'Unnamed'}</h2>
           <div style={{ opacity: 0.85, fontSize: 14 }}>{user.email}</div>
           <div className="badges" style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -137,10 +183,8 @@ export default function ProfilePage() {
               <div className="hint">{form.bio.length}/1000</div>
             </div>
             <div className="form-group">
-              <label>Avatar URL</label>
-              <div className="input-wrap">
-                <input type="text" value={form.avatarUrl} onChange={e => set('avatarUrl', e.target.value)} placeholder="https://..." />
-              </div>
+              <label>Profile Picture</label>
+              <div className="hint">Use the camera button on your avatar above to upload a new photo (JPEG, PNG, WebP or GIF, max 5MB).</div>
             </div>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>

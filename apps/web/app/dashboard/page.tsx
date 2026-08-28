@@ -29,6 +29,20 @@ function getGreeting() {
   return 'Good Evening';
 }
 
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function ProjectSkeleton() {
+  return (
+    <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+      <div className="skeleton skeleton-text" style={{ width: '60%', marginBottom: 10 }} />
+      <div className="skeleton skeleton-text sm" style={{ marginBottom: 10 }} />
+      <div className="skeleton" style={{ height: 8, borderRadius: 4 }} />
+    </div>
+  );
+}
+
 export default function DashboardHome() {
   const { user } = useAuth();
   const router = useRouter();
@@ -60,10 +74,9 @@ export default function DashboardHome() {
   const townHall = events.find(e => e.title.toLowerCase().includes('town hall'));
   const liveEvent = townHall || upcoming[0] || { title: 'OPASS Global Town Hall', startsAt: new Date().toISOString(), venue: 'Virtual' };
   const firstName = user?.profile?.fullName?.split(' ')[0] || 'Alumnus';
-  const initials = (user?.profile?.fullName || user?.email || '?').charAt(0).toUpperCase();
 
   return (
-    <div className="app-screen" style={{ background: 'var(--bg)' }}>
+    <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="app-scroll">
         {/* Header */}
         <div className="home-header">
@@ -88,7 +101,7 @@ export default function DashboardHome() {
         <div className="home-content">
           <div className="menu-grid">
             {menuItems.map(item => (
-              <Link href={item.href} className="menu-grid-item" key={item.label}>
+              <Link href={item.href} className="menu-grid-item fade-in-up" key={item.label}>
                 <div className="menu-grid-icon">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
@@ -101,17 +114,18 @@ export default function DashboardHome() {
           </div>
 
           {/* Live card */}
-          <div className="live-card">
+          <div className="live-card fade-in-up">
             <div className="live-now">
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
               LIVE NOW
             </div>
-            <h3>{liveEvent.title}</h3>
+            <h3>{loading ? <span className="skeleton skeleton-text lg" style={{ width: '70%' }} /> : liveEvent.title}</h3>
             <div className="meta">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16, display: 'inline', verticalAlign: 'middle', marginRight: 4 }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              {new Date(liveEvent.startsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} · 7:00 PM GMT<br />
+              {loading ? <span className="skeleton skeleton-text sm" style={{ display: 'inline-block', width: 180 }} /> : <>{formatDate(liveEvent.startsAt)} · 7:00 PM GMT</>}
+              <br />
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16, display: 'inline', verticalAlign: 'middle', marginRight: 4, marginTop: 4 }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 100-8 4 4 0 000 8z" />
               </svg>
@@ -129,11 +143,11 @@ export default function DashboardHome() {
           </div>
 
           {/* Announcement */}
-          <div className="section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div className="section-header fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>Announcements</h3>
             <Link href="/dashboard/notifications" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>See All</Link>
           </div>
-          <div className="announcement-card" style={{ marginBottom: 24 }}>
+          <div className="announcement-card fade-in-up" style={{ marginBottom: 24 }}>
             <div className="icon" style={{ background: 'linear-gradient(135deg, var(--blue-50), #dbeafe)' }}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22, color: 'var(--blue)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.341 7.625-3 0 0 0 0 0 0v13.659a2 2 0 01-2 2H5.436z" />
@@ -146,30 +160,44 @@ export default function DashboardHome() {
           </div>
 
           {/* Quick stats / projects */}
-          {projects.length > 0 && (
-            <>
-              <div className="section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>Active Projects</h3>
-                <Link href="/dashboard/projects" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>View all</Link>
-              </div>
-              <div className="card" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
-                {projects.slice(0, 3).map((p, i) => {
-                  const target = Number(p.targetAmount);
-                  const raised = Number(p.raisedAmount);
-                  const pct = target > 0 ? Math.min(100, (raised / target) * 100) : 0;
-                  return (
-                    <div key={p.id} style={{ padding: 16, borderBottom: i < Math.min(2, projects.length - 1) ? '1px solid var(--border)' : 0 }}>
-                      <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15 }}>{p.title}</div>
-                      <div className="text-sm text-muted" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>GHS {raised.toLocaleString()}</span>
-                        <span>of GHS {target.toLocaleString()}</span>
-                      </div>
-                      <div className="progress"><div className="progress-bar" style={{ width: `${pct}%` }} /></div>
+          <div className="section-header fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>Active Projects</h3>
+            {projects.length > 0 && <Link href="/dashboard/projects" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>View all</Link>}
+          </div>
+          {loading ? (
+            <div className="card skeleton-card" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+              <ProjectSkeleton />
+              <ProjectSkeleton />
+              <ProjectSkeleton />
+            </div>
+          ) : projects.length > 0 ? (
+            <div className="card fade-in-up" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+              {projects.slice(0, 3).map((p, i) => {
+                const target = Number(p.targetAmount);
+                const raised = Number(p.raisedAmount);
+                const pct = target > 0 ? Math.min(100, (raised / target) * 100) : 0;
+                const isFunded = pct >= 100;
+                return (
+                  <Link key={p.id} href="/dashboard/projects" style={{ display: 'block', padding: 16, borderBottom: i < Math.min(2, projects.length - 1) ? '1px solid var(--border)' : 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>{p.title}</span>
+                      {isFunded && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 6 }}>FUNDED</span>}
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                    <div className="text-sm text-muted" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--blue)' }}>GHS {raised.toLocaleString()}</span>
+                      <span>of GHS {target.toLocaleString()}</span>
+                    </div>
+                    <div className="progress"><div className="progress-bar" style={{ width: `${pct}%`, background: isFunded ? 'var(--green)' : undefined }} /></div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty-state card" style={{ marginBottom: 20 }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <h3>No active projects</h3>
+              <p>Check back later for alumni fundraising initiatives.</p>
+            </div>
           )}
         </div>
       </div>

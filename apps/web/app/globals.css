@@ -931,3 +931,99 @@ label.switch span > span { transition: transform 0.2s; }
   .home-greeting { font-size: 14px; }
   .live-card h3 { font-size: 18px; }
 }
+
+/* ===== Skeleton loading ===== */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #eef0f3 25%, #e2e5e9 50%, #eef0f3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+.skeleton-text { height: 14px; margin-bottom: 8px; border-radius: 6px; }
+.skeleton-text.lg { height: 20px; }
+.skeleton-text.sm { height: 10px; width: 60%; }
+.skeleton-card { padding: 16px; border-radius: var(--radius-lg); }
+.skeleton-circle { border-radius: 50%; }
+.skeleton-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.skeleton-grid-item { aspect-ratio: 1; border-radius: 16px; }
+
+/* ===== Fade-in animations ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fadeIn 0.3s ease-out; }
+.fade-in-up { animation: fadeInUp 0.4s ease-out; }
+.fade-in-up:nth-child(1) { animation-delay: 0.05s; }
+.fade-in-up:nth-child(2) { animation-delay: 0.1s; }
+.fade-in-up:nth-child(3) { animation-delay: 0.15s; }
+.fade-in-up:nth-child(4) { animation-delay: 0.2s; }
+.fade-in-up:nth-child(5) { animation-delay: 0.25s; }
+.fade-in-up:nth-child(6) { animation-delay: 0.3s; }
+
+/* ===== Hover effects ===== */
+.menu-grid-item { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.menu-grid-item:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(11,45,107,0.12); }
+.menu-grid-item:active { transform: scale(0.96); }
+
+.card { transition: box-shadow 0.2s ease, transform 0.2s ease; }
+.card:hover { box-shadow: 0 8px 30px rgba(11,45,107,0.12); }
+
+.live-card { transition: transform 0.2s ease; }
+.live-card:hover { transform: translateY(-2px); }
+
+/* ===== Progress bar animation ===== */
+.progress-bar { transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ===== Pulse for live indicator ===== */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+.live-now span:first-child { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+/* ===== Empty state ===== */
+.empty-state {
+  text-align: center; padding: 48px 20px; color: var(--muted);
+}
+.empty-state svg { width: 56px; height: 56px; margin: 0 auto 16px; opacity: 0.3; }
+.empty-state h3 { font-size: 17px; color: var(--blue); margin: 0 0 6px; font-weight: 700; }
+.empty-state p { font-size: 14px; margin: 0; }
+
+/* ===== Dark mode ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --black: #f0f0f0;
+    --white: #1a1a2e;
+    --bg: #0f0f1e;
+    --border: #2a2a4a;
+    --muted: #8888aa;
+    --blue-50: #1a1a3e;
+    --blue-100: #2a2a4e;
+    --shadow: 0 4px 20px rgba(0,0,0,0.3);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+  }
+  body { background: var(--bg); color: var(--black); }
+  .topbar { background: rgba(26,26,46,0.85); border-bottom-color: var(--border); }
+  .card { background: var(--white); border-color: var(--border); }
+  .screen-header { background: var(--white); border-bottom-color: var(--border); }
+  .skeleton { background: linear-gradient(90deg, #1a1a2e 25%, #252545 50%, #1a1a2e 75%); background-size: 200% 100%; }
+  .sidebar { background: linear-gradient(180deg, #0a0a1a 0%, #050510 100%); }
+  .home-header {
+    background: linear-gradient(180deg, rgba(11,45,107,0.95) 0%, rgba(6,29,74,0.9) 100%), var(--white);
+  }
+  .topbar-hamburger:hover, .topbar-icon-btn:hover { background: var(--blue-50); }
+  .breadcrumb-item a { color: var(--muted); }
+  .menu-grid-icon { background: var(--blue-50); }
+  .menu-grid-item span { color: var(--black); }
+  input, textarea, select { background: var(--white); color: var(--black); border-color: var(--border); }
+  .announcement-card .body p { color: var(--muted); }
+}

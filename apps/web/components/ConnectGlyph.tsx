@@ -7,7 +7,7 @@ import { useId } from 'react';
  * replacing the "O" in CONNECT with two interlocking ring hooks.
  */
 export default function ConnectGlyph({ size = '1.35em' }: { size?: string }) {
-  const uid = useId();
+  const uid = useId().replace(/[^a-zA-Z0-9-_]/g, '');
   const g1 = `cg1-${uid}`;
   const g2 = `cg2-${uid}`;
 

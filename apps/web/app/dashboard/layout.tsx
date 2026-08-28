@@ -104,8 +104,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="avatar" style={{ width: 36, height: 36, background: 'var(--blue-bright)', color: 'white', fontSize: 14 }}>
-              {user.profile?.avatarUrl ? <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : initials}
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--blue-bright)', color: 'white', fontSize: 14, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>
+              {user.profile?.avatarUrl ? <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.profile?.fullName || user.email}</div>
@@ -153,9 +153,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
               {unreadCount > 0 && <span className="badge-red" style={{ position: 'absolute', top: 4, right: 4 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
             </Link>
-            <Link href="/dashboard/profile" className="topbar-avatar" aria-label="Profile">
+            <Link href="/dashboard/profile" className="topbar-avatar" aria-label="Profile" style={{ overflow: 'hidden' }}>
               {user.profile?.avatarUrl ? (
-                <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <span>{initials}</span>
               )}

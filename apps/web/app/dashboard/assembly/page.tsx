@@ -225,8 +225,8 @@ export default function AssemblyPage() {
               <div className="empty-state"><p>No messages yet. Start the conversation!</p></div>
             ) : messages.map(m => (
               <div key={m.id} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-                <div className="avatar" style={{ width: 36, height: 36, background: 'var(--blue)', color: 'white', fontSize: 14, flexShrink: 0 }}>
-                  {m.user?.profile?.avatarUrl ? <img src={m.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (m.user?.profile?.fullName || '?').charAt(0)}
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 14, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                  {m.user?.profile?.avatarUrl ? <img src={m.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (m.user?.profile?.fullName || '?').charAt(0)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
@@ -267,15 +267,17 @@ export default function AssemblyPage() {
                 {rooms.map(r => (
                   <div className="feed-card" key={r.id} onClick={() => openRoom(r)} style={{ cursor: 'pointer' }}>
                     <div className="feed-card-header">
-                      <div className="avatar" style={{ width: 52, height: 52, background: r.isAssemblyHall ? 'var(--blue-dark)' : 'var(--blue)', color: 'white', fontSize: 20, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
-                        {r.imageUrl ? <img src={r.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
-                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 24, height: 24 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                        )}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <div style={{ width: 52, height: 52, borderRadius: '50%', background: r.isAssemblyHall ? 'var(--blue-dark)' : 'var(--blue)', color: 'white', fontSize: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {r.imageUrl ? <img src={r.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 24, height: 24 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                          )}
+                        </div>
                         {!r.isAssemblyHall && (
                           <button onClick={(e) => { e.stopPropagation(); pickRoomImage(r.id); }} style={{
                             position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: '50%',
                             background: 'var(--blue-bright)', border: '2px solid var(--white)', color: 'white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10, zIndex: 2,
                           }} title="Upload room photo">
                             {uploadingRoomId === r.id ? '...' : '+'}
                           </button>

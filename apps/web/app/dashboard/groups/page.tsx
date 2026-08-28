@@ -83,13 +83,15 @@ export default function YearGroupsPage() {
                 return (
                   <div className="feed-card" key={yg.id}>
                     <div className="feed-card-header">
-                      <div className="avatar" style={{ width: 52, height: 52, background: 'var(--blue)', color: 'white', fontSize: 16, fontWeight: 800, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
-                        {yg.imageUrl ? <img src={yg.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : yg.year.toString().slice(-2)}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 16, fontWeight: 800, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {yg.imageUrl ? <img src={yg.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : yg.year.toString().slice(-2)}
+                        </div>
                         {isAdmin && (
                           <button onClick={(e) => { e.stopPropagation(); pickImage(yg.id); }} style={{
                             position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: '50%',
                             background: 'var(--blue-bright)', border: '2px solid var(--white)', color: 'white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10, zIndex: 2,
                           }} title="Upload group photo">
                             {uploadingId === yg.id ? '...' : '+'}
                           </button>

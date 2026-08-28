@@ -83,13 +83,9 @@ export default function AlumniPage() {
                 {results.map(a => (
                   <div className="feed-card" key={a.userId}>
                     <div className="feed-card-header">
-                      {a.avatarUrl ? (
-                        <img src={a.avatarUrl} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
-                      ) : (
-                        <div className="avatar" style={{ width: 48, height: 48, background: 'var(--blue)', color: 'white', fontSize: 18, fontWeight: 800 }}>
-                          {a.fullName.charAt(0)}
-                        </div>
-                      )}
+                      <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800 }}>
+                        {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : a.fullName.charAt(0)}
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div className="name">{a.fullName}</div>
                         <div className="time">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>

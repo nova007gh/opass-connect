@@ -113,7 +113,7 @@ export default function ElectionsPage() {
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>Candidates</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--blue)' }}>{selected._count.votes}</div>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--blue)' }}>{selected._count?.votes ?? totalVotes}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>Participation</div>
                   </div>
                 </div>
@@ -210,7 +210,7 @@ export default function ElectionsPage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="name">{e.title}</div>
-                      <div className="time">{e._count.candidates} candidates · {e._count.votes} votes cast</div>
+                      <div className="time">{e._count?.candidates ?? 0} candidates · {e._count?.votes ?? 0} votes cast</div>
                     </div>
                     <span className={`badge ${statusBadge[e.status]}`}>{e.status}</span>
                   </div>

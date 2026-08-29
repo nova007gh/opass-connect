@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
@@ -372,13 +373,22 @@ export default function YearGroupsPage() {
                           </button>
                         )}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          Class of {yg.year}
-                          {manage && <span className="badge badge-blue" style={{ fontSize: 10 }}>Manager</span>}
+                      {(joined || manage) ? (
+                        <Link href={`/dashboard/groups/${yg.id}`} style={{ flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
+                          <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            Class of {yg.year}
+                            {manage && <span className="badge badge-blue" style={{ fontSize: 10 }}>Manager</span>}
+                          </div>
+                          <div className="time">{yg.name} · {yg._count?.memberships ?? 0} members</div>
+                        </Link>
+                      ) : (
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            Class of {yg.year}
+                          </div>
+                          <div className="time">{yg.name} · {yg._count?.memberships ?? 0} members</div>
                         </div>
-                        <div className="time">{yg.name} · {yg._count?.memberships ?? 0} members</div>
-                      </div>
+                      )}
                       {joined ? (
                         <span className="badge badge-green">✓ Joined</span>
                       ) : (
@@ -410,9 +420,23 @@ export default function YearGroupsPage() {
                       </div>
                     )}
 
+                    {/* Feed link for joined non-managers */}
+                    {joined && !manage && (
+                      <div className="feed-card-actions">
+                        <Link href={`/dashboard/groups/${yg.id}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                          Open Group Feed
+                        </Link>
+                      </div>
+                    )}
+
                     {/* Manager actions */}
                     {manage && (
                       <div className="feed-card-actions">
+                        <Link href={`/dashboard/groups/${yg.id}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                          Feed
+                        </Link>
                         <button onClick={() => openEditModal(yg)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, background: 'none', border: 0, cursor: 'pointer' }}>
                           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           Edit

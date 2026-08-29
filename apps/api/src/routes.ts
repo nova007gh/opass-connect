@@ -82,7 +82,8 @@ async function readFileFromRequest(req: any): Promise<{ buffer: Buffer; mimetype
 function canManageGroup(user:any,yg:any){return ['ADMIN','SUPER_ADMIN'].includes(user.role)||yg.creatorId===user.sub;}
 
 export function registerCoreRoutes(app:FastifyInstance){
-  app.get('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const groups=await prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:true}}}});const canManageAny=['ADMIN','SUPER_ADMIN'].includes(req.user.role);const withInvites=canManageAny?await prisma.yearGroupInvite.groupBy({by:['yearGroupId'],where:{status:'PENDING'},_count:{_all:true}}):[];return groups.map(g=>({...g,pendingInvites:canManageAny||g.creatorId===req.user.sub?(withInvites.find(w=>w.yearGroupId===g.id)?._count?._all??0):undefined}));});
+  app.get('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const groups=await prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:{where:{banned:false}}}}}});const canManageAny=['ADMIN','SUPER_ADMIN'].includes(req.user.role);const withInvites=canManageAny?await prisma.yearGroupInvite.groupBy({by:['yearGroupId'],where:{status:'PENDING'},_count:{_all:true}}):[];return groups.map(g=>({...g,pendingInvites:canManageAny||g.creatorId===req.user.sub?(withInvites.find(w=>w.yearGroupId===g.id)?._count?._all??0):undefined}));});
+  app.get('/year-groups/:id',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id},include:{_count:{select:{memberships:{where:{banned:false}}}}}});if(!yg)return reply.code(404).send({error:'Year group not found'});const membership=await prisma.yearGroupMembership.findUnique({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:yg.id}}});const manage=canManageGroup(req.user,yg);return{...yg,isMember:!!membership&&!membership.banned,isBanned:!!membership?.banned,isRestricted:!!membership?.restricted,canManage:manage};});
   app.post('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({year:z.number().int().min(1960).max(2030),name:z.string().min(2),description:z.string().optional()}).parse(req.body);const existing=await prisma.yearGroup.findFirst({where:{year:b.year}});if(existing)return{error:'A year group for this year already exists',existing};const yg=await prisma.yearGroup.create({data:{...b,creatorId:req.user.sub}});await prisma.yearGroupMembership.create({data:{userId:req.user.sub,yearGroupId:yg.id,isLeader:true}}).catch(()=>{});return yg;});
   app.post('/year-groups/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can update the photo'});try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'yeargroups',200,200);await prisma.yearGroup.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.patch('/year-groups/:id',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can edit this group'});const b=z.object({name:z.string().min(2).max(100).optional(),description:z.string().max(500).optional()}).parse(req.body);return prisma.yearGroup.update({where:{id:req.params.id},data:b});});
@@ -131,9 +132,109 @@ export function registerCoreRoutes(app:FastifyInstance){
     }
     return{...invite,inviteLink,emailSent};
   });
-  app.post('/year-groups/:id/request-join',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});const alreadyMember=await prisma.yearGroupMembership.findUnique({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:yg.id}}});if(alreadyMember)return reply.code(409).send({error:'You are already a member of this group'});const invite=await prisma.yearGroupInvite.upsert({where:{yearGroupId_invitedUserId:{yearGroupId:yg.id,invitedUserId:req.user.sub}},update:{status:'PENDING'},create:{yearGroupId:yg.id,invitedUserId:req.user.sub,invitedByUserId:req.user.sub,selfRequested:true,status:'PENDING'}});notifyAdmins('SYSTEM','Year group join request',`A member requested to join ${yg.name} and needs approval.`,'/dashboard/admin').catch(()=>{});if(yg.creatorId&&yg.creatorId!==req.user.sub){notifyUser(yg.creatorId,'SYSTEM','Year group join request',`Someone requested to join ${yg.name}.`,'/dashboard/groups').catch(()=>{});}return invite;});
+  app.post('/year-groups/:id/request-join',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});const alreadyMember=await prisma.yearGroupMembership.findUnique({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:yg.id}}});if(alreadyMember&&!alreadyMember.banned)return reply.code(409).send({error:'You are already a member of this group'});if(alreadyMember?.banned)return reply.code(403).send({error:'You have been removed from this group and cannot rejoin unless an admin lifts the ban.'});const invite=await prisma.yearGroupInvite.upsert({where:{yearGroupId_invitedUserId:{yearGroupId:yg.id,invitedUserId:req.user.sub}},update:{status:'PENDING'},create:{yearGroupId:yg.id,invitedUserId:req.user.sub,invitedByUserId:req.user.sub,selfRequested:true,status:'PENDING'}});notifyAdmins('SYSTEM','Year group join request',`A member requested to join ${yg.name} and needs approval.`,'/dashboard/admin').catch(()=>{});if(yg.creatorId&&yg.creatorId!==req.user.sub){notifyUser(yg.creatorId,'SYSTEM','Year group join request',`Someone requested to join ${yg.name}.`,'/dashboard/groups').catch(()=>{});}return invite;});
   app.post('/year-group-invites/:id/approve',{preHandler:[app.authenticate]},async(req:any,reply)=>{const invite=await prisma.yearGroupInvite.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(!invite)return reply.code(404).send({error:'Invite not found'});if(!canManageGroup(req.user,invite.yearGroup))return reply.code(403).send({error:'Only the group creator or an admin can approve invites'});if(!invite.invitedUserId)return reply.code(409).send({error:'This person has not registered yet. They will be added automatically once they sign up with the invite link.'});await prisma.$transaction([prisma.yearGroupInvite.update({where:{id:invite.id},data:{status:'APPROVED'}}),prisma.yearGroupMembership.upsert({where:{userId_yearGroupId:{userId:invite.invitedUserId,yearGroupId:invite.yearGroupId}},update:{},create:{userId:invite.invitedUserId,yearGroupId:invite.yearGroupId}})]);notifyUser(invite.invitedUserId,'SYSTEM',`Welcome to ${invite.yearGroup.name}!`,`Your request to join ${invite.yearGroup.name} was approved.`,'/dashboard/groups',true).catch(()=>{});return{ok:true};});
   app.post('/year-group-invites/:id/reject',{preHandler:[app.authenticate]},async(req:any,reply)=>{const invite=await prisma.yearGroupInvite.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(!invite)return reply.code(404).send({error:'Invite not found'});if(!canManageGroup(req.user,invite.yearGroup))return reply.code(403).send({error:'Only the group creator or an admin can reject invites'});await prisma.yearGroupInvite.update({where:{id:invite.id},data:{status:'REJECTED'}});if(invite.invitedUserId){notifyUser(invite.invitedUserId,'SYSTEM',`Update on ${invite.yearGroup.name}`,`Your request to join ${invite.yearGroup.name} was not approved.`,'/dashboard/groups').catch(()=>{});}return{ok:true};});
+
+  // ===== Year group member moderation (creator/admin) =====
+  app.get('/year-groups/:id/members',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can view members'});
+    return prisma.yearGroupMembership.findMany({where:{yearGroupId:yg.id},orderBy:[{banned:'asc'},{joinedAt:'asc'}],include:{user:{select:{id:true,email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true}}}}}});
+  });
+  app.post('/year-groups/:id/members/:userId/moderate',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can manage members'});
+    if(req.params.userId===yg.creatorId)return reply.code(400).send({error:'The group creator cannot be moderated'});
+    const b=z.object({action:z.enum(['ban','unban','restrict','unrestrict'])}).parse(req.body);
+    const membership=await prisma.yearGroupMembership.findUnique({where:{userId_yearGroupId:{userId:req.params.userId,yearGroupId:yg.id}}});
+    if(!membership)return reply.code(404).send({error:'This person is not a member of the group'});
+    const data=b.action==='ban'?{banned:true}:b.action==='unban'?{banned:false}:b.action==='restrict'?{restricted:true}:{restricted:false};
+    const updated=await prisma.yearGroupMembership.update({where:{id:membership.id},data});
+    const msgs:Record<string,string>={ban:`You have been removed from ${yg.name} by the group manager.`,unban:`You've been let back into ${yg.name}.`,restrict:`Your posting access in ${yg.name} has been restricted by the group manager.`,unrestrict:`Your posting access in ${yg.name} has been restored.`};
+    notifyUser(req.params.userId,'SYSTEM',`Update on ${yg.name}`,msgs[b.action],'/dashboard/groups').catch(()=>{});
+    return updated;
+  });
+
+  // ===== Year group feed (Facebook-style posts, likes, comments) =====
+  async function requireActiveMembership(userId:string,yearGroupId:string){return prisma.yearGroupMembership.findFirst({where:{userId,yearGroupId,banned:false}});}
+  app.get('/year-groups/:id/posts',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const manage=canManageGroup(req.user,yg);
+    if(!manage&&!(await requireActiveMembership(req.user.sub,yg.id)))return reply.code(403).send({error:'Join this group to view its feed'});
+    const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(50).default(20)}).parse(req.query);
+    const posts=await prisma.yearGroupPost.findMany({where:{yearGroupId:yg.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}),include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},_count:{select:{likes:true,comments:true}},likes:{where:{userId:req.user.sub},select:{id:true}}}});
+    return posts.map(({likes,...p})=>({...p,likedByMe:likes.length>0}));
+  });
+  app.post('/year-groups/:id/posts',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const membership=await requireActiveMembership(req.user.sub,yg.id);
+    if(!membership)return reply.code(403).send({error:'Join this group to post'});
+    if(membership.restricted)return reply.code(403).send({error:'Your posting access in this group has been restricted'});
+    const b=z.object({body:z.string().max(4000).optional(),imageUrl:z.string().optional(),videoUrl:z.string().url().optional()}).refine(v=>v.body?.trim()||v.imageUrl||v.videoUrl,{message:'Post cannot be empty'}).parse(req.body);
+    const post=await prisma.yearGroupPost.create({data:{yearGroupId:yg.id,userId:req.user.sub,body:b.body?.trim()||undefined,imageUrl:b.imageUrl,videoUrl:b.videoUrl},include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},_count:{select:{likes:true,comments:true}}}});
+    return{...post,likedByMe:false};
+  });
+  app.post('/year-groups/:id/post-image',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const membership=await requireActiveMembership(req.user.sub,yg.id);
+    if(!membership||membership.restricted)return reply.code(403).send({error:'You do not have permission to post images here'});
+    try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,`post-${randomUUID()}`,'yeargroup-posts',800,800);return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}
+  });
+  app.delete('/year-groups/:id/posts/:postId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const post=await prisma.yearGroupPost.findUnique({where:{id:req.params.postId}});
+    if(!post||post.yearGroupId!==yg.id)return reply.code(404).send({error:'Post not found'});
+    if(post.userId!==req.user.sub&&!canManageGroup(req.user,yg))return reply.code(403).send({error:'You can only delete your own posts'});
+    await prisma.yearGroupPost.delete({where:{id:post.id}});
+    return{ok:true};
+  });
+  app.post('/year-groups/:id/posts/:postId/like',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const membership=await requireActiveMembership(req.user.sub,yg.id);
+    if(!membership)return reply.code(403).send({error:'Join this group to like posts'});
+    const post=await prisma.yearGroupPost.findUnique({where:{id:req.params.postId}});
+    if(!post||post.yearGroupId!==yg.id)return reply.code(404).send({error:'Post not found'});
+    const existing=await prisma.yearGroupPostLike.findUnique({where:{postId_userId:{postId:post.id,userId:req.user.sub}}});
+    if(existing){await prisma.yearGroupPostLike.delete({where:{id:existing.id}});return{liked:false};}
+    await prisma.yearGroupPostLike.create({data:{postId:post.id,userId:req.user.sub}});
+    return{liked:true};
+  });
+  app.get('/year-groups/:id/posts/:postId/comments',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    if(!canManageGroup(req.user,yg)&&!(await requireActiveMembership(req.user.sub,yg.id)))return reply.code(403).send({error:'Join this group to view comments'});
+    return prisma.yearGroupPostComment.findMany({where:{postId:req.params.postId},orderBy:{createdAt:'asc'},include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}}}});
+  });
+  app.post('/year-groups/:id/posts/:postId/comments',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const membership=await requireActiveMembership(req.user.sub,yg.id);
+    if(!membership)return reply.code(403).send({error:'Join this group to comment'});
+    if(membership.restricted)return reply.code(403).send({error:'Your posting access in this group has been restricted'});
+    const post=await prisma.yearGroupPost.findUnique({where:{id:req.params.postId}});
+    if(!post||post.yearGroupId!==yg.id)return reply.code(404).send({error:'Post not found'});
+    const b=z.object({body:z.string().min(1).max(1000)}).parse(req.body);
+    const comment=await prisma.yearGroupPostComment.create({data:{postId:post.id,userId:req.user.sub,body:b.body.trim()},include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}}}});
+    if(post.userId!==req.user.sub)notifyUser(post.userId,'SYSTEM','New comment on your post',`Someone commented on your post in ${yg.name}.`,'/dashboard/groups').catch(()=>{});
+    return comment;
+  });
+  app.delete('/year-groups/:id/posts/:postId/comments/:commentId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    const comment=await prisma.yearGroupPostComment.findUnique({where:{id:req.params.commentId}});
+    if(!comment)return reply.code(404).send({error:'Comment not found'});
+    if(comment.userId!==req.user.sub&&!canManageGroup(req.user,yg))return reply.code(403).send({error:'You can only delete your own comments'});
+    await prisma.yearGroupPostComment.delete({where:{id:comment.id}});
+    return{ok:true};
+  });
 
   app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:100,select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,avatarUrl:true,userId:true}})});
   app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});

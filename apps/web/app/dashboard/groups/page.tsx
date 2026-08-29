@@ -27,8 +27,11 @@ interface Invite {
   id: string;
   status: string;
   selfRequested: boolean;
+  awaitingRegistration?: boolean;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
   createdAt: string;
-  invitedUser: { email: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null } | null };
+  invitedUser?: { email: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null } | null } | null;
   invitedBy: { email: string; profile?: { fullName?: string | null } | null };
 }
 
@@ -56,10 +59,15 @@ export default function YearGroupsPage() {
   const [creating, setCreating] = useState(false);
 
   const [inviteModalGroup, setInviteModalGroup] = useState<YearGroup | null>(null);
+  const [inviteMode, setInviteMode] = useState<'search' | 'contact'>('search');
   const [inviteSearch, setInviteSearch] = useState('');
   const [inviteResults, setInviteResults] = useState<AlumniResult[]>([]);
   const [inviteSearching, setInviteSearching] = useState(false);
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [contactForm, setContactForm] = useState({ fullName: '', email: '', phone: '' });
+  const [sendingContactInvite, setSendingContactInvite] = useState(false);
+  const [contactInviteResult, setContactInviteResult] = useState<{ inviteLink: string; emailSent: boolean } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [invitesModalGroup, setInvitesModalGroup] = useState<YearGroup | null>(null);
   const [invitesList, setInvitesList] = useState<Invite[]>([]);
@@ -174,7 +182,7 @@ export default function YearGroupsPage() {
   };
 
   // ===== Invite flow =====
-  const openInviteModal = (yg: YearGroup) => { setInviteModalGroup(yg); setInviteSearch(''); setInviteResults([]); };
+  const openInviteModal = (yg: YearGroup) => { setInviteModalGroup(yg); setInviteMode('search'); setInviteSearch(''); setInviteResults([]); setContactForm({ fullName: '', email: '', phone: '' }); setContactInviteResult(null); };
   const searchAlumni = async (q: string) => {
     setInviteSearch(q);
     if (q.trim().length < 2) { setInviteResults([]); return; }
@@ -199,6 +207,41 @@ export default function YearGroupsPage() {
     } finally {
       setInvitingUserId(null);
     }
+  };
+
+  const sendContactInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteModalGroup) return;
+    if (!contactForm.email.trim() && !contactForm.phone.trim()) { setError('Please provide an email or phone number'); return; }
+    setSendingContactInvite(true);
+    setError('');
+    setContactInviteResult(null);
+    try {
+      const result = await apiPost<any>(`/year-groups/${inviteModalGroup.id}/invite`, {
+        fullName: contactForm.fullName.trim() || undefined,
+        email: contactForm.email.trim() || undefined,
+        phone: contactForm.phone.trim() || undefined,
+      });
+      if (result.linkSent === false) {
+        setSuccess('This person already has an account — added to the invite list.');
+        setContactForm({ fullName: '', email: '', phone: '' });
+        setTimeout(() => setSuccess(''), 5000);
+      } else {
+        setContactInviteResult({ inviteLink: result.inviteLink, emailSent: result.emailSent });
+      }
+      load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to send invite');
+    } finally {
+      setSendingContactInvite(false);
+    }
+  };
+
+  const copyInviteLink = (link: string) => {
+    navigator.clipboard?.writeText(link).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    });
   };
 
   // ===== Manage invites (creator/admin) =====
@@ -391,34 +434,90 @@ export default function YearGroupsPage() {
       {/* Invite modal */}
       {inviteModalGroup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setInviteModalGroup(null)}>
-          <div className="card" style={{ width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div className="card" style={{ width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: '0 0 12px' }}>Invite to {inviteModalGroup.name}</h3>
-            <div className="input-wrap" style={{ marginBottom: 12 }}>
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input type="text" value={inviteSearch} onChange={e => searchAlumni(e.target.value)} placeholder="Search alumni by name..." autoFocus />
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <button className={`btn btn-sm ${inviteMode === 'search' ? '' : 'btn-outline'}`} onClick={() => { setInviteMode('search'); setContactInviteResult(null); }}>On the app</button>
+              <button className={`btn btn-sm ${inviteMode === 'contact' ? '' : 'btn-outline'}`} onClick={() => { setInviteMode('contact'); setContactInviteResult(null); }}>By phone / email</button>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {inviteSearching ? (
-                <div className="loading-center"><span className="spinner" /></div>
-              ) : inviteResults.length === 0 && inviteSearch.trim().length >= 2 ? (
-                <p className="text-muted text-sm" style={{ textAlign: 'center', padding: 20 }}>No alumni found.</p>
-              ) : (
-                inviteResults.map(a => (
-                  <div key={a.userId} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-                    <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
-                      {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (a.fullName || '?').charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
-                      <div className="text-muted text-sm">Class of {a.graduationYear}</div>
-                    </div>
-                    <button className="btn btn-sm" onClick={() => sendInvite(a.userId)} disabled={invitingUserId === a.userId}>
-                      {invitingUserId === a.userId ? <span className="spinner" /> : 'Invite'}
-                    </button>
+
+            {inviteMode === 'search' ? (
+              <>
+                <div className="input-wrap" style={{ marginBottom: 12 }}>
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <input type="text" value={inviteSearch} onChange={e => searchAlumni(e.target.value)} placeholder="Search alumni by name..." autoFocus />
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {inviteSearching ? (
+                    <div className="loading-center"><span className="spinner" /></div>
+                  ) : inviteResults.length === 0 && inviteSearch.trim().length >= 2 ? (
+                    <p className="text-muted text-sm" style={{ textAlign: 'center', padding: 20 }}>No alumni found. If they aren't on OPASS CONNECT yet, use "By phone / email" instead.</p>
+                  ) : (
+                    inviteResults.map(a => (
+                      <div key={a.userId} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
+                        <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
+                          {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (a.fullName || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
+                          <div className="text-muted text-sm">Class of {a.graduationYear}</div>
+                        </div>
+                        <button className="btn btn-sm" onClick={() => sendInvite(a.userId)} disabled={invitingUserId === a.userId}>
+                          {invitingUserId === a.userId ? <span className="spinner" /> : 'Invite'}
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            ) : contactInviteResult ? (
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div className="alert alert-success" style={{ marginBottom: 12 }}>
+                  {contactInviteResult.emailSent ? 'Invite email sent!' : 'Invite created.'} Share this link so they can register and join automatically:
+                </div>
+                <div className="input-wrap" style={{ marginBottom: 12 }}>
+                  <input type="text" readOnly value={contactInviteResult.inviteLink} style={{ fontSize: 13 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button className="btn btn-sm" type="button" onClick={() => copyInviteLink(contactInviteResult.inviteLink)}>
+                    {linkCopied ? 'Copied!' : 'Copy Link'}
+                  </button>
+                  <a className="btn btn-sm btn-outline" href={`sms:?&body=${encodeURIComponent(`Join OPASS CONNECT: ${contactInviteResult.inviteLink}`)}`}>Share via SMS</a>
+                  <a className="btn btn-sm btn-outline" href={`https://wa.me/?text=${encodeURIComponent(`Join OPASS CONNECT: ${contactInviteResult.inviteLink}`)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+                </div>
+                <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => { setContactInviteResult(null); setContactForm({ fullName: '', email: '', phone: '' }); }}>Invite another</button>
+              </div>
+            ) : (
+              <form onSubmit={sendContactInvite} style={{ flex: 1, overflowY: 'auto' }}>
+                <p className="text-muted text-sm" style={{ marginTop: 0, marginBottom: 14 }}>
+                  Not on OPASS CONNECT yet? Send them a registration link by email or phone. Once they sign up, they'll automatically join this group's request queue.
+                </p>
+                <div className="form-group">
+                  <label>Full name (optional)</label>
+                  <div className="input-wrap">
+                    <input type="text" value={contactForm.fullName} onChange={e => setContactForm({ ...contactForm, fullName: e.target.value })} placeholder="e.g. Kwame Mensah" />
                   </div>
-                ))
-              )}
-            </div>
+                </div>
+                <div className="form-group">
+                  <label>Email</label>
+                  <div className="input-wrap">
+                    <input type="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })} placeholder="their@email.com" />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Phone number</label>
+                  <div className="input-wrap">
+                    <input type="tel" value={contactForm.phone} onChange={e => setContactForm({ ...contactForm, phone: e.target.value })} placeholder="+233 XX XXX XXXX" />
+                  </div>
+                  <div className="hint">Provide at least an email or a phone number. We'll generate a link you can send via SMS/WhatsApp if no email is given.</div>
+                </div>
+                <button className="btn btn-block" type="submit" disabled={sendingContactInvite}>
+                  {sendingContactInvite ? <span className="spinner" /> : 'Send Invite'}
+                </button>
+              </form>
+            )}
+
             <button className="btn" style={{ marginTop: 12, background: 'var(--muted)' }} onClick={() => setInviteModalGroup(null)}>Close</button>
           </div>
         </div>
@@ -438,15 +537,17 @@ export default function YearGroupsPage() {
                 invitesList.map(inv => (
                   <div key={inv.id} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
                     <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
-                      {inv.invitedUser.profile?.avatarUrl ? <img src={inv.invitedUser.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (inv.invitedUser.profile?.fullName || inv.invitedUser.email).charAt(0).toUpperCase()}
+                      {inv.invitedUser?.profile?.avatarUrl ? <img src={inv.invitedUser.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (inv.invitedUser?.profile?.fullName || inv.invitedUser?.email || inv.contactEmail || inv.contactPhone || '?').charAt(0).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{inv.invitedUser.profile?.fullName || inv.invitedUser.email}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{inv.invitedUser?.profile?.fullName || inv.invitedUser?.email || inv.contactEmail || inv.contactPhone || 'Pending contact'}</div>
                       <div className="text-muted text-sm">
-                        {inv.selfRequested ? 'Requested to join' : `Invited by ${inv.invitedBy.profile?.fullName || inv.invitedBy.email}`}
+                        {inv.awaitingRegistration ? 'Invited — awaiting sign up' : inv.selfRequested ? 'Requested to join' : `Invited by ${inv.invitedBy.profile?.fullName || inv.invitedBy.email}`}
                       </div>
                     </div>
-                    {inv.status === 'PENDING' ? (
+                    {inv.awaitingRegistration ? (
+                      <span className="badge badge-amber">Awaiting sign up</span>
+                    ) : inv.status === 'PENDING' ? (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sm btn-success" onClick={() => actOnInvite(inv.id, 'approve')} disabled={invitesActing === inv.id}>
                           {invitesActing === inv.id ? <span className="spinner" /> : 'Approve'}

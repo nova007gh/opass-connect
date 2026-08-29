@@ -8,10 +8,24 @@ export function registerAuthRoutes(app: FastifyInstance) {
     const body = z.object({
       email: z.string().email(), phone: z.string().optional(), password: z.string().min(10),
       fullName: z.string().min(2), graduationYear: z.number().int().min(1955).max(new Date().getFullYear()),
-      house: z.string().optional(), positionHeld: z.string().optional(), country: z.string().optional(), city: z.string().optional()
+      house: z.string().optional(), positionHeld: z.string().optional(), country: z.string().optional(), city: z.string().optional(),
+      inviteToken: z.string().optional(),
     }).parse(req.body);
     const passwordHash = await bcrypt.hash(body.password, 12);
     const user = await prisma.user.create({data:{email:body.email.toLowerCase(), phone:body.phone, passwordHash, profile:{create:{fullName:body.fullName, graduationYear:body.graduationYear, house:body.house, positionHeld:body.positionHeld, country:body.country, city:body.city}}}, include:{profile:true}});
+    if (body.inviteToken) {
+      const invite = await prisma.yearGroupInvite.findUnique({ where: { token: body.inviteToken }, include: { yearGroup: true, invitedBy: true } });
+      if (invite && !invite.invitedUserId) {
+        const inviterIsAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(invite.invitedBy.role);
+        await prisma.yearGroupInvite.update({ where: { id: invite.id }, data: { invitedUserId: user.id, status: inviterIsAdmin ? 'APPROVED' : 'PENDING' } });
+        if (inviterIsAdmin) {
+          await prisma.yearGroupMembership.upsert({ where: { userId_yearGroupId: { userId: user.id, yearGroupId: invite.yearGroupId } }, update: {}, create: { userId: user.id, yearGroupId: invite.yearGroupId } }).catch(() => {});
+        } else {
+          const { notifyAdmins } = await import('./notifications.js');
+          notifyAdmins('SYSTEM', 'Year group invite needs approval', `${body.fullName} joined via invite link and needs approval to join ${invite.yearGroup.name}.`, '/dashboard/admin').catch(() => {});
+        }
+      }
+    }
     const token = app.jwt.sign({sub:user.id, role:user.role}, {expiresIn:'7d'});
     return reply.code(201).send({token,user:safeUser(user)});
   });

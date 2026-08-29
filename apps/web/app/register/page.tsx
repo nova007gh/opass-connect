@@ -1,15 +1,30 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiPatch, apiPost, apiUpload, setToken } from '../../lib/api';
+import { apiGet, apiPatch, apiPost, apiUpload, setToken } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 
 const HOUSES = ['Mensah House', 'Danso House', 'Brew House', 'Gedi House', 'Andoh House'];
 
+interface InvitePreview {
+  yearGroup: { year: number; name: string };
+  invitedByName: string;
+}
+
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite') || '';
   const { user, refresh } = useAuth();
   const [step, setStep] = useState(1);
   const totalSteps = 4;
@@ -22,8 +37,19 @@ export default function RegisterPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
 
   useEffect(() => { if (user) router.replace('/dashboard'); }, [user, router]);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    apiGet<InvitePreview>(`/invites/${inviteToken}`)
+      .then(data => {
+        setInvitePreview(data);
+        set('graduationYear', String(data.yearGroup.year));
+      })
+      .catch(() => setInvitePreview(null));
+  }, [inviteToken]);
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
@@ -74,6 +100,7 @@ export default function RegisterPage() {
         positionHeld: form.positionHeld || undefined,
         country: form.country || undefined,
         city: form.city || undefined,
+        inviteToken: inviteToken || undefined,
       });
       setToken(data.token);
       if (form.profession) {
@@ -118,6 +145,11 @@ export default function RegisterPage() {
         </div>
         <h1>{titles[step].title}</h1>
         <p className="sub">{titles[step].subtitle}</p>
+        {invitePreview && step === 1 && (
+          <div className="alert alert-success" style={{ marginBottom: 16 }}>
+            {invitePreview.invitedByName} invited you to join <strong>{invitePreview.yearGroup.name}</strong>. Finish signing up to join automatically.
+          </div>
+        )}
         {error && <div className="alert alert-error">{error}</div>}
 
         {step === 1 && (

@@ -164,14 +164,17 @@ enum InviteStatus {
 model YearGroupInvite {
   id String @id @default(cuid())
   yearGroupId String
-  invitedUserId String
+  invitedUserId String?
   invitedByUserId String
+  contactEmail String?
+  contactPhone String?
+  token String? @unique
   status InviteStatus @default(PENDING)
   selfRequested Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   yearGroup YearGroup @relation(fields:[yearGroupId], references:[id], onDelete:Cascade)
-  invitedUser User @relation("InvitedUser", fields:[invitedUserId], references:[id], onDelete:Cascade)
+  invitedUser User? @relation("InvitedUser", fields:[invitedUserId], references:[id], onDelete:Cascade)
   invitedBy User @relation("InvitedBy", fields:[invitedByUserId], references:[id], onDelete:Cascade)
   @@unique([yearGroupId, invitedUserId])
 }

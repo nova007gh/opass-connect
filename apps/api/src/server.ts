@@ -23,7 +23,7 @@ await app.register(helmet,{global:true});
 const isDev = env.NODE_ENV !== 'production';
 const allowedOrigins = isDev ? true : [env.WEB_URL, 'https://opass-connect.vercel.app', 'https://opass-connect-*.vercel.app'];
 await app.register(cors,{origin: allowedOrigins, credentials:true});
-await app.register(rateLimit,{max:120,timeWindow:'1 minute'});
+await app.register(rateLimit,{max:200,timeWindow:'1 minute'});
 await app.register(jwt,{secret:env.JWT_SECRET});
 await app.register(multipart,{limits:{fileSize:5_000_000,files:1}});
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

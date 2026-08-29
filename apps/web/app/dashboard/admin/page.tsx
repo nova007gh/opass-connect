@@ -59,13 +59,14 @@ const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets'>('overview');
+  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [pending, setPending] = useState<PendingMember[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [ads, setAds] = useState<AdCampaign[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
+  const [groupInvites, setGroupInvites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
 
@@ -77,15 +78,25 @@ export default function AdminPage() {
       apiGet<AdCampaign[]>('/admin/ads?status=PENDING_APPROVAL').catch(() => []),
       apiGet<ActivityItem[]>('/admin/activity').catch(() => []),
       apiGet<any[]>('/tickets').catch(() => []),
-    ]).then(([s, p, q, a, act, t]) => {
+      apiGet<any[]>('/admin/year-group-invites').catch(() => []),
+    ]).then(([s, p, q, a, act, t, gi]) => {
       setStats(s);
       setPending(p);
       setQuotes(q);
       setAds(a);
       setActivity(act);
       setTickets(t);
+      setGroupInvites(gi);
       setLoading(false);
     });
+  };
+
+  const actOnGroupInvite = async (id: string, action: 'approve' | 'reject') => {
+    setAction(id);
+    try {
+      await apiPost(`/year-group-invites/${id}/${action}`);
+      setGroupInvites(prev => prev.filter(g => g.id !== id));
+    } catch { /* noop */ } finally { setAction(null); }
   };
 
   useEffect(loadAll, []);
@@ -230,6 +241,9 @@ export default function AdminPage() {
                 <button className={`btn btn-sm ${tab === 'tickets' ? '' : 'btn-outline'}`} onClick={() => setTab('tickets')}>
                   Tickets {tickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{tickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length}</span>}
                 </button>
+                <button className={`btn btn-sm ${tab === 'groupInvites' ? '' : 'btn-outline'}`} onClick={() => setTab('groupInvites')}>
+                  Group Requests {groupInvites.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{groupInvites.length}</span>}
+                </button>
               </div>
               {tab === 'overview' && renderOverview()}
               {tab === 'members' && (
@@ -324,6 +338,35 @@ export default function AdminPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                           <span className={`badge ${t.status === 'OPEN' ? 'badge-blue' : t.status === 'IN_PROGRESS' ? 'badge-amber' : t.status === 'CLOSED' ? 'badge-dark' : 'badge-green'}`}>{t.status.replace(/_/g, ' ')}</span>
                           <Link href="/dashboard/support" className="text-sm" style={{ color: 'var(--blue)', fontWeight: 600 }}>View</Link>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              {tab === 'groupInvites' && (
+                <div className="card">
+                  <h3>Year Group Join Requests</h3>
+                  {groupInvites.length === 0 ? (
+                    <div className="empty-state"><p>No pending group requests.</p></div>
+                  ) : (
+                    groupInvites.map((inv: any) => (
+                      <div key={inv.id} className="list-item" style={{ flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ display: 'block', fontSize: 14 }}>
+                            {inv.invitedUser?.profile?.fullName || inv.invitedUser?.email}
+                          </strong>
+                          <div className="text-muted text-sm">
+                            {inv.selfRequested ? 'Requested to join' : `Invited by ${inv.invitedBy?.profile?.fullName || inv.invitedBy?.email}`} · Class of {inv.yearGroup?.year} ({inv.yearGroup?.name})
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn btn-sm btn-success" onClick={() => actOnGroupInvite(inv.id, 'approve')} disabled={action === inv.id}>
+                            {action === inv.id ? <span className="spinner" /> : 'Approve'}
+                          </button>
+                          <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => actOnGroupInvite(inv.id, 'reject')} disabled={action === inv.id}>
+                            Reject
+                          </button>
                         </div>
                       </div>
                     ))

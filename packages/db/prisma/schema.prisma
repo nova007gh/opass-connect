@@ -112,6 +112,9 @@ model User {
   tickets SupportTicket[]
   aiConversations AIConversation[]
   notifications Notification[]
+  yearGroupsCreated YearGroup[] @relation("YearGroupCreator")
+  invitesSent YearGroupInvite[] @relation("InvitedBy")
+  invitesReceived YearGroupInvite[] @relation("InvitedUser")
 }
 
 model AlumniProfile {
@@ -140,12 +143,37 @@ model YearGroup {
   name String
   description String?
   imageUrl String?
+  galleryUrls String[] @default([])
+  creatorId String?
+  creator User? @relation("YearGroupCreator", fields:[creatorId], references:[id], onDelete:SetNull)
   createdAt DateTime @default(now())
   memberships YearGroupMembership[]
+  invites YearGroupInvite[]
   rooms ChatRoom[]
   meetings Meeting[]
   projects Project[]
   elections Election[]
+}
+
+enum InviteStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model YearGroupInvite {
+  id String @id @default(cuid())
+  yearGroupId String
+  invitedUserId String
+  invitedByUserId String
+  status InviteStatus @default(PENDING)
+  selfRequested Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  yearGroup YearGroup @relation(fields:[yearGroupId], references:[id], onDelete:Cascade)
+  invitedUser User @relation("InvitedUser", fields:[invitedUserId], references:[id], onDelete:Cascade)
+  invitedBy User @relation("InvitedBy", fields:[invitedByUserId], references:[id], onDelete:Cascade)
+  @@unique([yearGroupId, invitedUserId])
 }
 
 model YearGroupMembership {

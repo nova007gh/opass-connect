@@ -55,6 +55,8 @@ export const apiPost = <T = any>(path: string, body?: any) =>
   api<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
 export const apiPatch = <T = any>(path: string, body?: any) =>
   api<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined });
+export const apiDelete = <T = any>(path: string, body?: any) =>
+  api<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined });
 
 export async function apiUpload<T = any>(path: string, file: File): Promise<T> {
   const token = getToken();

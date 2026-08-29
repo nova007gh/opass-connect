@@ -1,34 +1,84 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { apiGet, apiPost, apiUpload } from '../../../lib/api';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { apiGet, apiPost, apiDelete, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
-interface YearGroup { id: string; year: number; name: string; description?: string | null; imageUrl?: string | null; _count: { memberships: number } }
+interface YearGroup {
+  id: string;
+  year: number;
+  name: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  galleryUrls?: string[];
+  creatorId?: string | null;
+  pendingInvites?: number;
+  _count: { memberships: number };
+}
+
+interface AlumniResult {
+  userId: string;
+  fullName: string;
+  graduationYear: number;
+  avatarUrl?: string | null;
+}
+
+interface Invite {
+  id: string;
+  status: string;
+  selfRequested: boolean;
+  createdAt: string;
+  invitedUser: { email: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null } | null };
+  invitedBy: { email: string; profile?: { fullName?: string | null } | null };
+}
+
+type RequestState = 'none' | 'pending' | 'joined';
 
 export default function YearGroupsPage() {
   const { user, refresh, isAdmin } = useAuth();
   const [groups, setGroups] = useState<YearGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [joining, setJoining] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
+
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [galleryTargetId, setGalleryTargetId] = useState<string | null>(null);
+  const [uploadingGalleryId, setUploadingGalleryId] = useState<string | null>(null);
+  const [galleryOpenId, setGalleryOpenId] = useState<string | null>(null);
+
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ year: '', name: '', description: '' });
   const [creating, setCreating] = useState(false);
-  const [success, setSuccess] = useState('');
 
-  const load = () => {
+  const [inviteModalGroup, setInviteModalGroup] = useState<YearGroup | null>(null);
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [inviteResults, setInviteResults] = useState<AlumniResult[]>([]);
+  const [inviteSearching, setInviteSearching] = useState(false);
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+
+  const [invitesModalGroup, setInvitesModalGroup] = useState<YearGroup | null>(null);
+  const [invitesList, setInvitesList] = useState<Invite[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [invitesActing, setInvitesActing] = useState<string | null>(null);
+
+  const load = useCallback(() => {
     apiGet<YearGroup[]>('/year-groups')
       .then(setGroups)
       .catch(() => setError('Failed to load year groups'))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(load, []);
+  useEffect(load, [load]);
 
+  const joinedIds = new Set(user?.memberships?.map(m => m.yearGroupId) || []);
+  const canManage = (yg: YearGroup) => isAdmin || yg.creatorId === user?.id;
+
+  // ===== Create =====
   const createGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     const year = parseInt(createForm.year, 10);
@@ -38,18 +88,17 @@ export default function YearGroupsPage() {
     setError('');
     try {
       const result = await apiPost<YearGroup>('/year-groups', {
-        year,
-        name: createForm.name.trim(),
-        description: createForm.description.trim() || undefined,
+        year, name: createForm.name.trim(), description: createForm.description.trim() || undefined,
       });
       if (result && (result as any).error) {
         setError((result as any).error);
       } else {
-        setSuccess('Year group created!');
+        setSuccess('Year group created! You are its manager and can invite classmates.');
         setCreateForm({ year: '', name: '', description: '' });
         setShowCreate(false);
-        setTimeout(() => setSuccess(''), 4000);
+        setTimeout(() => setSuccess(''), 5000);
         load();
+        refresh();
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create year group');
@@ -58,26 +107,24 @@ export default function YearGroupsPage() {
     }
   };
 
-  const joinedIds = new Set(user?.memberships?.map(m => m.yearGroupId) || []);
-
-  const join = async (id: string) => {
-    setJoining(id);
+  // ===== Request to join =====
+  const requestJoin = async (id: string) => {
+    setRequesting(id);
     setError('');
     try {
-      await apiPost(`/year-groups/${id}/join`);
-      await refresh();
+      await apiPost(`/year-groups/${id}/request-join`);
+      setSuccess('Request sent! An admin or the group manager will review it.');
+      setTimeout(() => setSuccess(''), 5000);
+      load();
     } catch (err: any) {
-      setError(err.message || 'Failed to join group');
+      setError(err.message || 'Failed to send request');
     } finally {
-      setJoining(null);
+      setRequesting(null);
     }
   };
 
-  const pickImage = (id: string) => {
-    setUploadTargetId(id);
-    fileInputRef.current?.click();
-  };
-
+  // ===== Profile picture upload =====
+  const pickImage = (id: string) => { setUploadTargetId(id); fileInputRef.current?.click(); };
   const onImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTargetId) return;
@@ -97,6 +144,87 @@ export default function YearGroupsPage() {
     }
   };
 
+  // ===== Gallery upload =====
+  const pickGalleryImage = (id: string) => { setGalleryTargetId(id); galleryInputRef.current?.click(); };
+  const onGalleryChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !galleryTargetId) return;
+    if (!/image\/(jpeg|png|webp|gif)/.test(file.type)) { setError('Please choose a valid image.'); return; }
+    if (file.size > 5_000_000) { setError('Image must be under 5MB.'); return; }
+    setError('');
+    setUploadingGalleryId(galleryTargetId);
+    try {
+      const { galleryUrls } = await apiUpload<{ imageUrl: string; galleryUrls: string[] }>(`/year-groups/${galleryTargetId}/gallery`, file);
+      setGroups(prev => prev.map(g => g.id === galleryTargetId ? { ...g, galleryUrls } : g));
+    } catch (err: any) {
+      setError(err.message || 'Gallery upload failed');
+    } finally {
+      setUploadingGalleryId(null);
+      setGalleryTargetId(null);
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
+    }
+  };
+  const removeGalleryPhoto = async (groupId: string, url: string) => {
+    try {
+      const { galleryUrls } = await apiDelete<{ galleryUrls: string[] }>(`/year-groups/${groupId}/gallery`, { url });
+      setGroups(prev => prev.map(g => g.id === groupId ? { ...g, galleryUrls } : g));
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove photo');
+    }
+  };
+
+  // ===== Invite flow =====
+  const openInviteModal = (yg: YearGroup) => { setInviteModalGroup(yg); setInviteSearch(''); setInviteResults([]); };
+  const searchAlumni = async (q: string) => {
+    setInviteSearch(q);
+    if (q.trim().length < 2) { setInviteResults([]); return; }
+    setInviteSearching(true);
+    try {
+      const results = await apiGet<AlumniResult[]>(`/alumni?search=${encodeURIComponent(q.trim())}`);
+      setInviteResults(results);
+    } catch { setInviteResults([]); } finally { setInviteSearching(false); }
+  };
+  const sendInvite = async (userId: string) => {
+    if (!inviteModalGroup) return;
+    setInvitingUserId(userId);
+    setError('');
+    try {
+      const isAdminInviter = isAdmin;
+      await apiPost(`/year-groups/${inviteModalGroup.id}/invite`, { userId });
+      setSuccess(isAdminInviter ? 'Member added to the group.' : 'Invite sent — waiting for admin approval.');
+      setTimeout(() => setSuccess(''), 5000);
+      load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to send invite');
+    } finally {
+      setInvitingUserId(null);
+    }
+  };
+
+  // ===== Manage invites (creator/admin) =====
+  const openInvitesModal = async (yg: YearGroup) => {
+    setInvitesModalGroup(yg);
+    setInvitesLoading(true);
+    try {
+      const list = await apiGet<Invite[]>(`/year-groups/${yg.id}/invites`);
+      setInvitesList(list);
+    } catch { setInvitesList([]); } finally { setInvitesLoading(false); }
+  };
+  const actOnInvite = async (inviteId: string, action: 'approve' | 'reject') => {
+    setInvitesActing(inviteId);
+    try {
+      await apiPost(`/year-group-invites/${inviteId}/${action}`);
+      setInvitesList(prev => prev.map(i => i.id === inviteId ? { ...i, status: action === 'approve' ? 'APPROVED' : 'REJECTED' } : i));
+      load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update invite');
+    } finally {
+      setInvitesActing(null);
+    }
+  };
+
+  const galleryGroup = groups.find(g => g.id === galleryOpenId);
+
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
@@ -109,6 +237,10 @@ export default function YearGroupsPage() {
         <div className="app-pad">
           {error && <div className="alert alert-error">{error}</div>}
           {success && <div className="alert alert-success">{success}</div>}
+
+          <div className="alert" style={{ background: 'var(--blue-50)', color: 'var(--blue)', marginBottom: 16, fontSize: 13 }}>
+            Year groups are invite-only. Send a request to join, and the group manager or an admin will approve it. Group creators and admins can invite classmates directly.
+          </div>
 
           {showCreate && (
             <form onSubmit={createGroup} className="card" style={{ marginBottom: 16 }}>
@@ -152,6 +284,8 @@ export default function YearGroupsPage() {
             <div className="feed">
               {groups.map(yg => {
                 const joined = joinedIds.has(yg.id);
+                const manage = canManage(yg);
+                const gallery = yg.galleryUrls || [];
                 return (
                   <div className="feed-card" key={yg.id}>
                     <div className="feed-card-header">
@@ -159,7 +293,7 @@ export default function YearGroupsPage() {
                         <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 16, fontWeight: 800, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {yg.imageUrl ? <img src={yg.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (yg.year?.toString() ?? '—').slice(-2)}
                         </div>
-                        {isAdmin && (
+                        {manage && (
                           <button onClick={(e) => { e.stopPropagation(); pickImage(yg.id); }} style={{
                             position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: '50%',
                             background: 'var(--blue-bright)', border: '2px solid var(--white)', color: 'white',
@@ -170,20 +304,55 @@ export default function YearGroupsPage() {
                         )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="name">Class of {yg.year}</div>
+                        <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          Class of {yg.year}
+                          {manage && <span className="badge badge-blue" style={{ fontSize: 10 }}>Manager</span>}
+                        </div>
                         <div className="time">{yg.name} · {yg._count?.memberships ?? 0} members</div>
                       </div>
                       {joined ? (
                         <span className="badge badge-green">✓ Joined</span>
                       ) : (
-                        <button className="btn btn-sm" onClick={() => join(yg.id)} disabled={joining === yg.id}>
-                          {joining === yg.id ? <span className="spinner" /> : 'Join'}
-                        </button>
+                        <RequestButton yg={yg} onRequest={() => requestJoin(yg.id)} loading={requesting === yg.id} />
                       )}
                     </div>
                     {yg.description && (
                       <div className="feed-card-body">
                         <p>{yg.description}</p>
+                      </div>
+                    )}
+
+                    {/* Gallery preview strip */}
+                    {(gallery.length > 0 || manage) && (
+                      <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', overflowX: 'auto' }}>
+                        {gallery.slice(0, 5).map((url, i) => (
+                          <img key={i} src={url} alt="" onClick={() => setGalleryOpenId(yg.id)} style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }} />
+                        ))}
+                        {gallery.length > 5 && (
+                          <button onClick={() => setGalleryOpenId(yg.id)} style={{ width: 56, height: 56, borderRadius: 10, flexShrink: 0, background: 'var(--blue-50)', color: 'var(--blue)', border: 0, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                            +{gallery.length - 5}
+                          </button>
+                        )}
+                        {manage && (
+                          <button onClick={() => pickGalleryImage(yg.id)} disabled={uploadingGalleryId === yg.id} style={{ width: 56, height: 56, borderRadius: 10, flexShrink: 0, background: 'var(--bg)', border: '1.5px dashed var(--border)', color: 'var(--muted)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Add gallery photo">
+                            {uploadingGalleryId === yg.id ? <span className="spinner" /> : '+'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Manager actions */}
+                    {manage && (
+                      <div className="feed-card-actions">
+                        <button onClick={() => openInviteModal(yg)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, background: 'none', border: 0, cursor: 'pointer' }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-3a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                          Invite
+                        </button>
+                        <button onClick={() => openInvitesModal(yg)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', position: 'relative' }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          Requests
+                          {(yg.pendingInvites ?? 0) > 0 && <span className="badge badge-red" style={{ fontSize: 10, marginLeft: 2 }}>{yg.pendingInvites}</span>}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -194,6 +363,119 @@ export default function YearGroupsPage() {
         </div>
       </div>
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onImageChange} style={{ display: 'none' }} />
+      <input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onGalleryChange} style={{ display: 'none' }} />
+
+      {/* Gallery viewer modal */}
+      {galleryGroup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', flexDirection: 'column' }} onClick={() => setGalleryOpenId(null)}>
+          <div style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: 'white', fontWeight: 700 }}>{galleryGroup.name} — Gallery</span>
+            <button onClick={() => setGalleryOpenId(null)} style={{ background: 'none', border: 0, color: 'white', fontSize: 24, cursor: 'pointer' }}>&times;</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }} onClick={e => e.stopPropagation()}>
+            {(galleryGroup.galleryUrls || []).map((url, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                <img src={url} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 10 }} />
+                {canManage(galleryGroup) && (
+                  <button onClick={() => removeGalleryPhoto(galleryGroup.id, url)} style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: 'white', border: 0, cursor: 'pointer', fontSize: 14 }}>&times;</button>
+                )}
+              </div>
+            ))}
+            {(galleryGroup.galleryUrls || []).length === 0 && (
+              <p style={{ color: 'rgba(255,255,255,0.7)', gridColumn: '1/-1', textAlign: 'center' }}>No photos yet.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Invite modal */}
+      {inviteModalGroup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setInviteModalGroup(null)}>
+          <div className="card" style={{ width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px' }}>Invite to {inviteModalGroup.name}</h3>
+            <div className="input-wrap" style={{ marginBottom: 12 }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" value={inviteSearch} onChange={e => searchAlumni(e.target.value)} placeholder="Search alumni by name..." autoFocus />
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {inviteSearching ? (
+                <div className="loading-center"><span className="spinner" /></div>
+              ) : inviteResults.length === 0 && inviteSearch.trim().length >= 2 ? (
+                <p className="text-muted text-sm" style={{ textAlign: 'center', padding: 20 }}>No alumni found.</p>
+              ) : (
+                inviteResults.map(a => (
+                  <div key={a.userId} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
+                    <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
+                      {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (a.fullName || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
+                      <div className="text-muted text-sm">Class of {a.graduationYear}</div>
+                    </div>
+                    <button className="btn btn-sm" onClick={() => sendInvite(a.userId)} disabled={invitingUserId === a.userId}>
+                      {invitingUserId === a.userId ? <span className="spinner" /> : 'Invite'}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <button className="btn" style={{ marginTop: 12, background: 'var(--muted)' }} onClick={() => setInviteModalGroup(null)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Manage requests modal */}
+      {invitesModalGroup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setInvitesModalGroup(null)}>
+          <div className="card" style={{ width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px' }}>Requests — {invitesModalGroup.name}</h3>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {invitesLoading ? (
+                <div className="loading-center"><span className="spinner" /></div>
+              ) : invitesList.length === 0 ? (
+                <p className="text-muted text-sm" style={{ textAlign: 'center', padding: 20 }}>No invite requests yet.</p>
+              ) : (
+                invitesList.map(inv => (
+                  <div key={inv.id} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
+                    <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
+                      {inv.invitedUser.profile?.avatarUrl ? <img src={inv.invitedUser.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (inv.invitedUser.profile?.fullName || inv.invitedUser.email).charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{inv.invitedUser.profile?.fullName || inv.invitedUser.email}</div>
+                      <div className="text-muted text-sm">
+                        {inv.selfRequested ? 'Requested to join' : `Invited by ${inv.invitedBy.profile?.fullName || inv.invitedBy.email}`}
+                      </div>
+                    </div>
+                    {inv.status === 'PENDING' ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-sm btn-success" onClick={() => actOnInvite(inv.id, 'approve')} disabled={invitesActing === inv.id}>
+                          {invitesActing === inv.id ? <span className="spinner" /> : 'Approve'}
+                        </button>
+                        <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => actOnInvite(inv.id, 'reject')} disabled={invitesActing === inv.id}>
+                          Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={`badge ${inv.status === 'APPROVED' ? 'badge-green' : 'badge-red'}`}>{inv.status}</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <button className="btn" style={{ marginTop: 12, background: 'var(--muted)' }} onClick={() => setInvitesModalGroup(null)}>Close</button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function RequestButton({ yg, onRequest, loading }: { yg: YearGroup; onRequest: () => void; loading: boolean }) {
+  const [sent, setSent] = useState(false);
+  if (sent) return <span className="badge badge-amber">Pending</span>;
+  return (
+    <button className="btn btn-sm" onClick={() => { setSent(true); onRequest(); }} disabled={loading}>
+      {loading ? <span className="spinner" /> : 'Request to Join'}
+    </button>
   );
 }

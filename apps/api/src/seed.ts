@@ -1,5 +1,6 @@
 import { prisma, UserRole, VerificationStatus, ElectionStatus, ProjectStatus } from '@opass/db';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
 
 export async function runSeedIfNeeded() {
   const userCount = await prisma.user.count();
@@ -95,8 +96,8 @@ export async function runSeedIfNeeded() {
     await prisma.candidate.create({ data: { electionId: election.id, userId: members[6].id, position: 'President', manifesto: 'Together we can build a stronger OPASS community. I pledge transparency and active engagement.' } }).catch(() => null);
   }
 
-  await prisma.meeting.create({ data: { title: 'OPASS Global Town Hall', description: 'Quarterly town hall meeting for all alumni.', mode: 'WEBINAR', status: 'SCHEDULED', startsAt: new Date('2026-09-01T18:00:00Z'), capacity: 5000, roomKey: `opass-${crypto.randomUUID()}`, hostUserId: admin.id } }).catch(() => null);
-  await prisma.meeting.create({ data: { title: '2006 Class Reunion Planning Call', description: 'Planning meeting for the 20th anniversary reunion.', mode: 'INTERACTIVE', status: 'SCHEDULED', startsAt: new Date('2026-06-15T19:00:00Z'), capacity: 100, roomKey: `opass-${crypto.randomUUID()}`, hostUserId: members[0]?.id || admin.id, yearGroupId: yg2006.id } }).catch(() => null);
+  await prisma.meeting.create({ data: { title: 'OPASS Global Town Hall', description: 'Quarterly town hall meeting for all alumni.', mode: 'WEBINAR', status: 'SCHEDULED', startsAt: new Date('2026-09-01T18:00:00Z'), capacity: 5000, roomKey: `opass-${randomUUID()}`, hostUserId: admin.id } }).catch(() => null);
+  await prisma.meeting.create({ data: { title: '2006 Class Reunion Planning Call', description: 'Planning meeting for the 20th anniversary reunion.', mode: 'INTERACTIVE', status: 'SCHEDULED', startsAt: new Date('2026-06-15T19:00:00Z'), capacity: 100, roomKey: `opass-${randomUUID()}`, hostUserId: members[0]?.id || admin.id, yearGroupId: yg2006.id } }).catch(() => null);
 
   console.log('[seed] Seed complete!');
 }

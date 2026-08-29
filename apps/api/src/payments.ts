@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { env } from './config.js';
 import { prisma } from '@opass/db';
 
 export function registerPaymentRoutes(app:FastifyInstance){
   app.post('/payments/initialize',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     const body=z.object({amount:z.number().positive(),purpose:z.string().min(2),currency:z.string().default('GHS'),phone:z.string().optional()}).parse(req.body);
-    const reference=`OPASS-${crypto.randomUUID()}`;
+    const reference=`OPASS-${randomUUID()}`;
     const payment=await prisma.payment.create({data:{userId:req.user.sub,purpose:body.purpose,reference,provider:env.PAYMENT_PROVIDER,currency:body.currency,amount:body.amount}});
     if(env.PAYMENT_PROVIDER==='paystack' && env.PAYSTACK_SECRET_KEY){
       const me=await prisma.user.findUnique({where:{id:req.user.sub}});

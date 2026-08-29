@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { AccessToken } from 'livekit-server-sdk';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { env } from './config.js';
 import { prisma } from '@opass/db';
 
@@ -11,7 +12,7 @@ export function registerLiveRoutes(app:FastifyInstance){
 
   app.post('/meetings', {preHandler:[app.authenticate]}, async (req:any) => {
     const body=z.object({title:z.string().min(2),description:z.string().optional(),mode:z.enum(['INTERACTIVE','WEBINAR','BROADCAST']),startsAt:z.string().datetime(),capacity:z.number().int().positive().max(1000000).default(500),yearGroupId:z.string().optional()}).parse(req.body);
-    return prisma.meeting.create({data:{...body,startsAt:new Date(body.startsAt),roomKey:`opass-${crypto.randomUUID()}`,hostUserId:req.user.sub}});
+    return prisma.meeting.create({data:{...body,startsAt:new Date(body.startsAt),roomKey:`opass-${randomUUID()}`,hostUserId:req.user.sub}});
   });
 
   app.post('/meetings/:id/token', {preHandler:[app.authenticate]}, async (req:any, reply) => {

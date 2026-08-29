@@ -67,10 +67,10 @@ export async function runSeedIfNeeded() {
 
   const bizOwners = members.slice(0, 4);
   const businesses = [
-    { name: 'Mensah Tech Solutions', category: 'Technology', description: 'Software development and IT consulting for businesses in Ghana.', website: 'https://mensah-tech.gh', phone: '+233241112233' },
-    { name: 'Osei Medical Centre', category: 'Healthcare', description: 'Family medical practice providing quality healthcare in Kumasi.', website: 'https://osei-medical.gh', phone: '+233244445556' },
-    { name: 'Asante & Associates Architecture', category: 'Architecture', description: 'Modern architectural design and project management services.', website: 'https://asante-arch.gh', phone: '+233277778889' },
-    { name: 'Baah Legal Consultancy', category: 'Legal Services', description: 'Experienced legal counsel for corporate and personal matters.', phone: '+233201234567' },
+    { name: 'Mensah Tech Solutions', category: 'Technology', description: 'Software development and IT consulting for businesses in Ghana.', website: 'https://mensah-tech.gh', phone: '+233241112233', location: 'Accra, Ghana' },
+    { name: 'Osei Medical Centre', category: 'Healthcare', description: 'Family medical practice providing quality healthcare in Kumasi.', website: 'https://osei-medical.gh', phone: '+233244445556', location: 'Kumasi, Ghana' },
+    { name: 'Asante & Associates Architecture', category: 'Architecture', description: 'Modern architectural design and project management services.', website: 'https://asante-arch.gh', phone: '+233277778889', location: 'Takoradi, Ghana' },
+    { name: 'Baah Legal Consultancy', category: 'Legal Services', description: 'Experienced legal counsel for corporate and personal matters.', phone: '+233201234567', location: 'Accra, Ghana' },
   ];
   for (let i = 0; i < bizOwners.length; i++) {
     await prisma.business.create({ data: { ownerId: bizOwners[i].id, ...businesses[i], verified: true } }).catch(() => null);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
@@ -58,12 +59,13 @@ const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes'>('overview');
+  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [pending, setPending] = useState<PendingMember[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [ads, setAds] = useState<AdCampaign[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
 
@@ -74,12 +76,14 @@ export default function AdminPage() {
       apiGet<Quote[]>('/admin/quotes').catch(() => []),
       apiGet<AdCampaign[]>('/admin/ads?status=PENDING_APPROVAL').catch(() => []),
       apiGet<ActivityItem[]>('/admin/activity').catch(() => []),
-    ]).then(([s, p, q, a, act]) => {
+      apiGet<any[]>('/tickets').catch(() => []),
+    ]).then(([s, p, q, a, act, t]) => {
       setStats(s);
       setPending(p);
       setQuotes(q);
       setAds(a);
       setActivity(act);
+      setTickets(t);
       setLoading(false);
     });
   };
@@ -223,6 +227,9 @@ export default function AdminPage() {
                 <button className={`btn btn-sm ${tab === 'quotes' ? '' : 'btn-outline'}`} onClick={() => setTab('quotes')}>
                   Quotes {quotes.length > 0 && <span className="badge badge-blue" style={{ marginLeft: 6 }}>{quotes.length}</span>}
                 </button>
+                <button className={`btn btn-sm ${tab === 'tickets' ? '' : 'btn-outline'}`} onClick={() => setTab('tickets')}>
+                  Tickets {tickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{tickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length}</span>}
+                </button>
               </div>
               {tab === 'overview' && renderOverview()}
               {tab === 'members' && (
@@ -294,6 +301,30 @@ export default function AdminPage() {
                         ) : (
                           <span className="badge badge-green">{q.status}</span>
                         )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              {tab === 'tickets' && (
+                <div className="card">
+                  <h3>Support Tickets</h3>
+                  {tickets.length === 0 ? (
+                    <div className="empty-state"><p>No support tickets.</p></div>
+                  ) : (
+                    tickets.map(t => (
+                      <div key={t.id} className="list-item" style={{ flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ display: 'block', fontSize: 14 }}>{t.subject}</strong>
+                          <div className="text-muted text-sm">
+                            {t.user?.profile?.fullName || t.user?.email || 'Anonymous'} · {new Date(t.createdAt).toLocaleDateString('en-US', { dateStyle: 'medium' })}
+                          </div>
+                          <div className="text-muted text-sm" style={{ marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.body}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          <span className={`badge ${t.status === 'OPEN' ? 'badge-blue' : t.status === 'IN_PROGRESS' ? 'badge-amber' : t.status === 'CLOSED' ? 'badge-dark' : 'badge-green'}`}>{t.status.replace(/_/g, ' ')}</span>
+                          <Link href="/dashboard/support" className="text-sm" style={{ color: 'var(--blue)', fontWeight: 600 }}>View</Link>
+                        </div>
                       </div>
                     ))
                   )}

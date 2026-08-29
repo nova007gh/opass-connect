@@ -129,12 +129,16 @@ export default function SettingsPage() {
           {/* Support */}
           <div className="card" style={{ margin: 16, marginBottom: 12, padding: 0 }}>
             <div className="sidebar-section" style={{ padding: '16px 20px 8px', color: 'var(--muted)', fontWeight: 700 }}>Support</div>
+            <Link href="/dashboard/support" className="flex-between" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--black)' }}>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>Help & Support Tickets</span>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            </Link>
             <Link href="/dashboard/about" className="flex-between" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--black)' }}>
               <span style={{ fontWeight: 600, fontSize: 15 }}>About OPASS CONNECT</span>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
             </Link>
             <div className="flex-between" style={{ padding: '16px 20px' }}>
-              <span style={{ fontWeight: 600, fontSize: 15 }}>Help & Support</span>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>Email Support</span>
               <span className="text-muted" style={{ fontSize: 13 }}>support@opassconnect.org</span>
             </div>
           </div>

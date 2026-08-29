@@ -21,6 +21,7 @@ const allItems = [
   { href: '/dashboard/business', label: 'Business', icon: 'M21 13.255A48.108 48.108 0 0112 21c-2.272 0-4.459-.334-6.512-.955M21 13.255c.18 1.078.272 2.183.272 3.295 0 2.272-.334 4.459-.955 6.512M3 13.255A48.093 48.093 0 016.74 3.379M3 13.255c-.18 1.078-.272 2.183-.272 3.295 0 2.272.334 4.459.955 6.512' },
   { href: '/dashboard/mamaaa', label: 'Mamaaa AI', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z' },
   { href: '/dashboard/admin', label: 'Admin', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z' },
+  { href: '/dashboard/support', label: 'Support', icon: 'M18.364 12.364l5.657 5.657m-6.364-6.364a3 3 0 11-4.243-4.243 3 3 0 014.243 4.243zm-1.414-7.071a8 8 0 100 16 8 8 0 000-16z' },
 ];
 
 const tabItems = [

@@ -158,7 +158,15 @@ export default function BusinessPage() {
                         {b.name}
                         {b.verified && <span className="badge badge-green" style={{ fontSize: 10 }}>✓ Verified</span>}
                       </div>
-                      <div className="time">{b.category}{b.location ? ` · ${b.location}` : ''}</div>
+                      <div className="time" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>{b.category}</span>
+                        {b.location && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 12, height: 12 }}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            {b.location}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {b.description && <div className="feed-card-body"><p>{b.description}</p></div>}

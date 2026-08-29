@@ -22,6 +22,12 @@ const schema = z.object({
   PAYMENT_PROVIDER: z.enum(['paystack','flutterwave']).default('paystack'),
   PAYSTACK_SECRET_KEY: z.string().optional(),
   FLUTTERWAVE_SECRET_KEY: z.string().optional(),
-  PAYMENT_WEBHOOK_SECRET: z.string().optional()
+  PAYMENT_WEBHOOK_SECRET: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z.string().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 export const env = schema.parse(process.env);

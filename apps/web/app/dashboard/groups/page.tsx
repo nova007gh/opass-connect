@@ -15,6 +15,10 @@ export default function YearGroupsPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ year: '', name: '', description: '' });
+  const [creating, setCreating] = useState(false);
+  const [success, setSuccess] = useState('');
 
   const load = () => {
     apiGet<YearGroup[]>('/year-groups')
@@ -24,6 +28,35 @@ export default function YearGroupsPage() {
   };
 
   useEffect(load, []);
+
+  const createGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const year = parseInt(createForm.year, 10);
+    if (!year || year < 1960 || year > 2030) { setError('Please enter a valid year between 1960 and 2030'); return; }
+    if (!createForm.name.trim()) { setError('Please enter a group name'); return; }
+    setCreating(true);
+    setError('');
+    try {
+      const result = await apiPost<YearGroup>('/year-groups', {
+        year,
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || undefined,
+      });
+      if (result && (result as any).error) {
+        setError((result as any).error);
+      } else {
+        setSuccess('Year group created!');
+        setCreateForm({ year: '', name: '', description: '' });
+        setShowCreate(false);
+        setTimeout(() => setSuccess(''), 4000);
+        load();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to create year group');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const joinedIds = new Set(user?.memberships?.map(m => m.yearGroupId) || []);
 
@@ -68,14 +101,53 @@ export default function YearGroupsPage() {
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
         <h1>Year Groups</h1>
+        {!showCreate && (
+          <button className="btn btn-sm" onClick={() => setShowCreate(true)}>+ Create</button>
+        )}
       </div>
       <div className="app-scroll">
         <div className="app-pad">
           {error && <div className="alert alert-error">{error}</div>}
+          {success && <div className="alert alert-success">{success}</div>}
+
+          {showCreate && (
+            <form onSubmit={createGroup} className="card" style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Create Year Group</h3>
+              <div className="form-group">
+                <label>Graduation Year</label>
+                <div className="input-wrap">
+                  <input type="number" value={createForm.year} onChange={e => setCreateForm({ ...createForm, year: e.target.value })} placeholder="e.g. 2012" min={1960} max={2030} required />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Group Name</label>
+                <div className="input-wrap">
+                  <input type="text" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. Ofori Panin Senior High School Class of 2012" maxLength={100} required />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Description (optional)</label>
+                <textarea className="textarea" value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} placeholder="Add a description for your year group..." maxLength={500} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, minHeight: 80, width: '100%' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" type="submit" disabled={creating}>
+                  {creating ? <span className="spinner" /> : 'Create Group'}
+                </button>
+                <button className="btn" type="button" style={{ background: 'var(--muted)' }} onClick={() => { setShowCreate(false); setCreateForm({ year: '', name: '', description: '' }); setError(''); }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
           {loading ? (
             <div className="loading-center"><span className="spinner" /></div>
           ) : groups.length === 0 ? (
-            <div className="empty-state"><h3>No year groups yet</h3><p>Year groups are created by administrators.</p></div>
+            <div className="empty-state">
+              <h3>No year groups yet</h3>
+              <p>Be the first to create a year group for your class!</p>
+              {!showCreate && <button className="btn" style={{ marginTop: 16 }} onClick={() => setShowCreate(true)}>+ Create Year Group</button>}
+            </div>
           ) : (
             <div className="feed">
               {groups.map(yg => {

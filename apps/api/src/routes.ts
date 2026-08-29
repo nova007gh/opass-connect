@@ -79,7 +79,7 @@ async function readFileFromRequest(req: any): Promise<{ buffer: Buffer; mimetype
 
 export function registerCoreRoutes(app:FastifyInstance){
   app.get('/year-groups',async()=>prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:true}}}}));
-  app.post('/year-groups',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req)=>{const b=z.object({year:z.number().int(),name:z.string().min(2),description:z.string().optional(),imageUrl:z.string().optional()}).parse(req.body);return prisma.yearGroup.create({data:b});});
+  app.post('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({year:z.number().int().min(1960).max(2030),name:z.string().min(2),description:z.string().optional()}).parse(req.body);const existing=await prisma.yearGroup.findFirst({where:{year:b.year}});if(existing)return{error:'A year group for this year already exists',existing};return prisma.yearGroup.create({data:b});});
   app.post('/year-groups/:id/image',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'yeargroups',200,200);await prisma.yearGroup.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.post('/year-groups/:id/join',{preHandler:[app.authenticate]},async(req:any)=>prisma.yearGroupMembership.upsert({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:req.params.id}},update:{},create:{userId:req.user.sub,yearGroupId:req.params.id}}));
 

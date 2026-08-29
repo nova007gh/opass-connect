@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { apiGet, apiPost, apiDelete, apiUpload } from '../../../lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
 interface YearGroup {
@@ -46,8 +46,6 @@ export default function YearGroupsPage() {
   const [success, setSuccess] = useState('');
 
   const [uploadingId, setUploadingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [galleryTargetId, setGalleryTargetId] = useState<string | null>(null);
@@ -57,6 +55,11 @@ export default function YearGroupsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ year: '', name: '', description: '' });
   const [creating, setCreating] = useState(false);
+
+  const [editGroup, setEditGroup] = useState<YearGroup | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const editImageInputRef = useRef<HTMLInputElement>(null);
 
   const [inviteModalGroup, setInviteModalGroup] = useState<YearGroup | null>(null);
   const [inviteMode, setInviteMode] = useState<'search' | 'contact'>('search');
@@ -131,24 +134,45 @@ export default function YearGroupsPage() {
     }
   };
 
-  // ===== Profile picture upload =====
-  const pickImage = (id: string) => { setUploadTargetId(id); fileInputRef.current?.click(); };
-  const onImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ===== Edit group (name, description, photo) =====
+  const openEditModal = (yg: YearGroup) => { setEditGroup(yg); setEditForm({ name: yg.name, description: yg.description || '' }); };
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editGroup) return;
+    if (!editForm.name.trim()) { setError('Group name is required'); return; }
+    setSavingEdit(true);
+    setError('');
+    try {
+      const updated = await apiPatch<YearGroup>(`/year-groups/${editGroup.id}`, {
+        name: editForm.name.trim(),
+        description: editForm.description.trim() || undefined,
+      });
+      setGroups(prev => prev.map(g => g.id === editGroup.id ? { ...g, ...updated } : g));
+      setSuccess('Year group updated!');
+      setTimeout(() => setSuccess(''), 4000);
+      setEditGroup(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update year group');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+  const onEditImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !uploadTargetId) return;
+    if (!file || !editGroup) return;
     if (!/image\/(jpeg|png|webp|gif)/.test(file.type)) { setError('Please choose a valid image.'); return; }
     if (file.size > 5_000_000) { setError('Image must be under 5MB.'); return; }
     setError('');
-    setUploadingId(uploadTargetId);
+    setUploadingId(editGroup.id);
     try {
-      const { imageUrl } = await apiUpload<{ imageUrl: string }>(`/year-groups/${uploadTargetId}/image`, file);
-      setGroups(prev => prev.map(g => g.id === uploadTargetId ? { ...g, imageUrl } : g));
+      const { imageUrl } = await apiUpload<{ imageUrl: string }>(`/year-groups/${editGroup.id}/image`, file);
+      setGroups(prev => prev.map(g => g.id === editGroup.id ? { ...g, imageUrl } : g));
+      setEditGroup(prev => prev ? { ...prev, imageUrl } : prev);
     } catch (err: any) {
       setError(err.message || 'Upload failed');
     } finally {
       setUploadingId(null);
-      setUploadTargetId(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (editImageInputRef.current) editImageInputRef.current.value = '';
     }
   };
 
@@ -337,12 +361,14 @@ export default function YearGroupsPage() {
                           {yg.imageUrl ? <img src={yg.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (yg.year?.toString() ?? '—').slice(-2)}
                         </div>
                         {manage && (
-                          <button onClick={(e) => { e.stopPropagation(); pickImage(yg.id); }} style={{
-                            position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: '50%',
+                          <button onClick={(e) => { e.stopPropagation(); openEditModal(yg); }} style={{
+                            position: 'absolute', bottom: -2, right: -2, width: 24, height: 24, borderRadius: '50%',
                             background: 'var(--blue-bright)', border: '2px solid var(--white)', color: 'white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 10, zIndex: 2,
-                          }} title="Upload group photo">
-                            {uploadingId === yg.id ? '...' : '+'}
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2,
+                          }} title="Edit group photo">
+                            {uploadingId === yg.id ? <span className="spinner" style={{ width: 12, height: 12 }} /> : (
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5} style={{ width: 13, height: 13 }}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            )}
                           </button>
                         )}
                       </div>
@@ -387,6 +413,10 @@ export default function YearGroupsPage() {
                     {/* Manager actions */}
                     {manage && (
                       <div className="feed-card-actions">
+                        <button onClick={() => openEditModal(yg)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, background: 'none', border: 0, cursor: 'pointer' }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          Edit
+                        </button>
                         <button onClick={() => openInviteModal(yg)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, color: 'var(--blue)', fontSize: 14, fontWeight: 600, background: 'none', border: 0, cursor: 'pointer' }}>
                           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-3a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
                           Invite
@@ -405,8 +435,54 @@ export default function YearGroupsPage() {
           )}
         </div>
       </div>
-      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onImageChange} style={{ display: 'none' }} />
       <input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onGalleryChange} style={{ display: 'none' }} />
+
+      {/* Edit group modal */}
+      {editGroup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setEditGroup(null)}>
+          <form onSubmit={saveEdit} className="card" style={{ width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px' }}>Edit Year Group</h3>
+
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <div style={{ width: 88, height: 88, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 26, fontWeight: 800, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {editGroup.imageUrl ? <img src={editGroup.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (editGroup.year?.toString() ?? '—').slice(-2)}
+                </div>
+                <button type="button" onClick={() => editImageInputRef.current?.click()} disabled={uploadingId === editGroup.id} style={{
+                  position: 'absolute', bottom: -2, right: -2, width: 32, height: 32, borderRadius: '50%',
+                  background: 'var(--blue-bright)', border: '3px solid var(--white)', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                }} title="Change group photo">
+                  {uploadingId === editGroup.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : (
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5} style={{ width: 16, height: 16 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  )}
+                </button>
+                <input ref={editImageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onEditImageChange} style={{ display: 'none' }} />
+              </div>
+              <div className="hint" style={{ marginTop: 8 }}>Tap the icon to upload or change the group photo</div>
+            </div>
+
+            <div className="form-group">
+              <label>Group Name</label>
+              <div className="input-wrap">
+                <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} maxLength={100} required />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea className="textarea" value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} placeholder="Add a description for your year group..." maxLength={500} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, minHeight: 80, width: '100%' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" type="submit" disabled={savingEdit}>
+                {savingEdit ? <span className="spinner" /> : 'Save Changes'}
+              </button>
+              <button className="btn" type="button" style={{ background: 'var(--muted)' }} onClick={() => setEditGroup(null)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Gallery viewer modal */}
       {galleryGroup && (

@@ -7,6 +7,7 @@ import { useAuth } from '../../../../lib/auth';
 import { playSchoolBell, playBuzzSound } from '../../../../lib/sound';
 import CallModal from '../../../../components/CallModal';
 import Avatar from '../../../../components/Avatar';
+import EmojiPicker from '../../../../components/EmojiPicker';
 
 interface DMUser {
   id: string;
@@ -38,6 +39,24 @@ function timeLabel(date: string) {
   return new Date(date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+// Check if a message is a single emoji (for larger rendering)
+function isEmojiOnly(text: string): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length > 12) return false; // Most emojis are 1-7 chars in UTF-16
+  // Match common emoji ranges
+  const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Component})+$/u;
+  try { return emojiRegex.test(trimmed); } catch { return false; }
+}
+
+// Check if a message is a sticker (prefixed with 🎴: for sticker messages)
+function isSticker(text: string): boolean {
+  return text?.startsWith('🎴:') || false;
+}
+function stickerContent(text: string): string {
+  return text?.replace(/^🎴:/, '') || '';
+}
+
 export default function DirectChatPage() {
   const params = useParams();
   const router = useRouter();
@@ -60,6 +79,7 @@ export default function DirectChatPage() {
   const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; mode: 'start' | 'join' } | null>(null);
   const [callError, setCallError] = useState('');
   const [shaking, setShaking] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const messagesEnd = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -271,6 +291,10 @@ export default function DirectChatPage() {
                 }}>
                   {m.audioUrl ? (
                     <audio controls src={m.audioUrl} style={{ maxWidth: 220, height: 36 }} />
+                  ) : isSticker(m.body) ? (
+                    <div className="msg-sticker" style={{ textAlign: 'center' }}>{stickerContent(m.body)}</div>
+                  ) : isEmojiOnly(m.body) ? (
+                    <div className="msg-emoji" style={{ textAlign: 'center' }}>{m.body}</div>
                   ) : (
                     <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.body}</div>
                   )}
@@ -283,7 +307,22 @@ export default function DirectChatPage() {
         <div ref={messagesEnd} />
       </div>
 
-      <div style={{ padding: '10px 12px calc(12px + var(--tabbar-h) + var(--safe-bottom))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+      <div style={{ position: 'relative', padding: '10px 12px calc(12px + var(--tabbar-h) + var(--safe-bottom))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+        {showEmojiPicker && (
+          <EmojiPicker
+            onPick={(emoji) => setInput(prev => prev + emoji)}
+            onStickerPick={(sticker) => { setInput(`🎴:${sticker}`); sendMessage(); setShowEmojiPicker(false); }}
+            onClose={() => setShowEmojiPicker(false)}
+          />
+        )}
+        <button
+          onClick={() => setShowEmojiPicker(prev => !prev)}
+          className={`emoji-btn-toggle ${showEmojiPicker ? 'active' : ''}`}
+          title="Emojis & stickers"
+          disabled={sending || recording || uploadingVoice}
+        >
+          😊
+        </button>
         <input
           className="input"
           value={input}

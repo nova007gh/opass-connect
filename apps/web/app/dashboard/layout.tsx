@@ -61,6 +61,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // comment, like, admin update, etc.) — but not on the very first load.
       if (prevUnreadRef.current !== null && data.count > prevUnreadRef.current) {
         playSchoolBell('normal');
+        // Show browser push notification (phone bell)
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try {
+            const n = new Notification('OPASS CONNECT', {
+              body: `You have ${data.count} unread notification${data.count !== 1 ? 's' : ''}`,
+              icon: '/opass-crest.jpeg',
+              badge: '/opass-crest.jpeg',
+              tag: 'opass-notification',
+            });
+            n.onclick = () => { window.focus(); n.close(); };
+          } catch {}
+        }
       }
       prevUnreadRef.current = data.count;
       setUnreadCount(data.count);
@@ -74,8 +86,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => { setOpen(false); }, [pathname]);
 
   // Unlock audio playback on first user interaction (required by some browsers).
+  // Also request notification permission for phone bell notifications.
   useEffect(() => {
-    const unlock = () => { primeAudio(); window.removeEventListener('click', unlock); window.removeEventListener('keydown', unlock); };
+    const unlock = () => {
+      primeAudio();
+      // Request notification permission for push notifications (phone bell)
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
     window.addEventListener('click', unlock);
     window.addEventListener('keydown', unlock);
     return () => { window.removeEventListener('click', unlock); window.removeEventListener('keydown', unlock); };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
@@ -31,12 +31,6 @@ export default function AlumniPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  // Live "as-you-type" suggestions dropdown
-  const [suggestions, setSuggestions] = useState<Alumni[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestLoading, setSuggestLoading] = useState(false);
-  const searchBoxRef = useRef<HTMLDivElement>(null);
-
   // Profile preview modal
   const [profile, setProfile] = useState<Alumni | null>(null);
   const [buzzSent, setBuzzSent] = useState(false);
@@ -63,34 +57,18 @@ export default function AlumniPage() {
 
   useEffect(() => { searchAlumni({ search: searchParams.get('search') || '' }); }, []);
 
-  // Debounced live search: fetch suggestions dropdown + full results as the user types
+  // Debounced live search: update results as the user types (single result list, no dropdown)
   useEffect(() => {
     const q = search.trim();
-    if (!q) { setSuggestions([]); setShowSuggestions(false); return; }
-    setSuggestLoading(true);
+    if (!q) { return; }
     const timer = setTimeout(() => {
-      apiGet<Alumni[]>(`/alumni?search=${encodeURIComponent(q)}&limit=6`)
-        .then(data => { setSuggestions(data); setShowSuggestions(true); })
-        .catch(() => setSuggestions([]))
-        .finally(() => setSuggestLoading(false));
-      // Also refresh the full results grid live
       searchAlumni({ search: q });
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Close suggestions dropdown when clicking outside
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setShowSuggestions(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
-
   const openProfile = (a: Alumni) => {
-    setShowSuggestions(false);
     setBuzzSent(false);
     setBuzzError('');
     setProfile(a);
@@ -120,7 +98,7 @@ export default function AlumniPage() {
       <div className="app-scroll">
         <div className="app-pad">
           {/* Search bar */}
-          <div className="card" style={{ marginBottom: 16, padding: 16, position: 'relative' }} ref={searchBoxRef}>
+          <div className="card" style={{ marginBottom: 16, padding: 16 }}>
             <div className="input-wrap" style={{ marginBottom: 10 }}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--blue)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -129,11 +107,10 @@ export default function AlumniPage() {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                 placeholder="Start typing a classmate's name..."
                 onKeyDown={e => e.key === 'Enter' && searchAlumni()}
               />
-              {suggestLoading && <span className="spinner" style={{ width: 16, height: 16 }} />}
+              {loading && <span className="spinner" style={{ width: 16, height: 16 }} />}
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <input className="input" type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="Year" style={{ flex: 1, marginBottom: 0 }} onKeyDown={e => e.key === 'Enter' && searchAlumni()} />
@@ -142,39 +119,6 @@ export default function AlumniPage() {
             <button className="btn btn-block btn-sm" onClick={() => searchAlumni()} disabled={loading}>
               {loading ? <span className="spinner" /> : 'Search'}
             </button>
-
-            {/* Live suggestions dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div style={{
-                position: 'absolute', top: '100%', left: 16, right: 16, marginTop: 4, background: 'var(--white)',
-                border: '1px solid var(--border)', borderRadius: 14, boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
-                zIndex: 50, overflow: 'hidden', maxHeight: 320, overflowY: 'auto',
-              }}>
-                {suggestions.map(a => (
-                  <div
-                    key={a.userId}
-                    onClick={() => openProfile(a)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
-                    onMouseDown={e => e.preventDefault()}
-                  >
-                    <Avatar src={a.avatarUrl} name={a.fullName} size={36} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
-                      <div className="text-muted text-sm">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>
-                    </div>
-                    {a.userId !== user?.id && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/chat/${a.userId}`); }}
-                        style={{ flexShrink: 0, width: 34, height: 34, borderRadius: '50%', border: 0, background: 'var(--blue-50)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        title="Chat"
-                      >
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" /></svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Results */}

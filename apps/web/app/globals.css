@@ -1426,3 +1426,7 @@ label.switch span > span { transition: transform 0.2s; }
   object-fit: cover;
   border-radius: inherit;
 }
+
+/* Hide scrollbar on carousel */
+.carousel-hide-scroll::-webkit-scrollbar { display: none; }
+.carousel-hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }

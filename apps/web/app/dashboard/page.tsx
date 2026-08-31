@@ -1,6 +1,5 @@
 'use client';
 
-// Dashboard home — v2.1 with All Chats
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';

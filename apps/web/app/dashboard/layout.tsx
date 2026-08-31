@@ -44,6 +44,39 @@ function getBreadcrumb(pathname: string): { label: string; href: string }[] {
   return crumbs;
 }
 
+// Cache for dynamic route label lookups (group names, user names, etc.)
+const labelCache = new Map<string, string>();
+
+function useDynamicBreadcrumb(crumbs: { label: string; href: string }[]) {
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let changed = false;
+      for (const c of crumbs) {
+        // Match /dashboard/groups/<id> or /dashboard/chat/<id>
+        const groupMatch = c.href.match(/^\/dashboard\/groups\/(.+)$/);
+        const chatMatch = c.href.match(/^\/dashboard\/chat\/(.+)$/);
+        if (groupMatch && !labelCache.has(c.href)) {
+          try {
+            const yg = await apiGet<{ name: string }>(`/year-groups/${groupMatch[1]}`);
+            if (yg?.name) { labelCache.set(c.href, yg.name); changed = true; }
+          } catch {}
+        } else if (chatMatch && !labelCache.has(c.href)) {
+          try {
+            const res = await apiGet<{ user?: { profile?: { fullName?: string } } }>(`/dm/${chatMatch[1]}`);
+            if (res?.user?.profile?.fullName) { labelCache.set(c.href, res.user.profile.fullName); changed = true; }
+          } catch {}
+        }
+      }
+      if (changed && !cancelled) forceUpdate(n => n + 1);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crumbs.map(c => c.href).join('|')]);
+  return crumbs.map(c => ({ ...c, label: labelCache.get(c.href) || c.label }));
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -116,7 +149,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isActive = (href: string) => pathname === href;
   const menu = isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin');
-  const crumbs = getBreadcrumb(pathname);
+  const crumbs = useDynamicBreadcrumb(getBreadcrumb(pathname));
 
   const handleLogout = () => { logout(); router.replace('/'); };
 

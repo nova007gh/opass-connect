@@ -3,6 +3,18 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPost, apiUpload } from '../../../lib/api';
+import EmojiPicker from '../../../components/EmojiPicker';
+import Avatar from '../../../components/Avatar';
+
+function isEmojiOnly(text: string): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length > 20) return false;
+  const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|\u200d|\ufe0f)+$/u;
+  try { return emojiRegex.test(trimmed); } catch { return false; }
+}
+function isSticker(text: string): boolean { return text?.startsWith('🎴:') || false; }
+function stickerContent(text: string): string { return text?.replace(/^🎴:/, '') || ''; }
 
 interface Meeting { id: string; title: string; description?: string | null; mode: string; status: string; startsAt: string; capacity: number; roomKey: string; yearGroup?: { year: number; name: string } | null; }
 interface ChatRoom { id: string; name: string; isAssemblyHall: boolean; imageUrl?: string | null; yearGroup?: { year: number; name: string } | null; _count: { messages: number }; }
@@ -26,6 +38,7 @@ export default function AssemblyPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [uploadingRoomId, setUploadingRoomId] = useState<string | null>(null);
@@ -225,21 +238,43 @@ export default function AssemblyPage() {
               <div className="empty-state"><p>No messages yet. Start the conversation!</p></div>
             ) : messages.map(m => (
               <div key={m.id} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 14, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-                  {m.user?.profile?.avatarUrl ? <img src={m.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (m.user?.profile?.fullName || '?').charAt(0)}
-                </div>
+                <Avatar src={m.user?.profile?.avatarUrl} name={m.user?.profile?.fullName} size={36} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
                     <span style={{ fontSize: 13, color: 'var(--blue)', fontWeight: 700 }}>{m.user?.profile?.fullName || 'Alumnus'}</span>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>{new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
                   </div>
-                  <div style={{ padding: '10px 14px', borderRadius: '4px 14px 14px 14px', background: 'var(--white)', border: '1px solid var(--border)', fontSize: 14, lineHeight: 1.5, color: 'var(--black)', wordBreak: 'break-word' }}>{m.body}</div>
+                  {isSticker(m.body) ? (
+                    <div style={{ fontSize: 64, lineHeight: 1.1 }}>{stickerContent(m.body)}</div>
+                  ) : isEmojiOnly(m.body) ? (
+                    <div style={{ fontSize: 40, lineHeight: 1.2 }}>{m.body}</div>
+                  ) : (
+                    <div style={{ padding: '10px 14px', borderRadius: '4px 14px 14px 14px', background: 'var(--white)', border: '1px solid var(--border)', fontSize: 14, lineHeight: 1.5, color: 'var(--black)', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.body}</div>
+                  )}
                 </div>
               </div>
             ))}
             <div ref={messagesEnd} />
           </div>
-          <div style={{ padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 10 }}>
+          <div style={{ position: 'relative', padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 10, alignItems: 'center' }}>
+            {showEmojiPicker && (
+              <EmojiPicker
+                onPick={(emoji) => setChatInput(prev => prev + emoji)}
+                onStickerPick={(sticker) => {
+                  setChatInput('');
+                  setShowEmojiPicker(false);
+                  setSending(true);
+                  apiPost(`/chat/${activeRoom?.id}/messages`, { body: `🎴:${sticker}` }).then(async () => {
+                    try { const msgs = await apiGet<Message[]>(`/chat/rooms/${activeRoom?.id}/messages`); setMessages(msgs.reverse()); } catch {}
+                    setSending(false);
+                  }).catch(() => setSending(false));
+                }}
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            )}
+            <button onClick={() => setShowEmojiPicker(prev => !prev)} className={`emoji-btn-toggle ${showEmojiPicker ? 'active' : ''}`} title="Emojis & stickers" disabled={sending}>
+              😊
+            </button>
             <input className="input" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type a message..." onKeyDown={e => e.key === 'Enter' && sendMessage()} disabled={sending} style={{ flex: 1, marginBottom: 0 }} />
             <button className="btn" onClick={sendMessage} disabled={sending || !chatInput.trim()} style={{ minHeight: 48, padding: '0 20px' }}>
               {sending ? <span className="spinner" /> : <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>}

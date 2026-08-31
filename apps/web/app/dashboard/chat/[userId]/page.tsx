@@ -437,25 +437,23 @@ export default function DirectChatPage() {
             onPick={(emoji) => setInput(prev => prev + emoji)}
             onStickerPick={(sticker) => {
               const stickerMsg = `🎴:${sticker}`;
-              setInput(stickerMsg);
-              // Send immediately
-              setTimeout(() => {
-                setInput('');
-                setShowEmojiPicker(false);
-                setSending(true);
-                if (isMamaaa) {
-                  // Stickers to Mamaaa just get a fun response
-                  apiPost(`/dm/${MAMAAA_BOT_ID}`, { body: stickerMsg }).then((result: any) => {
-                    setMessages(prev => [...prev, result.userMsg, result.aiMsg]);
-                    setSending(false);
-                  }).catch(() => setSending(false));
-                } else {
-                  apiPost(`/dm/${peerId}`, { body: stickerMsg }).then((msg: any) => {
-                    setMessages(prev => [...prev, msg]);
-                    setSending(false);
-                  }).catch(() => setSending(false));
-                }
-              }, 0);
+              setInput('');
+              setShowEmojiPicker(false);
+              setSending(true);
+              if (isMamaaa) {
+                apiPost<{ userMsg: DMMessage; aiMsg: DMMessage }>(`/dm/${MAMAAA_BOT_ID}`, { body: stickerMsg }).then((result) => {
+                  seenIdsRef.current.add(result.userMsg.id);
+                  seenIdsRef.current.add(result.aiMsg.id);
+                  setMessages(prev => [...prev, result.userMsg, result.aiMsg]);
+                  setSending(false);
+                }).catch(() => setSending(false));
+              } else {
+                apiPost<DMMessage>(`/dm/${peerId}`, { body: stickerMsg }).then((msg) => {
+                  seenIdsRef.current.add(msg.id);
+                  setMessages(prev => [...prev, msg]);
+                  setSending(false);
+                }).catch(() => setSending(false));
+              }
             }}
             onClose={() => setShowEmojiPicker(false)}
           />

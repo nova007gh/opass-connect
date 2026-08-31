@@ -6,6 +6,17 @@ import Link from 'next/link';
 import { apiGet, apiPost, apiDelete, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import Avatar from '../../../../components/Avatar';
+import EmojiPicker from '../../../../components/EmojiPicker';
+
+function isEmojiOnly(text: string): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length > 20) return false;
+  const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|\u200d|\ufe0f)+$/u;
+  try { return emojiRegex.test(trimmed); } catch { return false; }
+}
+function isSticker(text: string): boolean { return text?.startsWith('🎴:') || false; }
+function stickerContent(text: string): string { return text?.replace(/^🎴:/, '') || ''; }
 
 interface GroupDetail {
   id: string; year: number; name: string; description?: string | null; imageUrl?: string | null;
@@ -166,6 +177,7 @@ export default function YearGroupDetailPage() {
   const [composerImage, setComposerImage] = useState<{ file: File; preview: string } | null>(null);
   const [composerVideoUrl, setComposerVideoUrl] = useState('');
   const [showVideoInput, setShowVideoInput] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [posting, setPosting] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -394,7 +406,14 @@ export default function YearGroupDetailPage() {
             <>
               {/* Composer */}
               {!group.isRestricted && (
-                <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card" style={{ marginBottom: 16, position: 'relative' }}>
+                  {showEmojiPicker && (
+                    <EmojiPicker
+                      onPick={(emoji) => setComposerText(prev => prev + emoji)}
+                      onStickerPick={(sticker) => { setComposerText(`🎴:${sticker}`); setShowEmojiPicker(false); }}
+                      onClose={() => setShowEmojiPicker(false)}
+                    />
+                  )}
                   <textarea
                     className="textarea"
                     value={composerText}
@@ -416,6 +435,9 @@ export default function YearGroupDetailPage() {
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" onClick={() => setShowEmojiPicker(v => !v)} title="Emojis & stickers" style={{ width: 36, height: 36, borderRadius: 10, background: showEmojiPicker ? 'var(--blue-50)' : 'var(--bg)', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                        😊
+                      </button>
                       <button type="button" onClick={pickImage} title="Add photo" style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--blue-50)', border: 0, color: 'var(--blue)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z M9 10a1 1 0 100-2 1 1 0 000 2z" /></svg>
                       </button>
@@ -455,7 +477,17 @@ export default function YearGroupDetailPage() {
                           </button>
                         )}
                       </div>
-                      {post.body && <div className="feed-card-body"><p style={{ whiteSpace: 'pre-wrap' }}>{post.body}</p></div>}
+                      {post.body && (
+                        <div className="feed-card-body">
+                          {isSticker(post.body) ? (
+                            <p style={{ fontSize: 64, lineHeight: 1.1, textAlign: 'center' }}>{stickerContent(post.body)}</p>
+                          ) : isEmojiOnly(post.body) ? (
+                            <p style={{ fontSize: 40, lineHeight: 1.2, textAlign: 'center' }}>{post.body}</p>
+                          ) : (
+                            <p style={{ whiteSpace: 'pre-wrap' }}>{post.body}</p>
+                          )}
+                        </div>
+                      )}
                       {post.imageUrl && (
                         <div style={{ padding: '0 16px 12px' }}>
                           <img src={post.imageUrl} alt="" style={{ width: '100%', borderRadius: 12, maxHeight: 420, objectFit: 'cover' }} />
@@ -489,7 +521,9 @@ export default function YearGroupDetailPage() {
                                   <Avatar src={c.user.profile?.avatarUrl} name={c.user.profile?.fullName} size={30} />
                                   <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 12, padding: '8px 12px' }}>
                                     <div style={{ fontWeight: 700, fontSize: 13 }}>{c.user.profile?.fullName || 'A member'}</div>
-                                    <div style={{ fontSize: 13, color: '#374151' }}>{c.body}</div>
+                                    <div style={{ fontSize: 13, color: '#374151' }}>
+                                      {isSticker(c.body) ? <span style={{ fontSize: 48 }}>{stickerContent(c.body)}</span> : isEmojiOnly(c.body) ? <span style={{ fontSize: 32 }}>{c.body}</span> : c.body}
+                                    </div>
                                   </div>
                                 </div>
                               ))}

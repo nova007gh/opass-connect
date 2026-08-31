@@ -353,9 +353,34 @@ export function registerCoreRoutes(app:FastifyInstance){
 
   app.get('/dm/:userId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
+    // Auto-create Mamaaa AI bot user if it doesn't exist
+    const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
+    if (req.params.userId === MAMAAA_BOT_ID) {
+      let bot = await prisma.user.findUnique({ where: { id: MAMAAA_BOT_ID }, select: { id: true, email: true, profile: { select: { fullName: true, avatarUrl: true, graduationYear: true, profession: true, house: true, country: true, city: true, bio: true } } } });
+      if (!bot) {
+        try {
+          bot = await prisma.user.create({
+            data: {
+              id: MAMAAA_BOT_ID,
+              email: 'mamaaa@opassconnect.edu',
+              passwordHash: 'bot-no-login',
+              role: 'MEMBER',
+              verification: 'VERIFIED',
+              profile: { create: { fullName: 'Mamaaa AI', nickname: 'Mamaaa', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat!' } },
+            },
+            select: { id: true, email: true, profile: { select: { fullName: true, avatarUrl: true, graduationYear: true, profession: true, house: true, country: true, city: true, bio: true } } },
+          });
+        } catch {
+          bot = await prisma.user.findUnique({ where: { id: MAMAAA_BOT_ID }, select: { id: true, email: true, profile: { select: { fullName: true, avatarUrl: true, graduationYear: true, profession: true, house: true, country: true, city: true, bio: true } } } });
+        }
+      }
+      if (!bot) return reply.code(404).send({ error: 'Bot user not found' });
+      const messages = await prisma.directMessage.findMany({ where: { OR: [{ senderId: req.user.sub, recipientId: MAMAAA_BOT_ID }, { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub }] }, orderBy: { createdAt: 'asc' }, take: 200, select: { id: true, senderId: true, recipientId: true, body: true, audioUrl: true, callType: true, isBuzz: true, createdAt: true } });
+      return { user: bot, messages };
+    }
     const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true,email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true,profession:true,house:true,country:true,city:true,bio:true}}}});
     if(!otherUser)return reply.code(404).send({error:'User not found'});
-    const messages=await prisma.directMessage.findMany({where:{OR:[{senderId:req.user.sub,recipientId:req.params.userId},{senderId:req.params.userId,recipientId:req.user.sub}]},orderBy:{createdAt:'asc'},take:200,select:{id:true,senderId:true,recipientId:true,body:true,audioUrl:true,callType:true,createdAt:true}});
+    const messages=await prisma.directMessage.findMany({where:{OR:[{senderId:req.user.sub,recipientId:req.params.userId},{senderId:req.params.userId,recipientId:req.user.sub}]},orderBy:{createdAt:'asc'},take:200,select:{id:true,senderId:true,recipientId:true,body:true,audioUrl:true,callType:true,isBuzz:true,createdAt:true}});
     return{user:otherUser,messages};
   });
 

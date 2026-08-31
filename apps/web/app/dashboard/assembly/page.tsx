@@ -22,10 +22,13 @@ interface Message { id: string; body: string; createdAt: string; user: { profile
 
 const modeBadge: Record<string, string> = { INTERACTIVE: 'badge-blue', WEBINAR: 'badge-amber', BROADCAST: 'badge-dark' };
 
+interface DMConversation { user: { id: string; email: string; profile: { fullName: string; avatarUrl?: string | null; graduationYear?: number | null } | null }; lastMessage: string; lastAt: string; }
+
 export default function AssemblyPage() {
-  const [tab, setTab] = useState<'meetings' | 'chat'>('meetings');
+  const [tab, setTab] = useState<'meetings' | 'chat' | 'messages'>('meetings');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [dmConversations, setDmConversations] = useState<DMConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', mode: 'INTERACTIVE', startsAt: '', capacity: '500' });
@@ -50,6 +53,7 @@ export default function AssemblyPage() {
     Promise.all([
       apiGet<Meeting[]>('/meetings').then(setMeetings).catch(() => {}),
       apiGet<ChatRoom[]>('/chat/rooms').then(setRooms).catch(() => {}),
+      apiGet<DMConversation[]>('/dm/conversations').then(setDmConversations).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -149,6 +153,10 @@ export default function AssemblyPage() {
           flex: 1, borderRadius: 0, background: 'transparent',
           color: tab === 'chat' ? 'var(--blue)' : 'var(--muted)', borderBottom: tab === 'chat' ? '2px solid var(--blue-bright)' : '2px solid transparent', fontSize: 14, padding: '14px', fontWeight: 700
         }}>Chat Rooms</button>
+        <button onClick={() => setTab('messages')} className="assembly-tab" style={{
+          flex: 1, borderRadius: 0, background: 'transparent',
+          color: tab === 'messages' ? 'var(--blue)' : 'var(--muted)', borderBottom: tab === 'messages' ? '2px solid var(--blue-bright)' : '2px solid transparent', fontSize: 14, padding: '14px', fontWeight: 700
+        }}>Messages</button>
       </div>
 
       {error && <div className="alert alert-error" style={{ margin: 16 }}>{error}</div>}
@@ -220,6 +228,44 @@ export default function AssemblyPage() {
                       </button>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : tab === 'messages' ? (
+        <div className="app-scroll">
+          <div className="app-pad">
+            {/* Mamaaa AI shortcut */}
+            <Link href="/dashboard/chat/mamaaa-ai-bot" className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, textDecoration: 'none', background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)', color: 'white', border: 0 }}>
+              <div style={{ fontSize: 36, flexShrink: 0 }}>🎓</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>Mamaaa AI</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>Ask me anything about OPASS</div>
+              </div>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22C55E', flexShrink: 0 }} />
+            </Link>
+
+            {loading ? <div className="loading-center"><span className="spinner" /></div> : dmConversations.length === 0 ? (
+              <div className="empty-state">
+                <h3>No messages yet</h3>
+                <p>Start a conversation from the <Link href="/dashboard/alumni" style={{ color: 'var(--blue)', fontWeight: 700 }}>Alumni Directory</Link> or chat with <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ color: 'var(--blue)', fontWeight: 700 }}>Mamaaa AI</Link>.</p>
+              </div>
+            ) : (
+              <div className="feed">
+                {dmConversations.map(c => (
+                  <Link key={c.user.id} href={`/dashboard/chat/${c.user.id}`} className="feed-card" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+                    <div className="feed-card-header">
+                      <Avatar src={c.user.profile?.avatarUrl} name={c.user.profile?.fullName || c.user.email} size={48} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="name">{c.user.profile?.fullName || c.user.email}</div>
+                        <div className="time" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {c.lastMessage?.startsWith('🎴:') ? '🎨 Sticker' : c.lastMessage?.startsWith('📞') ? c.lastMessage : (c.lastMessage?.slice(0, 50) || 'No messages')}
+                        </div>
+                      </div>
+                      <span className="text-muted text-sm" style={{ flexShrink: 0 }}>{new Date(c.lastAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                  </Link>
                 ))}
               </div>
             )}

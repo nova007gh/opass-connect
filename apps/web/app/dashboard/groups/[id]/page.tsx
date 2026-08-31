@@ -25,16 +25,24 @@ interface Member {
   id: string; userId: string; banned: boolean; restricted: boolean; isLeader: boolean;
   user: { id: string; email: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null } | null };
 }
+interface GroupStats {
+  dayLabels: string[];
+  postsByDay: number[];
+  commentsByDay: number[];
+  likesByDay: number[];
+  totals: { posts: number; comments: number; likes: number };
+  members: number;
+}
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m`;
+  if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
+  if (days < 7) return `${days}d ago`;
   return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
@@ -44,6 +52,97 @@ function videoEmbed(url: string) {
   const vimeo = url.match(/vimeo\.com\/(\d+)/);
   if (vimeo) return <iframe src={`https://player.vimeo.com/video/${vimeo[1]}`} style={{ width: '100%', aspectRatio: '16/9', border: 0, borderRadius: 12 }} allowFullScreen />;
   return <video src={url} controls style={{ width: '100%', borderRadius: 12, maxHeight: 400 }} />;
+}
+
+function ActivityChart({ stats, loading }: { stats: GroupStats | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="card" style={{ marginBottom: 16, padding: 20 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Group Activity (Last 14 Days)</div>
+        <div className="loading-center" style={{ minHeight: 120 }}><span className="spinner" /></div>
+      </div>
+    );
+  }
+  if (!stats) return null;
+  const { dayLabels, postsByDay, commentsByDay, likesByDay, totals, members } = stats;
+  const allData = [...postsByDay, ...commentsByDay, ...likesByDay];
+  const maxVal = Math.max(...allData, 1);
+  const barHeight = (v: number) => (v / maxVal) * 100;
+  const hasActivity = totals.posts > 0 || totals.comments > 0 || totals.likes > 0;
+  return (
+    <div className="card" style={{ marginBottom: 16, padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>Group Activity (Last 14 Days)</div>
+        <div style={{ display: 'flex', gap: 10, fontSize: 11, flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)' }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--blue)' }} />{totals.posts} posts</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)' }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#10B981' }} />{totals.comments} comments</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)' }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#F59E0B' }} />{totals.likes} likes</span>
+        </div>
+      </div>
+      {/* Bar chart */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 110, marginBottom: 6, borderBottom: '1px solid var(--border)', position: 'relative' }}>
+        {/* Grid lines */}
+        {[0, 25, 50, 75].map(pct => (
+          <div key={pct} style={{ position: 'absolute', left: 0, right: 0, bottom: `${pct}%`, height: 1, background: 'var(--border)', opacity: 0.4 }} />
+        ))}
+        {dayLabels.map((label, i) => {
+          const p = postsByDay[i], c = commentsByDay[i], l = likesByDay[i];
+          const dayTotal = p + c + l;
+          return (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', position: 'relative' }}>
+              {/* Tooltip on hover */}
+              {dayTotal > 0 && (
+                <div style={{ position: 'absolute', bottom: '100%', marginBottom: 4, background: '#1F2937', color: 'white', fontSize: 10, padding: '4px 8px', borderRadius: 6, whiteSpace: 'nowrap', opacity: 0, transition: 'opacity 0.15s', pointerEvents: 'none', zIndex: 10 }}
+                  className="chart-tooltip">
+                  {label}: {p} posts, {c} comments, {l} likes
+                </div>
+              )}
+              {/* Stacked bar: likes (bottom), comments (middle), posts (top) */}
+              <div style={{ width: '65%', display: 'flex', flexDirection: 'column-reverse', borderRadius: 4, overflow: 'hidden', cursor: dayTotal > 0 ? 'pointer' : 'default' }}
+                onMouseEnter={e => { if (dayTotal > 0) (e.currentTarget.parentElement?.querySelector('.chart-tooltip') as HTMLElement)?.style?.setProperty('opacity', '1'); }}
+                onMouseLeave={e => { (e.currentTarget.parentElement?.querySelector('.chart-tooltip') as HTMLElement)?.style?.setProperty('opacity', '0'); }}>
+              {l > 0 && <div style={{ height: `${barHeight(l)}%`, background: '#F59E0B' }} />}
+              {c > 0 && <div style={{ height: `${barHeight(c)}%`, background: '#10B981' }} />}
+              {p > 0 && <div style={{ height: `${barHeight(p)}%`, background: 'var(--blue)' }} />}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* X-axis labels (show every other day to avoid crowding) */}
+      <div style={{ display: 'flex', gap: 3 }}>
+        {dayLabels.map((label, i) => (
+          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {i % 2 === 0 ? label.split(' ')[1] : ''}
+          </div>
+        ))}
+      </div>
+      {/* Summary row */}
+      <div style={{ display: 'flex', gap: 12, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue)' }}>{totals.posts}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Posts</div>
+        </div>
+        <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#10B981' }}>{totals.comments}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Comments</div>
+        </div>
+        <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#F59E0B' }}>{totals.likes}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Likes</div>
+        </div>
+        <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{members}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Members</div>
+        </div>
+      </div>
+      {!hasActivity && (
+        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>
+          No activity in the last 14 days. Be the first to post!
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function YearGroupDetailPage() {
@@ -79,11 +178,22 @@ export default function YearGroupDetailPage() {
   const [membersLoading, setMembersLoading] = useState(false);
   const [moderating, setModerating] = useState<string | null>(null);
 
+  const [stats, setStats] = useState<GroupStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
   const loadGroup = useCallback(() => {
     apiGet<GroupDetail>(`/year-groups/${groupId}`)
       .then(setGroup)
       .catch(() => setError('Failed to load year group'))
       .finally(() => setLoading(false));
+  }, [groupId]);
+
+  const loadStats = useCallback(() => {
+    setStatsLoading(true);
+    apiGet<GroupStats>(`/year-groups/${groupId}/stats`)
+      .then(setStats)
+      .catch(() => {})
+      .finally(() => setStatsLoading(false));
   }, [groupId]);
 
   const loadPosts = useCallback((cursor?: string) => {
@@ -100,14 +210,19 @@ export default function YearGroupDetailPage() {
     if (!group?.isMember && !group?.canManage) { setPostsLoading(false); return; }
     setPostsLoading(true);
     loadPosts().finally(() => setPostsLoading(false));
-  }, [group?.isMember, group?.canManage, loadPosts]);
+    loadStats();
+  }, [group?.isMember, group?.canManage, loadPosts, loadStats]);
 
-  // Light polling to keep the feed "live"
+  // Light polling to keep the feed "live" — only refresh the first page
+  // so we don't wipe out posts the user has loaded via "Load more".
   useEffect(() => {
     if (!group?.isMember && !group?.canManage) return;
-    const interval = setInterval(() => { loadPosts(); }, 15000);
+    const interval = setInterval(() => {
+      // Only auto-refresh if user hasn't expanded the feed (still on first page)
+      if (!loadingMore && hasMore) loadPosts();
+    }, 15000);
     return () => clearInterval(interval);
-  }, [group?.isMember, group?.canManage, loadPosts]);
+  }, [group?.isMember, group?.canManage, loadPosts, loadingMore, hasMore]);
 
   const pickImage = () => imageInputRef.current?.click();
   const onImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,8 +259,15 @@ export default function YearGroupDetailPage() {
   };
 
   const toggleLike = async (post: Post) => {
+    const wasLiked = post.likedByMe;
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likedByMe: !p.likedByMe, _count: { ...p._count, likes: p._count.likes + (p.likedByMe ? -1 : 1) } } : p));
-    try { await apiPost(`/year-groups/${groupId}/posts/${post.id}/like`); } catch { /* revert on failure not critical */ }
+    try { await apiPost(`/year-groups/${groupId}/posts/${post.id}/like`); }
+    catch (err: any) {
+      // Revert on failure (e.g. restricted user, network error)
+      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likedByMe: wasLiked, _count: { ...p._count, likes: p._count.likes + (wasLiked ? 1 : -1) } } : p));
+      setError(err.message || 'Failed to like post');
+      setTimeout(() => setError(''), 3000);
+    }
   };
 
   const deletePost = async (postId: string) => {
@@ -250,6 +372,11 @@ export default function YearGroupDetailPage() {
             </div>
           </div>
 
+          {/* Activity chart */}
+          {canView && (
+            <ActivityChart stats={stats} loading={statsLoading} />
+          )}
+
           {group.isRestricted && (
             <div className="alert" style={{ background: '#FFFBEB', color: '#D97706', marginBottom: 16, fontSize: 13 }}>
               Your posting access in this group is restricted by the group manager. You can view the feed but cannot post, comment, or like.
@@ -321,7 +448,7 @@ export default function YearGroupDetailPage() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="name">{post.user.profile?.fullName || 'A member'}</div>
-                          <div className="time">{timeAgo(post.createdAt)} ago</div>
+                          <div className="time">{timeAgo(post.createdAt)}</div>
                         </div>
                         {(post.user.id === user?.id || group.canManage) && (
                           <button onClick={() => deletePost(post.id)} title="Delete post" style={{ background: 'none', border: 0, color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>

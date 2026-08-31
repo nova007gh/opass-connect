@@ -19,9 +19,17 @@ export default function BusinessPage() {
   const [success, setSuccess] = useState('');
   const [filter, setFilter] = useState('All');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showMine, setShowMine] = useState(false);
+  const [myBusinesses, setMyBusinesses] = useState<Business[]>([]);
+  const [myLoading, setMyLoading] = useState(false);
 
   const load = () => { apiGet<Business[]>('/businesses').then(setBusinesses).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(load, []);
+
+  const loadMine = () => {
+    setMyLoading(true);
+    apiGet<Business[]>('/businesses/mine').then(setMyBusinesses).catch(() => setMyBusinesses([])).finally(() => setMyLoading(false));
+  };
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -58,6 +66,7 @@ export default function BusinessPage() {
       setForm({ name: '', category: 'Technology', description: '', website: '', phone: '', location: '' });
       setImage(null); setImagePreview(null);
       load();
+      if (showMine) loadMine();
     } catch (err: any) { setError(err.message || 'Failed to add business'); } finally { setCreating(false); }
   };
 
@@ -68,6 +77,9 @@ export default function BusinessPage() {
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
         <h1>Business</h1>
+        <button className="btn btn-sm" onClick={() => { setShowMine(v => !v); if (!showMine) loadMine(); }}>
+          {showMine ? 'Directory' : 'My Listings'}
+        </button>
       </div>
       <div className="app-scroll">
         <div className="app-pad">
@@ -127,24 +139,50 @@ export default function BusinessPage() {
             </div>
           )}
 
-          {/* Category filter */}
-          {!loading && businesses.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4, scrollbarWidth: 'none' }}>
-              {usedCategories.map(c => (
-                <button key={c} onClick={() => setFilter(c)} style={{
-                  padding: '8px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-                  background: filter === c ? 'var(--blue)' : 'var(--white)', color: filter === c ? 'white' : 'var(--muted)',
-                  border: filter === c ? '1px solid var(--blue)' : '1px solid var(--border)', cursor: 'pointer', transition: 'all 0.15s',
-                }}>{c}</button>
-              ))}
-            </div>
-          )}
-
-          {loading ? <div className="loading-center"><span className="spinner" /></div> : filtered.length === 0 ? (
-            <div className="empty-state"><h3>No businesses yet</h3><p>Be the first to add yours.</p></div>
+          {showMine ? (
+            myLoading ? (
+              <div className="loading-center"><span className="spinner" /></div>
+            ) : myBusinesses.length === 0 ? (
+              <div className="empty-state"><h3>You haven't listed a business yet</h3><p>Use "+ Add Business" to submit one for admin verification.</p></div>
+            ) : (
+              <div className="feed">
+                {myBusinesses.map(b => (
+                  <div className="feed-card" key={b.id}>
+                    <div className="feed-card-header">
+                      <div style={{ width: 48, height: 48, borderRadius: 12, overflow: 'hidden', background: 'var(--blue)', color: 'white', fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {b.logoUrl ? <img src={b.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (b.name ?? '?').charAt(0)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="name">{b.name}</div>
+                        <div className="time">{b.category}</div>
+                      </div>
+                      <span className={`badge ${b.verified ? 'badge-green' : 'badge-amber'}`}>{b.verified ? '✓ Verified' : 'Pending review'}</span>
+                    </div>
+                    {b.description && <div className="feed-card-body"><p>{b.description}</p></div>}
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-            <div className="feed">
-              {filtered.map(b => (
+            <>
+              {/* Category filter */}
+              {!loading && businesses.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4, scrollbarWidth: 'none' }}>
+                  {usedCategories.map(c => (
+                    <button key={c} onClick={() => setFilter(c)} style={{
+                      padding: '8px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+                      background: filter === c ? 'var(--blue)' : 'var(--white)', color: filter === c ? 'white' : 'var(--muted)',
+                      border: filter === c ? '1px solid var(--blue)' : '1px solid var(--border)', cursor: 'pointer', transition: 'all 0.15s',
+                    }}>{c}</button>
+                  ))}
+                </div>
+              )}
+
+              {loading ? <div className="loading-center"><span className="spinner" /></div> : filtered.length === 0 ? (
+                <div className="empty-state"><h3>No businesses yet</h3><p>Be the first to add yours.</p></div>
+              ) : (
+                <div className="feed">
+                  {filtered.map(b => (
                 <div className="feed-card" key={b.id}>
                   {b.logoUrl && (
                     <img src={b.logoUrl} alt="" style={{ width: '100%', height: 160, objectFit: 'cover' }} />
@@ -181,8 +219,10 @@ export default function BusinessPage() {
                     </a>}
                   </div>
                 </div>
-              ))}
-            </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { apiGet } from '../../lib/api';
+import { playSchoolBell, primeAudio } from '../../lib/sound';
 import ConnectGlyph from '../../components/ConnectGlyph';
 
 const allItems = [
@@ -50,10 +51,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const closeSidebar = () => setOpen(false);
+  const prevUnreadRef = useRef<number | null>(null);
 
   const fetchUnread = useCallback(async () => {
     try {
       const data = await apiGet<{ count: number }>('/notifications/unread-count');
+      // Ring the school bell whenever unread notifications increase (new message,
+      // comment, like, admin update, etc.) — but not on the very first load.
+      if (prevUnreadRef.current !== null && data.count > prevUnreadRef.current) {
+        playSchoolBell('normal');
+      }
+      prevUnreadRef.current = data.count;
       setUnreadCount(data.count);
     } catch {}
   }, []);
@@ -63,6 +71,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [loading, user, router]);
 
   useEffect(() => { setOpen(false); }, [pathname]);
+
+  // Unlock audio playback on first user interaction (required by some browsers).
+  useEffect(() => {
+    const unlock = () => { primeAudio(); window.removeEventListener('click', unlock); window.removeEventListener('keydown', unlock); };
+    window.addEventListener('click', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => { window.removeEventListener('click', unlock); window.removeEventListener('keydown', unlock); };
+  }, []);
 
   useEffect(() => {
     if (user) {

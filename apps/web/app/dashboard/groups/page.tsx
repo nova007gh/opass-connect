@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
@@ -40,11 +41,19 @@ type RequestState = 'none' | 'pending' | 'joined';
 
 export default function YearGroupsPage() {
   const { user, refresh, isAdmin } = useAuth();
+  const router = useRouter();
   const [groups, setGroups] = useState<YearGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchResults, setSearchResults] = useState<YearGroup[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
@@ -79,16 +88,56 @@ export default function YearGroupsPage() {
   const [invitesActing, setInvitesActing] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    apiGet<YearGroup[]>('/year-groups')
+    // Admins see all groups; regular users see only their joined groups
+    const url = isAdmin ? '/year-groups' : '/year-groups?mine=true';
+    apiGet<YearGroup[]>(url)
       .then(setGroups)
       .catch(() => setError('Failed to load year groups'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isAdmin]);
 
   useEffect(load, [load]);
 
   const joinedIds = new Set(user?.memberships?.map(m => m.yearGroupId) || []);
   const canManage = (yg: YearGroup) => isAdmin || yg.creatorId === user?.id;
+
+  // ===== Search year groups =====
+  const onSearchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearching(true);
+    setSearchActive(true);
+    try {
+      const results = await apiGet<YearGroup[]>(`/year-groups?search=${encodeURIComponent(q)}`);
+      setSearchResults(results);
+      // If exactly one result and the user has joined it, navigate directly
+      if (results.length === 1 && joinedIds.has(results[0].id)) {
+        router.push(`/dashboard/groups/${results[0].id}`);
+      }
+    } catch { setSearchResults([]); } finally { setSearching(false); }
+  };
+
+  // Live search as user types (debounced)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) { setSearchActive(false); setSearchResults([]); return; }
+    const timer = setTimeout(() => {
+      setSearchActive(true);
+      setSearching(true);
+      apiGet<YearGroup[]>(`/year-groups?search=${encodeURIComponent(q)}`)
+        .then(setSearchResults)
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchActive(false);
+    setSearchResults([]);
+  };
 
   // ===== Create =====
   const createGroup = async (e: React.FormEvent) => {
@@ -307,10 +356,78 @@ export default function YearGroupsPage() {
           {success && <div className="alert alert-success">{success}</div>}
 
           <div className="alert" style={{ background: 'var(--blue-50)', color: 'var(--blue)', marginBottom: 16, fontSize: 13 }}>
-            Year groups are invite-only. Send a request to join, and the group manager or an admin will approve it. Group creators and admins can invite classmates directly.
+            {isAdmin
+              ? 'Year groups are invite-only. Group creators and admins can invite classmates directly. You can see all year groups.'
+              : 'These are the year groups you\'ve joined. Use the search bar above to find other classes and request to join.'}
           </div>
 
-          {showCreate && (
+          {/* Search bar */}
+          <form onSubmit={onSearchSubmit} className="input-wrap" style={{ marginBottom: 16 }}>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); if (!e.target.value.trim()) { setSearchActive(false); setSearchResults([]); } }}
+              placeholder="Search year groups by year or name..."
+            />
+            {searchQuery && (
+              <button type="button" onClick={clearSearch} style={{ background: 'none', border: 0, color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
+          </form>
+
+          {/* Search results */}
+          {searchActive ? (
+            searching ? (
+              <div className="loading-center"><span className="spinner" /></div>
+            ) : searchResults.length === 0 ? (
+              <div className="empty-state card">
+                <h3>No year groups found</h3>
+                <p>No groups match "{searchQuery}". Try a different year or name.</p>
+                <button className="btn btn-sm" style={{ marginTop: 12 }} onClick={clearSearch}>Clear search</button>
+              </div>
+            ) : (
+              <div className="feed">
+                <div className="text-muted text-sm" style={{ marginBottom: 12 }}>Found {searchResults.length} group{searchResults.length !== 1 ? 's' : ''} — click a joined group to open its feed, or request to join a new one.</div>
+                {searchResults.map(yg => {
+                  const joined = joinedIds.has(yg.id);
+                  const manage = canManage(yg);
+                  return (
+                    <div className="feed-card" key={yg.id}>
+                      <div className="feed-card-header">
+                        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 16, fontWeight: 800, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {yg.imageUrl ? <img src={yg.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (yg.year?.toString() ?? '—').slice(-2)}
+                        </div>
+                        {(joined || manage) ? (
+                          <Link href={`/dashboard/groups/${yg.id}`} style={{ flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
+                            <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Class of {yg.year}
+                              {manage && <span className="badge badge-blue" style={{ fontSize: 10 }}>Manager</span>}
+                            </div>
+                            <div className="time">{yg.name} · {yg._count?.memberships ?? 0} members</div>
+                          </Link>
+                        ) : (
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="name">Class of {yg.year}</div>
+                            <div className="time">{yg.name} · {yg._count?.memberships ?? 0} members</div>
+                          </div>
+                        )}
+                        {joined ? (
+                          <span className="badge badge-green">✓ Joined</span>
+                        ) : (
+                          <RequestButton yg={yg} onRequest={() => requestJoin(yg.id)} loading={requesting === yg.id} />
+                        )}
+                      </div>
+                      {yg.description && <div className="feed-card-body"><p>{yg.description}</p></div>}
+                    </div>
+                  );
+                })}
+                <button className="btn btn-sm" style={{ marginTop: 12, background: 'var(--muted)', alignSelf: 'center' }} onClick={clearSearch}>Back to my groups</button>
+              </div>
+            )
+          ) : showCreate ? (
             <form onSubmit={createGroup} className="card" style={{ marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Create Year Group</h3>
               <div className="form-group">
@@ -338,18 +455,19 @@ export default function YearGroupsPage() {
                 </button>
               </div>
             </form>
-          )}
+          ) : null}
 
-          {loading ? (
+          {!searchActive && (loading ? (
             <div className="loading-center"><span className="spinner" /></div>
           ) : groups.length === 0 ? (
             <div className="empty-state">
-              <h3>No year groups yet</h3>
-              <p>Be the first to create a year group for your class!</p>
-              {!showCreate && <button className="btn" style={{ marginTop: 16 }} onClick={() => setShowCreate(true)}>+ Create Year Group</button>}
+              <h3>{isAdmin ? 'No year groups yet' : "You haven't joined a year group yet"}</h3>
+              <p>{isAdmin ? 'Be the first to create a year group for your class!' : 'Search for your graduating class above to find and request to join your year group.'}</p>
+              {isAdmin && !showCreate && <button className="btn" style={{ marginTop: 16 }} onClick={() => setShowCreate(true)}>+ Create Year Group</button>}
             </div>
           ) : (
             <div className="feed">
+              {!isAdmin && <h3 style={{ fontSize: 15, margin: '0 0 12px', color: 'var(--muted)' }}>My Year Groups</h3>}
               {groups.map(yg => {
                 const joined = joinedIds.has(yg.id);
                 const manage = canManage(yg);
@@ -456,7 +574,7 @@ export default function YearGroupsPage() {
                 );
               })}
             </div>
-          )}
+          ))}
         </div>
       </div>
       <input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onGalleryChange} style={{ display: 'none' }} />

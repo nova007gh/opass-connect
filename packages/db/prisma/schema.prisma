@@ -118,6 +118,8 @@ model User {
   groupPosts YearGroupPost[]
   groupPostLikes YearGroupPostLike[]
   groupPostComments YearGroupPostComment[]
+  directMessagesSent DirectMessage[] @relation("DMSender")
+  directMessagesReceived DirectMessage[] @relation("DMRecipient")
 }
 
 model AlumniProfile {
@@ -254,6 +256,21 @@ model Message {
   room ChatRoom @relation(fields:[roomId], references:[id], onDelete:Cascade)
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
   @@index([roomId, createdAt])
+}
+
+model DirectMessage {
+  id String @id @default(cuid())
+  senderId String
+  recipientId String
+  body String
+  audioUrl String?
+  callType String?
+  isBuzz Boolean @default(false)
+  createdAt DateTime @default(now())
+  sender User @relation("DMSender", fields:[senderId], references:[id], onDelete:Cascade)
+  recipient User @relation("DMRecipient", fields:[recipientId], references:[id], onDelete:Cascade)
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, senderId, createdAt])
 }
 
 model Meeting {

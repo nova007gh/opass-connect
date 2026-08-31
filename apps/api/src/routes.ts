@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { AccessToken } from 'livekit-server-sdk';
 import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
 import { notifyUser, notifyAllUsers, notifyAdmins } from './notifications.js';
@@ -79,10 +80,65 @@ async function readFileFromRequest(req: any): Promise<{ buffer: Buffer; mimetype
   return { buffer, mimetype: file.mimetype };
 }
 
+const ALLOWED_AUDIO_MIME = new Set(['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-m4a', 'audio/aac']);
+const MAX_AUDIO_BYTES = 8_000_000;
+
+async function readAudioFileFromRequest(req: any): Promise<{ buffer: Buffer; mimetype: string }> {
+  const file = await req.file();
+  if (!file) throw new Error('No file uploaded');
+  if (!ALLOWED_AUDIO_MIME.has(file.mimetype)) throw new Error('Unsupported audio format');
+  const chunks: Buffer[] = [];
+  for await (const chunk of file.file) { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)); }
+  const buffer = Buffer.concat(chunks);
+  if (buffer.length > MAX_AUDIO_BYTES) throw new Error('Voice note must be under 8MB');
+  return { buffer, mimetype: file.mimetype };
+}
+
+async function processAndStoreAudio(buffer: Buffer, mimetype: string, id: string): Promise<string> {
+  if (CLOUDINARY_CONFIGURED) {
+    try {
+      const cloudinary = await import('cloudinary');
+      const cloud = cloudinary.v2;
+      cloud.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+      });
+      const publicId = `voice-${id}-${randomUUID()}`;
+      return await new Promise((resolve, reject) => {
+        const stream = cloud.uploader.upload_stream(
+          { public_id: publicId, folder: 'opass-voice-notes', resource_type: 'video' },
+          (err, result) => { if (err) reject(err); else resolve(result!.secure_url); }
+        );
+        stream.end(buffer);
+      });
+    } catch (e) {
+      console.error('Cloudinary audio upload failed, falling back to base64:', e);
+    }
+  }
+  return `data:${mimetype};base64,${buffer.toString('base64')}`;
+}
+
 function canManageGroup(user:any,yg:any){return ['ADMIN','SUPER_ADMIN'].includes(user.role)||yg.creatorId===user.sub;}
 
 export function registerCoreRoutes(app:FastifyInstance){
-  app.get('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const groups=await prisma.yearGroup.findMany({orderBy:{year:'desc'},include:{_count:{select:{memberships:{where:{banned:false}}}}}});const canManageAny=['ADMIN','SUPER_ADMIN'].includes(req.user.role);const withInvites=canManageAny?await prisma.yearGroupInvite.groupBy({by:['yearGroupId'],where:{status:'PENDING'},_count:{_all:true}}):[];return groups.map(g=>({...g,pendingInvites:canManageAny||g.creatorId===req.user.sub?(withInvites.find(w=>w.yearGroupId===g.id)?._count?._all??0):undefined}));});
+  app.get('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{
+    const q=z.object({mine:z.coerce.boolean().optional(),search:z.string().optional()}).parse(req.query);
+    const canManageAny=['ADMIN','SUPER_ADMIN'].includes(req.user.role);
+    const where:{[k:string]:any}={};
+    if(q.search){
+      const yearMatch=parseInt(q.search,10);
+      where.OR=[
+        {name:{contains:q.search,mode:'insensitive'}},
+        {description:{contains:q.search,mode:'insensitive'}},
+        ...(isNaN(yearMatch)?[]:[{year:yearMatch}]),
+      ];
+    }
+    if(q.mine)where.memberships={some:{userId:req.user.sub,banned:false}};
+    const groups=await prisma.yearGroup.findMany({where,orderBy:{year:'desc'},include:{_count:{select:{memberships:{where:{banned:false}}}}}});
+    const withInvites=canManageAny?await prisma.yearGroupInvite.groupBy({by:['yearGroupId'],where:{status:'PENDING'},_count:{_all:true}}):[];
+    return groups.map(g=>({...g,pendingInvites:canManageAny||g.creatorId===req.user.sub?(withInvites.find(w=>w.yearGroupId===g.id)?._count?._all??0):undefined}));
+  });
   app.get('/year-groups/:id',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id},include:{_count:{select:{memberships:{where:{banned:false}}}}}});if(!yg)return reply.code(404).send({error:'Year group not found'});const membership=await prisma.yearGroupMembership.findUnique({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:yg.id}}});const manage=canManageGroup(req.user,yg);return{...yg,isMember:!!membership&&!membership.banned,isBanned:!!membership?.banned,isRestricted:!!membership?.restricted,canManage:manage};});
   app.post('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({year:z.number().int().min(1960).max(2030),name:z.string().min(2),description:z.string().optional()}).parse(req.body);const existing=await prisma.yearGroup.findFirst({where:{year:b.year}});if(existing)return{error:'A year group for this year already exists',existing};const yg=await prisma.yearGroup.create({data:{...b,creatorId:req.user.sub}});await prisma.yearGroupMembership.create({data:{userId:req.user.sub,yearGroupId:yg.id,isLeader:true}}).catch(()=>{});return yg;});
   app.post('/year-groups/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can update the photo'});try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'yeargroups',200,200);await prisma.yearGroup.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
@@ -200,6 +256,7 @@ export function registerCoreRoutes(app:FastifyInstance){
     if(!yg)return reply.code(404).send({error:'Year group not found'});
     const membership=await requireActiveMembership(req.user.sub,yg.id);
     if(!membership)return reply.code(403).send({error:'Join this group to like posts'});
+    if(membership.restricted)return reply.code(403).send({error:'Your posting access in this group has been restricted'});
     const post=await prisma.yearGroupPost.findUnique({where:{id:req.params.postId}});
     if(!post||post.yearGroupId!==yg.id)return reply.code(404).send({error:'Post not found'});
     const existing=await prisma.yearGroupPostLike.findUnique({where:{postId_userId:{postId:post.id,userId:req.user.sub}}});
@@ -236,7 +293,124 @@ export function registerCoreRoutes(app:FastifyInstance){
     return{ok:true};
   });
 
-  app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:100,select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,avatarUrl:true,userId:true}})});
+  // ===== Year group activity stats (for chart) =====
+  app.get('/year-groups/:id/stats',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    if(!canManageGroup(req.user,yg)&&!(await requireActiveMembership(req.user.sub,yg.id)))return reply.code(403).send({error:'Join this group to view stats'});
+    // Build last 14 days of buckets
+    const days:number[]=[];
+    const today=new Date();today.setHours(0,0,0,0);
+    for(let i=13;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d.getTime());}
+    const dayLabels=days.map(t=>new Date(t).toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+    const startDate=new Date(days[0]);
+    const [posts,comments,likes]=await Promise.all([
+      prisma.yearGroupPost.findMany({where:{yearGroupId:yg.id,createdAt:{gte:startDate}},select:{createdAt:true}}),
+      prisma.yearGroupPostComment.findMany({where:{post:{yearGroupId:yg.id},createdAt:{gte:startDate}},select:{createdAt:true}}),
+      prisma.yearGroupPostLike.findMany({where:{post:{yearGroupId:yg.id},createdAt:{gte:startDate}},select:{createdAt:true}}),
+    ]);
+    const bucket=(items:{createdAt:Date}[])=>{const counts=new Array(14).fill(0);for(const it of items){const d=new Date(it.createdAt);d.setHours(0,0,0,0);const idx=days.findIndex(t=>Math.abs(d.getTime()-t)<1);if(idx>=0)counts[idx]++;}return counts;};
+    const [postsByDay,commentsByDay,likesByDay]=[bucket(posts),bucket(comments),bucket(likes)];
+    const totals={posts:posts.length,comments:comments.length,likes:likes.length};
+    return{dayLabels,postsByDay,commentsByDay,likesByDay,totals,members:await prisma.yearGroupMembership.count({where:{yearGroupId:yg.id,banned:false}})};
+  });
+
+  app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:q.limit??100,orderBy:{fullName:'asc'},select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,bio:true,avatarUrl:true,userId:true}})});
+
+  // ===== Direct messages (1-on-1 chat) =====
+  app.get('/dm/conversations',{preHandler:[app.authenticate]},async(req:any)=>{
+    // Get all unique conversation partners
+    const sent=await prisma.directMessage.findMany({where:{senderId:req.user.sub},select:{recipientId:true,createdAt:true,body:true,callType:true},orderBy:{createdAt:'desc'}});
+    const received=await prisma.directMessage.findMany({where:{recipientId:req.user.sub},select:{senderId:true,createdAt:true,body:true,callType:true},orderBy:{createdAt:'desc'}});
+    const partners=new Map<string,{lastMessage:string;lastAt:Date;callType:string|null}>();
+    for(const m of sent){const ex=partners.get(m.recipientId);if(!ex||ex.lastAt<m.createdAt)partners.set(m.recipientId,{lastMessage:m.callType?`📞 ${m.callType} call`:m.body,lastAt:m.createdAt,callType:m.callType});}
+    for(const m of received){const ex=partners.get(m.senderId);if(!ex||ex.lastAt<m.createdAt)partners.set(m.senderId,{lastMessage:m.callType?`📞 ${m.callType} call`:m.body,lastAt:m.createdAt,callType:m.callType});}
+    const userIds=[...partners.keys()];
+    if(userIds.length===0)return[];
+    const users=await prisma.user.findMany({where:{id:{in:userIds}},select:{id:true,email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true,profession:true}}}});
+    return users.map(u=>({user:u,lastMessage:partners.get(u.id)?.lastMessage||'',lastAt:partners.get(u.id)?.lastAt||new Date()})).sort((a,b)=>b.lastAt.getTime()-a.lastAt.getTime());
+  });
+
+  app.get('/dm/:userId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true,email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true,profession:true,house:true,country:true,city:true,bio:true}}}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    const messages=await prisma.directMessage.findMany({where:{OR:[{senderId:req.user.sub,recipientId:req.params.userId},{senderId:req.params.userId,recipientId:req.user.sub}]},orderBy:{createdAt:'asc'},take:200,select:{id:true,senderId:true,recipientId:true,body:true,audioUrl:true,callType:true,createdAt:true}});
+    return{user:otherUser,messages};
+  });
+
+  app.post('/dm/:userId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
+    const b=z.object({body:z.string().min(1).max(5000).optional(),audioUrl:z.string().optional(),callType:z.string().optional()}).refine(v=>v.body||v.audioUrl||v.callType,{message:'Message cannot be empty'}).parse(req.body);
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    const msg=await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:b.body||'',audioUrl:b.audioUrl,callType:b.callType}});
+    // Notify recipient
+    const senderProfile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+    if(!b.callType){
+      notifyUser(req.params.userId,'CHAT','New message',`${senderProfile?.fullName||'Someone'} sent you a message.`,'/dashboard/alumni').catch(()=>{});
+    }else{
+      notifyUser(req.params.userId,'CHAT','Incoming call',`${senderProfile?.fullName||'Someone'} is calling you (${b.callType}).`,'/dashboard/alumni').catch(()=>{});
+    }
+    return msg;
+  });
+
+  // Start a 1-on-1 call (audio/video) via LiveKit
+  app.post('/dm/:userId/call',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(!env.LIVEKIT_API_KEY||!env.LIVEKIT_API_SECRET||!env.LIVEKIT_URL)return reply.code(503).send({error:'Live provider not configured'});
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot call yourself'});
+    const b=z.object({type:z.enum(['audio','video'])}).parse(req.body);
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true,profile:{select:{fullName:true}}}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    const roomKey=`dm-${[req.user.sub,req.params.userId].sort().join('-')}`;
+    const token=new AccessToken(env.LIVEKIT_API_KEY,env.LIVEKIT_API_SECRET,{identity:req.user.sub,ttl:'1h'});
+    token.addGrant({roomJoin:true,room:roomKey,canPublish:true,canSubscribe:true,canPublishData:true});
+    // Log the call as a message
+    await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:`${b.type} call started`,callType:b.type}});
+    notifyUser(req.params.userId,'CHAT','Incoming call',`${(await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}}))?.fullName||'Someone'} is calling you (${b.type}).`,'/dashboard/alumni').catch(()=>{});
+    return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey,type:b.type};
+  });
+
+  // Join an existing 1-on-1 call room (used by the callee, doesn't log a new call message)
+  app.post('/dm/:userId/call/join',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(!env.LIVEKIT_API_KEY||!env.LIVEKIT_API_SECRET||!env.LIVEKIT_URL)return reply.code(503).send({error:'Live provider not configured'});
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot call yourself'});
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    const roomKey=`dm-${[req.user.sub,req.params.userId].sort().join('-')}`;
+    const token=new AccessToken(env.LIVEKIT_API_KEY,env.LIVEKIT_API_SECRET,{identity:req.user.sub,ttl:'1h'});
+    token.addGrant({roomJoin:true,room:roomKey,canPublish:true,canSubscribe:true,canPublishData:true});
+    return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey};
+  });
+
+  // Upload a voice note for a DM
+  app.post('/dm/:userId/voice',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    try{
+      const{buffer,mimetype}=await readAudioFileFromRequest(req);
+      const audioUrl=await processAndStoreAudio(buffer,mimetype,req.user.sub);
+      const msg=await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:'',audioUrl}});
+      const senderProfile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+      notifyUser(req.params.userId,'CHAT','New voice note',`${senderProfile?.fullName||'Someone'} sent you a voice note.`,'/dashboard/alumni').catch(()=>{});
+      return msg;
+    }catch(err:any){return reply.code(400).send({error:err.message});}
+  });
+
+  // Send a "Buzz" (attention-getting nudge) — rate limited to 1 per 20s per pair
+  app.post('/dm/:userId/buzz',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot buzz yourself'});
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    const recent=await prisma.directMessage.findFirst({where:{senderId:req.user.sub,recipientId:req.params.userId,isBuzz:true,createdAt:{gte:new Date(Date.now()-20_000)}},orderBy:{createdAt:'desc'}});
+    if(recent)return reply.code(429).send({error:'Wait a moment before buzzing again'});
+    const msg=await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:'🔔 sent you a buzz!',isBuzz:true}});
+    const senderProfile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+    notifyUser(req.params.userId,'CHAT','🔔 Buzz!',`${senderProfile?.fullName||'Someone'} buzzed you!`,'/dashboard/alumni').catch(()=>{});
+    return msg;
+  });
+
   app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
   app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{

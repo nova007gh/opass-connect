@@ -3,7 +3,7 @@ services:
     name: opass-connect-api
     runtime: node
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm run prisma:generate && pnpm --filter @opass/api build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm run prisma:generate && pnpm --filter @opass/api prisma:migrate && pnpm --filter @opass/api build
     startCommand: pnpm --filter @opass/api start
     rootDir: .
     healthCheckPath: /health

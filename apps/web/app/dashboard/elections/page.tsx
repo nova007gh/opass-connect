@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../../../lib/api';
+import Avatar from '../../../components/Avatar';
 
 interface Candidate { id: string; userId: string; position: string; manifesto?: string | null; user?: { profile?: { fullName?: string | null; avatarUrl?: string | null } | null } | null; }
 interface Election { id: string; title: string; description?: string | null; status: string; opensAt: string; closesAt: string; yearGroup?: { year: number; name: string } | null; _count: { candidates: number; votes: number }; candidates?: Candidate[]; }
@@ -133,13 +134,10 @@ export default function ElectionsPage() {
                   const pct = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0;
                   const isLeading = maxVotes > 0 && voteCount === maxVotes && voteCount > 0;
                   const name = c.user?.profile?.fullName || `Candidate ${c.userId?.slice(-6) ?? ''}`;
-                  const initials = name.charAt(0).toUpperCase();
                   return (
                     <div className="feed-card" key={c.id} style={{ border: isLeading ? '2px solid var(--green)' : '1px solid var(--border)' }}>
                       <div className="feed-card-header">
-                        <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, flexShrink: 0 }}>
-                          {c.user?.profile?.avatarUrl ? <img src={c.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-                        </div>
+                        <Avatar src={c.user?.profile?.avatarUrl} name={name} size={48} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {name}

@@ -94,7 +94,7 @@ export default function LoginPage() {
               <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--blue-bright)' }} />
               Remember me
             </label>
-            <Link href="/login" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 600 }}>Forgot password?</Link>
+            <Link href="/dashboard/support" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 600 }}>Forgot password?</Link>
           </div>
           <button className="btn btn-block" type="submit" disabled={loading}>
             {loading ? <span className="spinner" /> : 'Sign in'}

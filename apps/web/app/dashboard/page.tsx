@@ -7,7 +7,7 @@ import { apiGet } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import ConnectGlyph from '../../components/ConnectGlyph';
 import Avatar from '../../components/Avatar';
-import { getYearGroupColor, HOUSE_COLORS } from '../../lib/houseColors';
+import { getYearGroupColor } from '../../lib/houseColors';
 
 interface YearGroup { id: string; year: number; name: string; imageUrl?: string | null; _count: { memberships: number } }
 interface Project { id: string; title: string; description: string; targetAmount: string; raisedAmount: string; status: string; imageUrl?: string | null }

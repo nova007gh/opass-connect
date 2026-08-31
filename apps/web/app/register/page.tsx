@@ -104,8 +104,11 @@ function RegisterForm() {
         inviteToken: inviteToken || undefined,
       });
       setToken(data.token);
-      if (form.profession) {
-        await apiPatch('/profile', { profession: form.profession }).catch(() => {});
+      const profileUpdates: Record<string, string> = {};
+      if (form.profession) profileUpdates.profession = form.profession;
+      if (form.bio) profileUpdates.bio = form.bio;
+      if (Object.keys(profileUpdates).length > 0) {
+        await apiPatch('/profile', profileUpdates).catch(() => {});
       }
       if (avatarFile) {
         await apiUpload('/profile/avatar', avatarFile).catch(() => {});

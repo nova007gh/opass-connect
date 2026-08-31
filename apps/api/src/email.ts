@@ -4,6 +4,10 @@ const SMTP_CONFIGURED = !!(process.env.SMTP_HOST && process.env.SMTP_USER && pro
 const FROM_EMAIL = process.env.SMTP_FROM || 'OPASS CONNECT <noreply@opassconnect.org>';
 const FRONTEND_URL = process.env.WEB_URL || 'https://opass-connect.vercel.app';
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter(): nodemailer.Transporter | null {
@@ -35,9 +39,9 @@ const emailTemplate = (title: string, body: string, link?: string) => `
           <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Ofori Panin Senior High School Alumni</p>
         </td></tr>
         <tr><td style="padding:32px;">
-          <h2 style="margin:0 0 16px;color:#0B2D6B;font-size:18px;font-weight:700;">${title}</h2>
-          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">${body}</p>
-          ${link ? `<a href="${FRONTEND_URL}${link}" style="display:inline-block;background:#0B2D6B;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Open in App</a>` : ''}
+          <h2 style="margin:0 0 16px;color:#0B2D6B;font-size:18px;font-weight:700;">${escapeHtml(title)}</h2>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">${escapeHtml(body)}</p>
+          ${link ? `<a href="${FRONTEND_URL}${escapeHtml(link)}" style="display:inline-block;background:#0B2D6B;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Open in App</a>` : ''}
         </td></tr>
         <tr><td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;">
           <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">You received this email because you have an OPASS CONNECT account.<br/>One School. One Network. One Legacy.</p>
@@ -51,7 +55,6 @@ const emailTemplate = (title: string, body: string, link?: string) => `
 export async function sendEmail(to: string, subject: string, title: string, body: string, link?: string): Promise<boolean> {
   const t = getTransporter();
   if (!t) {
-    console.log(`[email] SMTP not configured — skipping email to ${to}: ${subject}`);
     return false;
   }
   try {
@@ -61,10 +64,8 @@ export async function sendEmail(to: string, subject: string, title: string, body
       subject: `OPASS CONNECT — ${subject}`,
       html: emailTemplate(title, body, link),
     });
-    console.log(`[email] Sent "${subject}" to ${to}`);
     return true;
-  } catch (err) {
-    console.error(`[email] Failed to send to ${to}:`, err);
+  } catch {
     return false;
   }
 }

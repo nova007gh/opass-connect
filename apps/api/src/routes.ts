@@ -6,15 +6,8 @@ import { requireRoles } from './auth.js';
 import { notifyUser, notifyAllUsers, notifyAdmins } from './notifications.js';
 import { sendEmail } from './email.js';
 import { env } from './config.js';
-import { createWriteStream } from 'node:fs';
-import { mkdir, stat, readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { pipeline } from 'node:stream/promises';
-import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOAD_DIR = path.resolve(__dirname, '../public/uploads');
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_BYTES = 5_000_000;
 
@@ -55,8 +48,8 @@ async function processAndStoreImage(fileBuffer: Buffer, mimetype: string, id: st
     try {
       const publicId = `${folder}-${id}-${randomUUID()}`;
       return await uploadToCloudinary(processed, publicId, `opass-${folder}`, width, height);
-    } catch (e) {
-      console.error('Cloudinary upload failed, falling back to base64:', e);
+    } catch {
+      // Cloudinary failed — fall back to base64
     }
   }
 
@@ -112,8 +105,8 @@ async function processAndStoreAudio(buffer: Buffer, mimetype: string, id: string
         );
         stream.end(buffer);
       });
-    } catch (e) {
-      console.error('Cloudinary audio upload failed, falling back to base64:', e);
+    } catch {
+      // Cloudinary failed — fall back to base64
     }
   }
   return `data:${mimetype};base64,${buffer.toString('base64')}`;
@@ -140,7 +133,7 @@ export function registerCoreRoutes(app:FastifyInstance){
     return groups.map(g=>({...g,pendingInvites:canManageAny||g.creatorId===req.user.sub?(withInvites.find(w=>w.yearGroupId===g.id)?._count?._all??0):undefined}));
   });
   app.get('/year-groups/:id',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id},include:{_count:{select:{memberships:{where:{banned:false}}}}}});if(!yg)return reply.code(404).send({error:'Year group not found'});const membership=await prisma.yearGroupMembership.findUnique({where:{userId_yearGroupId:{userId:req.user.sub,yearGroupId:yg.id}}});const manage=canManageGroup(req.user,yg);return{...yg,isMember:!!membership&&!membership.banned,isBanned:!!membership?.banned,isRestricted:!!membership?.restricted,canManage:manage};});
-  app.post('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({year:z.number().int().min(1960).max(2030),name:z.string().min(2),description:z.string().optional()}).parse(req.body);const existing=await prisma.yearGroup.findFirst({where:{year:b.year}});if(existing)return{error:'A year group for this year already exists',existing};const yg=await prisma.yearGroup.create({data:{...b,creatorId:req.user.sub}});await prisma.yearGroupMembership.create({data:{userId:req.user.sub,yearGroupId:yg.id,isLeader:true}}).catch(()=>{});return yg;});
+  app.post('/year-groups',{preHandler:[app.authenticate]},async(req:any,reply:any)=>{const b=z.object({year:z.number().int().min(1960).max(2030),name:z.string().min(2).max(100),description:z.string().max(2000).optional()}).parse(req.body);const existing=await prisma.yearGroup.findFirst({where:{year:b.year}});if(existing)return reply.code(409).send({error:'A year group for this year already exists'});const yg=await prisma.yearGroup.create({data:{...b,creatorId:req.user.sub}});await prisma.yearGroupMembership.create({data:{userId:req.user.sub,yearGroupId:yg.id,isLeader:true}}).catch(()=>{});return yg;});
   app.post('/year-groups/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can update the photo'});try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'yeargroups',200,200);await prisma.yearGroup.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.patch('/year-groups/:id',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can edit this group'});const b=z.object({name:z.string().min(2).max(100).optional(),description:z.string().max(500).optional()}).parse(req.body);return prisma.yearGroup.update({where:{id:req.params.id},data:b});});
   app.post('/year-groups/:id/gallery',{preHandler:[app.authenticate]},async(req:any,reply)=>{const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});if(!yg)return reply.code(404).send({error:'Year group not found'});if(!canManageGroup(req.user,yg))return reply.code(403).send({error:'Only the group creator or an admin can add gallery photos'});if((yg.galleryUrls||[]).length>=24)return reply.code(400).send({error:'Gallery is full (max 24 photos). Remove some first.'});try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,`${req.params.id}-${randomUUID()}`,'yeargroups-gallery',800,600);const updated=await prisma.yearGroup.update({where:{id:req.params.id},data:{galleryUrls:{push:imageUrl}}});return{imageUrl,galleryUrls:updated.galleryUrls};}catch(err:any){return reply.code(400).send({error:err.message});}});
@@ -339,9 +332,9 @@ export function registerCoreRoutes(app:FastifyInstance){
 
   // ===== Direct messages (1-on-1 chat) =====
   app.get('/dm/conversations',{preHandler:[app.authenticate]},async(req:any)=>{
-    // Get all unique conversation partners
-    const sent=await prisma.directMessage.findMany({where:{senderId:req.user.sub},select:{recipientId:true,createdAt:true,body:true,callType:true},orderBy:{createdAt:'desc'}});
-    const received=await prisma.directMessage.findMany({where:{recipientId:req.user.sub},select:{senderId:true,createdAt:true,body:true,callType:true},orderBy:{createdAt:'desc'}});
+    // Get all unique conversation partners — limit to recent 500 messages for performance
+    const sent=await prisma.directMessage.findMany({where:{senderId:req.user.sub},select:{recipientId:true,createdAt:true,body:true,callType:true},orderBy:{createdAt:'desc'},take:500});
+    const received=await prisma.directMessage.findMany({where:{recipientId:req.user.sub},select:{senderId:true,createdAt:true,body:true,callType:true},orderBy:{createdAt:'desc'},take:500});
     const partners=new Map<string,{lastMessage:string;lastAt:Date;callType:string|null}>();
     for(const m of sent){const ex=partners.get(m.recipientId);if(!ex||ex.lastAt<m.createdAt)partners.set(m.recipientId,{lastMessage:m.callType?`📞 ${m.callType} call`:m.body,lastAt:m.createdAt,callType:m.callType});}
     for(const m of received){const ex=partners.get(m.senderId);if(!ex||ex.lastAt<m.createdAt)partners.set(m.senderId,{lastMessage:m.callType?`📞 ${m.callType} call`:m.body,lastAt:m.createdAt,callType:m.callType});}
@@ -547,8 +540,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
       return{avatarUrl};
     } catch(err:any) {
       if (err.message.includes('No file') || err.message.includes('Only') || err.message.includes('under 5MB')) return reply.code(400).send({error:err.message});
-      console.error('Avatar upload error:',err);
-      return reply.code(500).send({error:'Failed to process image: '+err.message});
+      return reply.code(500).send({error:'Failed to process image'});
     }
   });
 
@@ -572,7 +564,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
   app.post('/businesses/:id/ads',{preHandler:[app.authenticate]},async(req:any,reply)=>{const business=await prisma.business.findFirst({where:{id:req.params.id,ownerId:req.user.sub}});if(!business)return reply.code(404).send({error:'Business not found'});const b=z.object({placement:z.enum(['year_group','home','events','platform_wide']),durationDays:z.number().int().positive(),audience:z.string(),quotedAmount:z.number().positive(),creativeUrl:z.string().url().optional()}).parse(req.body);return prisma.adCampaign.create({data:{businessId:business.id,...b,status:'PENDING_APPROVAL'}})});
 
   app.get('/chat/rooms',{preHandler:[app.authenticate]},async()=>prisma.chatRoom.findMany({orderBy:{createdAt:'asc'},include:{_count:{select:{messages:true}},yearGroup:{select:{year:true,name:true}}}}));
-  app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req)=>{const b=z.object({name:z.string().min(2),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false),imageUrl:z.string().optional()}).parse(req.body);return prisma.chatRoom.create({data:b})});
+  app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({name:z.string().min(2).max(100),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false),imageUrl:z.string().optional()}).parse(req.body);if(b.isAssemblyHall&&!['ADMIN','SUPER_ADMIN'].includes(req.user.role))return{error:'Only admins can create assembly halls'}as any;return prisma.chatRoom.create({data:{...b,isAssemblyHall:b.isAssemblyHall&&['ADMIN','SUPER_ADMIN'].includes(req.user.role)?true:false}})});
   app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{profile:{select:{fullName:true,avatarUrl:true}}}}}})});
   app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().min(1).max(4000)}).parse(req.body);const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id}});if(room){const senderName=msg.user?.profile?.fullName||'A member';notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${b.body.slice(0,100)}`,`/dashboard/assembly`,req.user.sub).catch(()=>{});notifyAdmins('CHAT',`New chat message`,`${senderName} posted in ${room.name}`,'/dashboard/assembly').catch(()=>{});}return msg;});

@@ -71,30 +71,23 @@ export function registerAiRoutes(app: FastifyInstance){
     if (detectThreat(body.message)) {
       const threatMsg = "Mamaaa is watching, and Mamaaa knows. Your activity has been noted and reported to the administrator. Please use OPASS CONNECT responsibly.";
       await prisma.aIMessage.create({data:{conversationId:convId,role:'assistant',content:threatMsg}});
-      // Report to admin email
-      try {
-        const user = await prisma.user.findUnique({ where: { id: req.user.sub }, select: { email: true, profile: { select: { fullName: true } } } });
-        const reportMsg = `SECURITY ALERT: Suspicious activity detected in Mamaaa AI chat.
-User: ${user?.profile?.fullName || 'Unknown'} (${user?.email || 'Unknown'})
-Message: "${body.message}"
-Conversation ID: ${convId}
-Time: ${new Date().toISOString()}
-IP: ${req.ip}
-User-Agent: ${req.headers['user-agent'] || 'Unknown'}`;
-        // Send email notification to admin (stored as notification)
-        await notifyAllUsers('SECURITY', 'Security Alert: Mamaaa AI', 'Suspicious activity detected and blocked', '/dashboard/admin').catch(() => {});
-      } catch {}
+      await notifyAllUsers('SECURITY', 'Security Alert: Mamaaa AI', 'Suspicious activity detected and blocked', '/dashboard/admin').catch(() => {});
       return {conversationId:convId, message:threatMsg};
     }
 
     let content:string;
     if(env.OPENAI_API_KEY){
-      const client=new OpenAI({apiKey:env.OPENAI_API_KEY});
-      const history=await prisma.aIMessage.findMany({where:{conversationId:convId},orderBy:{createdAt:'asc'},take:20});
-      const siteContext = await getSiteContext(req.user.sub);
-      const systemContent = `${personality}\n\n${siteContext}`;
-      const response=await client.responses.create({model:env.OPENAI_MODEL,input:[{role:'system',content:systemContent},...history.map(m=>({role:m.role as 'user'|'assistant',content:m.content}))]});
-      content=response.output_text || 'Please tell me a little more so I can help, my friend.';
+      try {
+        const client=new OpenAI({apiKey:env.OPENAI_API_KEY});
+        const history=await prisma.aIMessage.findMany({where:{conversationId:convId},orderBy:{createdAt:'asc'},take:20});
+        const siteContext = await getSiteContext(req.user.sub);
+        const systemContent = `${personality}\n\n${siteContext}`;
+        const response=await client.responses.create({model:env.OPENAI_MODEL,input:[{role:'system',content:systemContent},...history.map(m=>({role:m.role as 'user'|'assistant',content:m.content}))]});
+        content=response.output_text || 'Please tell me a little more so I can help, my friend.';
+      } catch {
+        const siteContext = await getSiteContext(req.user.sub);
+        content = `I'm having trouble connecting right now, my friend. Here's what's happening on OPASS CONNECT:\n${siteContext}\n\nPlease try again in a moment.`;
+      }
     } else {
       // Fallback: provide helpful responses using site data
       const siteContext = await getSiteContext(req.user.sub);
@@ -121,7 +114,7 @@ User-Agent: ${req.headers['user-agent'] || 'Unknown'}`;
     return messages;
   });
 
-  app.post('/ai/quote', async (req, reply) => {
+  app.post('/ai/quote', { preHandler: [app.authenticate] }, async (req, reply) => {
     const body = z.object({clientName:z.string().min(2),clientEmail:z.string().email(),clientPhone:z.string().optional(),request:z.object({requestType:z.enum(['advertising','sponsorship','event','partnership','other']).optional(),durationDays:z.number().int().positive().optional(),placement:z.enum(['year_group','home','events','platform_wide']).optional(),audienceSize:z.number().int().positive().optional(),creativeType:z.enum(['image','video','live']).optional(),rush:z.boolean().optional()})}).parse(req.body);
     const questions=missingQuoteQuestions(body.request);
     if(questions.length) return {ready:false,questions};

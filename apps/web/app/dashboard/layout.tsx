@@ -115,10 +115,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const isActive = (href: string) => pathname === href;
-  const initials = (user.profile?.fullName || user.email).charAt(0).toUpperCase();
   const menu = isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin');
   const crumbs = getBreadcrumb(pathname);
-  const pageTitle = crumbs[crumbs.length - 1].label;
 
   const handleLogout = () => { logout(); router.replace('/'); };
 

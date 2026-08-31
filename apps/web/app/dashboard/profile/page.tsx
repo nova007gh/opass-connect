@@ -92,7 +92,6 @@ export default function ProfilePage() {
 
   if (!user) return null;
   const p = user.profile;
-  const initials = (p?.fullName || user.email).charAt(0).toUpperCase();
 
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>

@@ -53,7 +53,6 @@ const roleLabel: Record<string, string> = {
 
 export default function MenuPage() {
   const { user, logout } = useAuth();
-  const initials = (user?.profile?.fullName || user?.email || '?').charAt(0).toUpperCase();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const role = roleLabel[user?.role || 'MEMBER'] || 'Member';
 

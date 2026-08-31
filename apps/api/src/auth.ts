@@ -13,6 +13,20 @@ export function registerAuthRoutes(app: FastifyInstance) {
     }).parse(req.body);
     const passwordHash = await bcrypt.hash(body.password, 12);
     const user = await prisma.user.create({data:{email:body.email.toLowerCase(), phone:body.phone, passwordHash, profile:{create:{fullName:body.fullName, graduationYear:body.graduationYear, house:body.house, positionHeld:body.positionHeld, country:body.country, city:body.city}}}, include:{profile:true}});
+
+    // Auto-join the user to their graduation year's year group (create if it doesn't exist)
+    const defaultYgName = `Class of ${body.graduationYear}`;
+    const yearGroup = await prisma.yearGroup.upsert({
+      where: { year: body.graduationYear },
+      update: {},
+      create: { year: body.graduationYear, name: defaultYgName, creatorId: user.id },
+    });
+    await prisma.yearGroupMembership.upsert({
+      where: { userId_yearGroupId: { userId: user.id, yearGroupId: yearGroup.id } },
+      update: { banned: false },
+      create: { userId: user.id, yearGroupId: yearGroup.id },
+    }).catch(() => {});
+
     if (body.inviteToken) {
       const invite = await prisma.yearGroupInvite.findUnique({ where: { token: body.inviteToken }, include: { yearGroup: true, invitedBy: true } });
       if (invite && !invite.invitedUserId) {

@@ -60,7 +60,7 @@ export default function DashboardHome() {
 
   useEffect(() => {
     Promise.all([
-      apiGet<YearGroup[]>('/year-groups').catch(() => []),
+      apiGet<YearGroup[]>('/year-groups?mine=true').catch(() => []),
       apiGet<Project[]>('/projects').catch(() => []),
       apiGet<EventItem[]>('/events').catch(() => []),
     ]).then(([yg, pr, ev]) => {
@@ -75,7 +75,7 @@ export default function DashboardHome() {
   const firstName = user?.profile?.fullName?.split(' ')[0] || 'Alumnus';
   const totalRaised = projects.reduce((sum, p) => sum + Number(p.raisedAmount), 0);
   const activeProjects = projects.filter(p => p.status === 'ACTIVE').length;
-  const myYearGroup = yearGroups.find(yg => yg.year === user?.profile?.graduationYear);
+  const myYearGroups = yearGroups;
 
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
@@ -199,23 +199,25 @@ export default function DashboardHome() {
             </div>
           )}
 
-          {/* My Year Group */}
-          {myYearGroup && (
+          {/* My Year Groups */}
+          {myYearGroups.length > 0 && (
             <>
               <div className="section-header fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>My Year Group</h3>
+                <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>My Year Group{myYearGroups.length > 1 ? 's' : ''}</h3>
                 <Link href="/dashboard/groups" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>View all</Link>
               </div>
-              <Link href="/dashboard/groups" className="card fade-in-up" style={{ marginBottom: 20, padding: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-bright) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: 18, flexShrink: 0 }}>
-                  {myYearGroup.year}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{myYearGroup.name}</div>
-                  <div className="text-sm text-muted">{myYearGroup._count?.memberships ?? 0} members</div>
-                </div>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-              </Link>
+              {myYearGroups.map(yg => (
+                <Link key={yg.id} href={`/dashboard/groups/${yg.id}`} className="card fade-in-up" style={{ marginBottom: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-bright) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: 18, flexShrink: 0 }}>
+                    {yg.year}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{yg.name}</div>
+                    <div className="text-sm text-muted">{yg._count?.memberships ?? 0} members</div>
+                  </div>
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </Link>
+              ))}
             </>
           )}
         </div>

@@ -162,6 +162,15 @@ export default function AlumniPage() {
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
                       <div className="text-muted text-sm">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>
                     </div>
+                    {a.userId !== user?.id && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/chat/${a.userId}`); }}
+                        style={{ flexShrink: 0, width: 34, height: 34, borderRadius: '50%', border: 0, background: 'var(--blue-50)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        title="Chat"
+                      >
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" /></svg>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -192,14 +201,20 @@ export default function AlumniPage() {
                         <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800 }}>
                           {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : a.fullName.charAt(0)}
                         </div>
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="name">{a.fullName}</div>
                           <div className="time">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>
                         </div>
                         {isMe ? (
                           <span className="badge badge-dark" style={{ fontSize: 10 }}>You</span>
                         ) : (
-                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, color: 'var(--muted)', flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/chat/${a.userId}`); }}
+                            style={{ flexShrink: 0, width: 38, height: 38, borderRadius: '50%', border: 0, background: 'var(--blue-50)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                            title="Chat"
+                          >
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" /></svg>
+                          </button>
                         )}
                       </div>
                       {(a.profession || a.city || a.country) && (

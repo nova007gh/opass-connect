@@ -144,8 +144,7 @@ label.switch span > span { transition: transform 0.2s; }
 
 /* ===== App screen shell ===== */
 .app-screen {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--white);
@@ -153,6 +152,7 @@ label.switch span > span { transition: transform 0.2s; }
 .app-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
 .app-pad { padding: 20px; padding-bottom: calc(90px + var(--safe-bottom)); }
 @media (min-width: 769px) {
+  .app-screen { min-height: 100vh; }
   .app-scroll { padding-bottom: 0; }
 }
 
@@ -729,15 +729,15 @@ label.switch span > span { transition: transform 0.2s; }
 }
 
 /* ===== Shell layout ===== */
-.dash-main { flex: 1; margin-left: 0; display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
-.dash-shell { display: flex; flex-direction: column; min-height: 100vh; }
+.dash-main { flex: 1; margin-left: 0; display: flex; flex-direction: column; min-width: 0; height: 100dvh; overflow: hidden; }
+.dash-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 @media (min-width: 769px) {
-  .dash-shell { flex-direction: row; }
-  .dash-main { margin-left: 260px; }
+  .dash-shell { flex-direction: row; height: auto; min-height: 100vh; overflow: visible; }
+  .dash-main { margin-left: 260px; height: auto; min-height: 100vh; overflow: visible; }
 }
-.dash-content { padding: 0; flex: 1; max-width: 100%; width: 100%; margin: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
+.dash-content { padding: 0; flex: 1; max-width: 100%; width: 100%; margin: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
 @media (min-width: 769px) {
-  .dash-content { padding: 24px 32px; max-width: 1000px; margin: 0 auto; padding-bottom: 32px; }
+  .dash-content { padding: 24px 32px; max-width: 1000px; margin: 0 auto; padding-bottom: 32px; overflow: visible; }
 }
 
 /* ===== Generic screen header ===== */

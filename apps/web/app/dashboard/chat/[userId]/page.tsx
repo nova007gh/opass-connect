@@ -208,26 +208,24 @@ export default function DirectChatPage() {
   const displayName = peer.profile?.fullName || peer.email;
 
   return (
-    <div className={`app-screen fade-in ${shaking ? 'shake-screen' : ''}`} style={{ background: 'var(--bg)' }}>
-      <div className="screen-header" style={{ position: 'sticky', top: 0 }}>
-        <button onClick={() => router.back()} className="back">
+    <div className={`app-screen fade-in ${shaking ? 'shake-screen' : ''}`} style={{ background: 'var(--bg)', height: '100%' }}>
+      <div className="screen-header" style={{ flexShrink: 0, gap: 8, padding: '0 12px' }}>
+        <button onClick={() => router.back()} className="back" style={{ flexShrink: 0 }}>
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0, marginRight: 8 }}>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
           {peer.profile?.avatarUrl ? <img src={peer.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : displayName.charAt(0).toUpperCase()}
         </div>
-        <h1 style={{ fontSize: 16 }}>{displayName}</h1>
-        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-          <button onClick={() => startCall('audio')} className="topbar-icon-btn" title="Voice call" aria-label="Voice call">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h1.5a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106a2.25 2.25 0 00-2.239.68l-.665.766c-.283.326-.756.409-1.079.226a11.978 11.978 0 01-4.994-4.994c-.183-.323-.1-.796.226-1.079l.766-.665a2.25 2.25 0 00.68-2.239L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
-          </button>
-          <button onClick={() => startCall('video')} className="topbar-icon-btn" title="Video call" aria-label="Video call">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>
-          </button>
-        </div>
+        <h1 style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</h1>
+        <button onClick={() => startCall('audio')} className="topbar-icon-btn" title="Voice call" aria-label="Voice call" style={{ flexShrink: 0, width: 36, height: 36 }}>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h1.5a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106a2.25 2.25 0 00-2.239.68l-.665.766c-.283.326-.756.409-1.079.226a11.978 11.978 0 01-4.994-4.994c-.183-.323-.1-.796.226-1.079l.766-.665a2.25 2.25 0 00.68-2.239L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
+        </button>
+        <button onClick={() => startCall('video')} className="topbar-icon-btn" title="Video call" aria-label="Video call" style={{ flexShrink: 0, width: 36, height: 36 }}>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>
+        </button>
       </div>
 
-      <div className="app-scroll" style={{ flex: 1, padding: '16px 16px 8px' }}>
+      <div className="app-scroll" style={{ flex: 1, padding: '12px 12px 4px', minHeight: 0 }}>
         {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
         {callError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{callError}</div>}
 
@@ -286,7 +284,7 @@ export default function DirectChatPage() {
         <div ref={messagesEnd} />
       </div>
 
-      <div style={{ padding: '12px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ padding: '10px 12px calc(12px + var(--tabbar-h) + var(--safe-bottom))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
         <input
           className="input"
           value={input}
@@ -329,6 +327,12 @@ export default function DirectChatPage() {
           onClose={() => setActiveCall(null)}
         />
       )}
+
+      <style jsx>{`
+        @media (min-width: 769px) {
+          :global(.dash-content) { overflow: visible !important; }
+        }
+      `}</style>
     </div>
   );
 }

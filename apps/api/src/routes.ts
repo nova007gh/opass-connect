@@ -362,6 +362,59 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.post('/dm/:userId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
     const b=z.object({body:z.string().min(1).max(5000).optional(),audioUrl:z.string().optional(),callType:z.string().optional()}).refine(v=>v.body||v.audioUrl||v.callType,{message:'Message cannot be empty'}).parse(req.body);
+
+    // ===== Mamaaa AI bot integration =====
+    // The Mamaaa AI bot has a special user ID. When a user DMs the bot,
+    // we save the user's message and auto-generate an AI response.
+    const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
+    if (req.params.userId === MAMAAA_BOT_ID) {
+      const msg = await prisma.directMessage.create({ data: { senderId: req.user.sub, recipientId: MAMAAA_BOT_ID, body: b.body || '' } });
+      // Generate AI response
+      try {
+        const { default: OpenAI } = await import('openai');
+        const { env: envCfg } = await import('./config.js');
+        const { getSiteContext } = await import('./ai-context.js');
+        const siteContext = await getSiteContext(req.user.sub);
+        const personality = `You are Mr. Atsu Clements, affectionately known as "Mamaaa" — the official AI assistant of OPASS CONNECT, the alumni platform for Ofori Panin Senior High School (OPASS) in Ghana.
+
+YOUR CHARACTER:
+- You are a mathematician, scientist, and former lecturer who taught Elective Mathematics and Science
+- You are warm, jovial, disciplined, and wise — like a beloved old teacher
+- You speak with Ghanaian warmth: "Akwaaba", "my friend", "my dear"
+- You are deeply knowledgeable about OPASS school life, traditions, and alumni
+
+YOUR ROLE:
+- Answer questions about the platform data (events, elections, projects, year groups, businesses)
+- Help users navigate the platform
+- Tell school-appropriate jokes and educational content
+- Be a friendly companion
+
+Keep responses concise (2-4 sentences) unless asked for detail. Use occasional humor.`;
+        let aiContent: string;
+        if (envCfg.OPENAI_API_KEY) {
+          const client = new OpenAI({ apiKey: envCfg.OPENAI_API_KEY });
+          // Get recent DM history for context
+          const recentMsgs = await prisma.directMessage.findMany({
+            where: { OR: [{ senderId: req.user.sub, recipientId: MAMAAA_BOT_ID }, { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub }] },
+            orderBy: { createdAt: 'desc' }, take: 10,
+          });
+          const history = recentMsgs.reverse().map(m => ({ role: (m.senderId === MAMAAA_BOT_ID ? 'assistant' : 'user') as 'user' | 'assistant', content: m.body }));
+          const response = await client.responses.create({
+            model: envCfg.OPENAI_MODEL,
+            input: [{ role: 'system', content: `${personality}\n\n${siteContext}` }, ...history],
+          });
+          aiContent = response.output_text || 'I am here to help, my friend. Tell me more!';
+        } else {
+          aiContent = `Akwaaba, my friend! I am Mamaaa, your OPASS CONNECT AI assistant.\n\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS!`;
+        }
+        const aiMsg = await prisma.directMessage.create({ data: { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub, body: aiContent } });
+        return { userMsg: msg, aiMsg };
+      } catch (err: any) {
+        const fallback = await prisma.directMessage.create({ data: { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub, body: 'I am having trouble connecting right now, my friend. Please try again in a moment.' } });
+        return { userMsg: msg, aiMsg: fallback };
+      }
+    }
+
     const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
     if(!otherUser)return reply.code(404).send({error:'User not found'});
     const msg=await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:b.body||'',audioUrl:b.audioUrl,callType:b.callType}});
@@ -373,6 +426,32 @@ export function registerCoreRoutes(app:FastifyInstance){
       notifyUser(req.params.userId,'CHAT','Incoming call',`${senderProfile?.fullName||'Someone'} is calling you (${b.callType}).`,'/dashboard/alumni').catch(()=>{});
     }
     return msg;
+  });
+
+  // Get or create the Mamaaa AI bot user profile
+  app.get('/dm/mamaaa/info',{preHandler:[app.authenticate]},async(req:any)=>{
+    const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
+    // Ensure bot user exists
+    let bot = await prisma.user.findUnique({ where: { id: MAMAAA_BOT_ID }, include: { profile: true } });
+    if (!bot) {
+      try {
+        bot = await prisma.user.create({
+          data: {
+            id: MAMAAA_BOT_ID,
+            email: 'mamaaa@opassconnect.edu',
+            passwordHash: 'bot-no-login',
+            role: 'MEMBER',
+            verification: 'VERIFIED',
+            profile: { create: { fullName: 'Mamaaa AI', nickname: 'Mamaaa', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat!' } },
+          },
+          include: { profile: true },
+        });
+      } catch {
+        // If creation fails (e.g. already exists from race condition), fetch it
+        bot = await prisma.user.findUnique({ where: { id: MAMAAA_BOT_ID }, include: { profile: true } });
+      }
+    }
+    return bot;
   });
 
   // Start a 1-on-1 call (audio/video) via LiveKit

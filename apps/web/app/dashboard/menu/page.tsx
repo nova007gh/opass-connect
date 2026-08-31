@@ -28,7 +28,8 @@ const menuGroups = [
   {
     title: 'Tools',
     items: [
-      { label: 'Mamaaa AI', href: '/dashboard/mamaaa', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z' },
+      { label: 'Chat with Mamaaa AI', href: '/dashboard/chat/mamaaa-ai-bot', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z' },
+      { label: 'Mamaaa AI Dashboard', href: '/dashboard/mamaaa', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 00-2-2H7a2 2 0 00-2 2zm12-9a6 6 0 11-12 0 6 6 0 0112 0z' },
       { label: 'Admin Console', href: '/dashboard/admin', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z', adminOnly: true },
     ],
   },

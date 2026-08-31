@@ -5,6 +5,7 @@ import { env } from './config.js';
 import { calculateQuote, missingQuoteQuestions } from './quote-engine.js';
 import { prisma } from '@opass/db';
 import { notifyAllUsers } from './notifications.js';
+import { getSiteContext } from './ai-context.js';
 
 const personality = `You are Mr. Atsu Clements, affectionately known as "Mamaaa" — the official AI assistant of OPASS CONNECT, the alumni platform for Ofori Panin Senior High School (OPASS) in Ghana.
 
@@ -56,31 +57,8 @@ function detectThreat(message: string): boolean {
   return threatPatterns.some(p => p.test(message));
 }
 
-// Gather site context for the AI
-async function getSiteContext(): Promise<string> {
-  const [events, elections, projects, businesses, users, yearGroups] = await Promise.all([
-    prisma.event.findMany({ where: { startsAt: { gte: new Date() } }, orderBy: { startsAt: 'asc' }, take: 5, select: { title: true, startsAt: true, venue: true } }),
-    prisma.election.findMany({ where: { status: 'OPEN' }, include: { _count: { select: { candidates: true, votes: true } }, candidates: { include: { user: { select: { profile: { select: { fullName: true } } } } } } }, take: 5 }),
-    prisma.project.findMany({ where: { status: { in: ['ACTIVE', 'IN_PROGRESS'] } }, select: { title: true, targetAmount: true, raisedAmount: true, status: true }, take: 5 }),
-    prisma.business.findMany({ where: { verified: true }, select: { name: true, category: true, location: true }, take: 5 }),
-    prisma.user.count(),
-    prisma.yearGroup.findMany({ select: { year: true, name: true }, orderBy: { year: 'asc' } }),
-  ]);
-
-  const eventStr = events.length ? events.map(e => `${e.title} on ${new Date(e.startsAt).toLocaleDateString()} at ${e.venue || 'TBD'}`).join('; ') : 'No upcoming events';
-  const electionStr = elections.length ? elections.map(e => `${e.title}: ${e._count.candidates} candidates, ${e._count.votes} votes cast. Candidates: ${e.candidates.map(c => c.user?.profile?.fullName || 'Unknown').join(', ')}`).join('; ') : 'No active elections';
-  const projectStr = projects.length ? projects.map(p => `${p.title}: GHS ${Number(p.raisedAmount).toLocaleString()} of GHS ${Number(p.targetAmount).toLocaleString()} (${p.status})`).join('; ') : 'No active projects';
-  const businessStr = businesses.length ? businesses.map(b => `${b.name} (${b.category}${b.location ? ', ' + b.location : ''})`).join('; ') : 'No verified businesses';
-  const ygStr = yearGroups.length ? yearGroups.map(y => `${y.year} (${y.name})`).join(', ') : 'No year groups';
-
-  return `CURRENT SITE DATA (use this to answer questions):
-- Total registered users: ${users}
-- Upcoming events: ${eventStr}
-- Active elections: ${electionStr}
-- Active projects: ${projectStr}
-- Verified businesses: ${businessStr}
-- Year groups: ${ygStr}`;
-}
+// Gather site context for the AI — now in ai-context.ts (shared with DM route)
+// async function getSiteContext(): Promise<string> { ... }
 
 export function registerAiRoutes(app: FastifyInstance){
   app.post('/ai/chat', { preHandler: [app.authenticate] }, async (req:any, reply) => {
@@ -113,13 +91,13 @@ User-Agent: ${req.headers['user-agent'] || 'Unknown'}`;
     if(env.OPENAI_API_KEY){
       const client=new OpenAI({apiKey:env.OPENAI_API_KEY});
       const history=await prisma.aIMessage.findMany({where:{conversationId:convId},orderBy:{createdAt:'asc'},take:20});
-      const siteContext = await getSiteContext();
+      const siteContext = await getSiteContext(req.user.sub);
       const systemContent = `${personality}\n\n${siteContext}`;
       const response=await client.responses.create({model:env.OPENAI_MODEL,input:[{role:'system',content:systemContent},...history.map(m=>({role:m.role as 'user'|'assistant',content:m.content}))]});
       content=response.output_text || 'Please tell me a little more so I can help, my friend.';
     } else {
       // Fallback: provide helpful responses using site data
-      const siteContext = await getSiteContext();
+      const siteContext = await getSiteContext(req.user.sub);
       content = `Akwaaba, my friend! I am Mr. Atsu, your Mamaaa AI assistant. I'd love to help you with that.\n\nHere's what's happening on OPASS CONNECT right now:\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS! What year did you graduate?`;
     }
     await prisma.aIMessage.create({data:{conversationId:convId,role:'assistant',content}});

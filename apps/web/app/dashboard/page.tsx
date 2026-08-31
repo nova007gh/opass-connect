@@ -187,6 +187,16 @@ export default function DashboardHome() {
             ))}
           </div>
 
+          {/* Mamaaa AI Chat shortcut */}
+          <Link href="/dashboard/chat/mamaaa-ai-bot" className="fade-in-up" style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)', color: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 16, textDecoration: 'none', boxShadow: '0 4px 16px rgba(0,81,255,0.25)' }}>
+            <div style={{ fontSize: 32, flexShrink: 0 }}>🎓</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>Chat with Mamaaa AI</div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>Ask me anything about OPASS, events, elections, projects, or just chat!</div>
+            </div>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, opacity: 0.7, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" /></svg>
+          </Link>
+
           {/* My Year Groups with House Colors + Neon */}
           {myYearGroups.length > 0 && (
             <>

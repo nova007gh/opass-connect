@@ -127,6 +127,7 @@ model AlumniProfile {
   userId String @unique
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
   fullName String
+  nickname String?
   graduationYear Int
   house String?
   className String?

@@ -8,6 +8,7 @@ import { useTheme } from '../../lib/theme';
 import { apiGet } from '../../lib/api';
 import { playSchoolBell, primeAudio } from '../../lib/sound';
 import ConnectGlyph from '../../components/ConnectGlyph';
+import Avatar from '../../components/Avatar';
 
 const allItems = [
   { href: '/dashboard', label: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -121,9 +122,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--blue-bright)', color: 'white', fontSize: 14, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>
-              {user.profile?.avatarUrl ? <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-            </div>
+            <Avatar src={user.profile?.avatarUrl} name={user.profile?.fullName || user.email} size={36} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.profile?.fullName || user.email}</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{user.verification === 'VERIFIED' ? 'Verified' : 'Pending'}</div>
@@ -170,12 +169,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
               {unreadCount > 0 && <span className="badge-red" style={{ position: 'absolute', top: 4, right: 4 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
             </Link>
-            <Link href="/dashboard/profile" className="topbar-avatar" aria-label="Profile" style={{ overflow: 'hidden' }}>
-              {user.profile?.avatarUrl ? (
-                <img src={user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <span>{initials}</span>
-              )}
+            <Link href="/dashboard/profile" className="topbar-avatar" aria-label="Profile" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Avatar src={user.profile?.avatarUrl} name={user.profile?.fullName || user.email} size={36} />
             </Link>
           </div>
         </header>

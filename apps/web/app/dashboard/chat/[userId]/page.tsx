@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import { playSchoolBell, playBuzzSound } from '../../../../lib/sound';
 import CallModal from '../../../../components/CallModal';
+import Avatar from '../../../../components/Avatar';
 
 interface DMUser {
   id: string;
@@ -213,9 +214,7 @@ export default function DirectChatPage() {
         <button onClick={() => router.back()} className="back" style={{ flexShrink: 0 }}>
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <div style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
-          {peer.profile?.avatarUrl ? <img src={peer.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : displayName.charAt(0).toUpperCase()}
-        </div>
+        <Avatar src={peer.profile?.avatarUrl} name={displayName} size={34} />
         <h1 style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</h1>
         <button onClick={() => startCall('audio')} className="topbar-icon-btn" title="Voice call" aria-label="Voice call" style={{ flexShrink: 0, width: 36, height: 36 }}>
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h1.5a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106a2.25 2.25 0 00-2.239.68l-.665.766c-.283.326-.756.409-1.079.226a11.978 11.978 0 01-4.994-4.994c-.183-.323-.1-.796.226-1.079l.766-.665a2.25 2.25 0 00.68-2.239L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>

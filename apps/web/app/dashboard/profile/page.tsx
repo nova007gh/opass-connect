@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiPatch, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
+import Avatar from '../../../components/Avatar';
 
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
   const [form, setForm] = useState({
-    fullName: '', graduationYear: '', house: '', className: '', positionHeld: '',
+    fullName: '', nickname: '', graduationYear: '', house: '', className: '', positionHeld: '',
     country: '', city: '', profession: '', bio: '', avatarUrl: '', searchable: true,
   });
   const [saved, setSaved] = useState(false);
@@ -21,6 +22,7 @@ export default function ProfilePage() {
     if (user?.profile) {
       setForm({
         fullName: user.profile.fullName || '',
+        nickname: user.profile.nickname || '',
         graduationYear: user.profile.graduationYear ? String(user.profile.graduationYear) : '',
         house: user.profile.house || '',
         className: user.profile.className || '',
@@ -100,7 +102,7 @@ export default function ProfilePage() {
             {avatarPreview || p?.avatarUrl ? (
               <img src={avatarPreview || p?.avatarUrl || ''} alt="" className="avatar avatar-xl" style={{ objectFit: 'cover', border: 0, padding: 0, width: '100%', height: '100%' }} />
             ) : (
-              <div className="avatar avatar-xl">{initials}</div>
+              <Avatar src={null} name={p?.fullName || user.email} size={120} rounded={false} style={{ width: '100%', height: '100%' }} />
             )}
             <div className="avatar-uploader-overlay">
               {uploading ? <span className="spinner" /> : (
@@ -115,7 +117,8 @@ export default function ProfilePage() {
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onFileChange} style={{ display: 'none' }} />
           </div>
           <h2 style={{ color: 'white' }}>{p?.fullName || 'Unnamed'}</h2>
-          <div style={{ opacity: 0.85, fontSize: 14 }}>{user.email}</div>
+          {p?.nickname && <div style={{ opacity: 0.9, fontSize: 14, marginTop: 2 }}>@{p.nickname}</div>}
+          <div style={{ opacity: 0.7, fontSize: 13, marginTop: 2 }}>{user.email}</div>
           <div className="badges" style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>{p?.house || '—'}</span>
             {p?.graduationYear && <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>Class of {p.graduationYear}</span>}
@@ -137,6 +140,14 @@ export default function ProfilePage() {
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22, color: 'var(--blue)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 <input type="text" value={form.fullName} onChange={e => set('fullName', e.target.value)} placeholder="Your full name" />
               </div>
+            </div>
+            <div className="form-group">
+              <label>Nickname</label>
+              <div className="input-wrap">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22, color: 'var(--blue)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <input type="text" value={form.nickname} onChange={e => set('nickname', e.target.value)} placeholder="e.g. POPASSION" />
+              </div>
+              <div className="hint">Your unique nickname on OPASS CONNECT.</div>
             </div>
             <div className="form-row">
               <div className="form-group">

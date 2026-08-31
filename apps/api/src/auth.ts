@@ -7,12 +7,13 @@ export function registerAuthRoutes(app: FastifyInstance) {
   app.post('/auth/register', async (req, reply) => {
     const body = z.object({
       email: z.string().email(), phone: z.string().optional(), password: z.string().min(10),
-      fullName: z.string().min(2), graduationYear: z.number().int().min(1955).max(new Date().getFullYear()),
+      fullName: z.string().min(2), nickname: z.string().optional(), graduationYear: z.number().int().min(1955).max(new Date().getFullYear()),
       house: z.string().optional(), positionHeld: z.string().optional(), country: z.string().optional(), city: z.string().optional(),
       inviteToken: z.string().optional(),
     }).parse(req.body);
     const passwordHash = await bcrypt.hash(body.password, 12);
-    const user = await prisma.user.create({data:{email:body.email.toLowerCase(), phone:body.phone, passwordHash, profile:{create:{fullName:body.fullName, graduationYear:body.graduationYear, house:body.house, positionHeld:body.positionHeld, country:body.country, city:body.city}}}, include:{profile:true}});
+    const nickname = body.nickname?.trim() || 'POPASSION';
+    const user = await prisma.user.create({data:{email:body.email.toLowerCase(), phone:body.phone, passwordHash, profile:{create:{fullName:body.fullName, nickname, graduationYear:body.graduationYear, house:body.house, positionHeld:body.positionHeld, country:body.country, city:body.city}}}, include:{profile:true}});
 
     // Auto-join the user to their graduation year's year group (create if it doesn't exist)
     const defaultYgName = `Class of ${body.graduationYear}`;

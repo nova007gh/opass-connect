@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { playBuzzSound } from '../../../lib/sound';
+import Avatar from '../../../components/Avatar';
 
 interface Alumni {
   userId: string;
   fullName: string;
+  nickname?: string | null;
   graduationYear: number;
   house?: string | null;
   country?: string | null;
@@ -155,9 +157,7 @@ export default function AlumniPage() {
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
                     onMouseDown={e => e.preventDefault()}
                   >
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>
-                      {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : a.fullName.charAt(0)}
-                    </div>
+                    <Avatar src={a.avatarUrl} name={a.fullName} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
                       <div className="text-muted text-sm">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>
@@ -198,9 +198,7 @@ export default function AlumniPage() {
                       style={{ cursor: isMe ? 'default' : 'pointer' }}
                     >
                       <div className="feed-card-header">
-                        <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800 }}>
-                          {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : a.fullName.charAt(0)}
-                        </div>
+                        <Avatar src={a.avatarUrl} name={a.fullName} size={48} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="name">{a.fullName}</div>
                           <div className="time">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>
@@ -246,10 +244,11 @@ export default function AlumniPage() {
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 20px' }} />
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', margin: '0 auto 14px', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, fontWeight: 800, boxShadow: '0 8px 24px rgba(37,99,235,0.25)' }}>
-                {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : profile.fullName.charAt(0)}
+              <div style={{ margin: '0 auto 14px', boxShadow: '0 8px 24px rgba(37,99,235,0.25)' }}>
+                <Avatar src={profile.avatarUrl} name={profile.fullName} size={96} />
               </div>
               <h2 style={{ margin: '0 0 4px', fontSize: 20 }}>{profile.fullName}</h2>
+              {profile.nickname && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 4 }}>@{profile.nickname}</div>}
               <div className="text-muted text-sm" style={{ marginBottom: 10 }}>
                 Class of {profile.graduationYear}{profile.house ? ` · ${profile.house}` : ''}
               </div>

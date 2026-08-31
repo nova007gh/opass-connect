@@ -29,7 +29,7 @@ function RegisterForm() {
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const [form, setForm] = useState({
-    fullName: '', email: '', phone: '', password: '',
+    fullName: '', email: '', phone: '', password: '', nickname: '',
     graduationYear: '', house: '', positionHeld: '', country: 'Ghana', city: '', profession: '', bio: '',
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -95,6 +95,7 @@ function RegisterForm() {
         phone: form.phone || undefined,
         password: form.password,
         fullName: form.fullName,
+        nickname: form.nickname || undefined,
         graduationYear: parseInt(form.graduationYear, 10),
         house: form.house || undefined,
         positionHeld: form.positionHeld || undefined,
@@ -257,6 +258,14 @@ function RegisterForm() {
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onFileChange} style={{ display: 'none' }} />
               </div>
+            </div>
+            <div className="form-group">
+              <label>Nickname</label>
+              <div className="input-wrap">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22, color: 'var(--blue)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <input type="text" value={form.nickname} onChange={e => set('nickname', e.target.value)} placeholder="Leave empty to get POPASSION" />
+              </div>
+              <div className="hint">Your unique nickname on OPASS CONNECT. If you skip this, you'll be assigned &quot;POPASSION&quot;.</div>
             </div>
             <div className="form-group">
               <label>Profession</label>

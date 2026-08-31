@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
 import ConnectGlyph from '../../../components/ConnectGlyph';
+import Avatar from '../../../components/Avatar';
 
 const menuGroups = [
   {
@@ -61,7 +62,7 @@ export default function MenuPage() {
         <div className="app-pad">
           {/* Profile summary card */}
           <Link href="/dashboard/profile" className="card menu-profile-card">
-            <div className="avatar" style={{ width: 60, height: 60, fontSize: 24, background: 'linear-gradient(135deg, var(--blue), var(--blue-dark))', color: 'white' }}>{initials}</div>
+            <Avatar src={user?.profile?.avatarUrl} name={user?.profile?.fullName || user?.email} size={60} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>{user?.profile?.fullName || 'Member'}</h3>
               <p style={{ margin: '0 0 6px', fontSize: 13, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email}</p>

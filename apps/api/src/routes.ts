@@ -315,7 +315,27 @@ export function registerCoreRoutes(app:FastifyInstance){
     return{dayLabels,postsByDay,commentsByDay,likesByDay,totals,members:await prisma.yearGroupMembership.count({where:{yearGroupId:yg.id,banned:false}})};
   });
 
-  app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:q.limit??100,orderBy:{fullName:'asc'},select:{fullName:true,graduationYear:true,house:true,country:true,city:true,profession:true,bio:true,avatarUrl:true,userId:true}})});
+  // ===== Year group activity feed (for dashboard status/story view) =====
+  app.get('/year-groups/:id/activity',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const yg=await prisma.yearGroup.findUnique({where:{id:req.params.id}});
+    if(!yg)return reply.code(404).send({error:'Year group not found'});
+    if(!canManageGroup(req.user,yg)&&!(await requireActiveMembership(req.user.sub,yg.id)))return reply.code(403).send({error:'Join this group to view activity'});
+    const limit=Math.min(parseInt(String(req.query?.limit||'20'),10)||20,50);
+    const [posts,comments,likes]=await Promise.all([
+      prisma.yearGroupPost.findMany({where:{yearGroupId:yg.id},orderBy:{createdAt:'desc'},take:limit,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true,nickname:true}}}},_count:{select:{likes:true,comments:true}}}}),
+      prisma.yearGroupPostComment.findMany({where:{post:{yearGroupId:yg.id}},orderBy:{createdAt:'desc'},take:limit,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true,nickname:true}}}},post:{select:{id:true,body:true}}}}),
+      prisma.yearGroupPostLike.findMany({where:{post:{yearGroupId:yg.id}},orderBy:{createdAt:'desc'},take:limit,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true,nickname:true}}}},post:{select:{id:true,body:true}}}}),
+    ]);
+    const activities=[
+      ...posts.map(p=>({id:p.id,type:'post',createdAt:p.createdAt,userId:p.user.id,fullName:p.user.profile?.fullName,avatarUrl:p.user.profile?.avatarUrl,nickname:p.user.profile?.nickname,body:p.body,imageUrl:p.imageUrl,likesCount:p._count.likes,commentsCount:p._count.comments})),
+      ...comments.map(c=>({id:c.id,type:'comment',createdAt:c.createdAt,userId:c.user.id,fullName:c.user.profile?.fullName,avatarUrl:c.user.profile?.avatarUrl,nickname:c.user.profile?.nickname,body:c.body,postId:c.post.id,postPreview:c.post.body?.slice(0,80)})),
+      ...likes.map(l=>({id:l.id,type:'like',createdAt:l.createdAt,userId:l.user.id,fullName:l.user.profile?.fullName,avatarUrl:l.user.profile?.avatarUrl,nickname:l.user.profile?.nickname,postId:l.post.id,postPreview:l.post.body?.slice(0,80)})),
+    ].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()).slice(0,limit);
+    const counts={posts:posts.length,comments:comments.length,likes:likes.length,members:await prisma.yearGroupMembership.count({where:{yearGroupId:yg.id,banned:false}})};
+    return{activities,counts,yearGroup:{id:yg.id,name:yg.name,year:yg.year,imageUrl:yg.imageUrl}};
+  });
+
+  app.get('/alumni',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({year:z.coerce.number().optional(),house:z.string().optional(),search:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).optional()}).parse(req.query);return prisma.alumniProfile.findMany({where:{searchable:true,graduationYear:q.year,house:q.house,fullName:q.search?{contains:q.search,mode:'insensitive'}:undefined},take:q.limit??100,orderBy:{fullName:'asc'},select:{fullName:true,nickname:true,graduationYear:true,house:true,country:true,city:true,profession:true,bio:true,avatarUrl:true,userId:true}})});
 
   // ===== Direct messages (1-on-1 chat) =====
   app.get('/dm/conversations',{preHandler:[app.authenticate]},async(req:any)=>{
@@ -411,7 +431,7 @@ export function registerCoreRoutes(app:FastifyInstance){
     return msg;
   });
 
-  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
+  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),nickname:z.string().optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
   app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     try {

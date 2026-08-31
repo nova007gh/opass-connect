@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPost, apiDelete, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
+import Avatar from '../../../../components/Avatar';
 
 interface GroupDetail {
   id: string; year: number; name: string; description?: string | null; imageUrl?: string | null;
@@ -379,13 +380,13 @@ export default function YearGroupDetailPage() {
 
           {group.isRestricted && (
             <div className="alert" style={{ background: '#FFFBEB', color: '#D97706', marginBottom: 16, fontSize: 13 }}>
-              Your posting access in this group is restricted by the group manager. You can view the feed but cannot post, comment, or like.
+              Your posting access in this group is restricted by the group manager. You can view the tasks but cannot post, comment, or like.
             </div>
           )}
 
           {!canView ? (
             <div className="empty-state card">
-              <h3>Join to see this group's feed</h3>
+              <h3>Join to see this group's tasks</h3>
               <p>You need to be an approved member of this group to view posts and interact with classmates.</p>
               <Link href="/dashboard/groups" className="btn btn-sm" style={{ marginTop: 12 }}>Back to Year Groups</Link>
             </div>
@@ -430,7 +431,7 @@ export default function YearGroupDetailPage() {
                 </div>
               )}
 
-              {/* Feed */}
+              {/* Tasks */}
               {postsLoading ? (
                 <div className="loading-center"><span className="spinner" /></div>
               ) : posts.length === 0 ? (
@@ -443,9 +444,7 @@ export default function YearGroupDetailPage() {
                   {posts.map(post => (
                     <div className="feed-card" key={post.id}>
                       <div className="feed-card-header">
-                        <div className="avatar" style={{ width: 40, height: 40, fontSize: 14 }}>
-                          {post.user.profile?.avatarUrl ? <img src={post.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (post.user.profile?.fullName || '?').charAt(0).toUpperCase()}
-                        </div>
+                        <Avatar src={post.user.profile?.avatarUrl} name={post.user.profile?.fullName} size={40} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="name">{post.user.profile?.fullName || 'A member'}</div>
                           <div className="time">{timeAgo(post.createdAt)}</div>
@@ -487,9 +486,7 @@ export default function YearGroupDetailPage() {
                             <>
                               {(commentsByPost[post.id] || []).map(c => (
                                 <div key={c.id} style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                                  <div className="avatar" style={{ width: 30, height: 30, fontSize: 11, flexShrink: 0 }}>
-                                    {c.user.profile?.avatarUrl ? <img src={c.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (c.user.profile?.fullName || '?').charAt(0).toUpperCase()}
-                                  </div>
+                                  <Avatar src={c.user.profile?.avatarUrl} name={c.user.profile?.fullName} size={30} />
                                   <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 12, padding: '8px 12px' }}>
                                     <div style={{ fontWeight: 700, fontSize: 13 }}>{c.user.profile?.fullName || 'A member'}</div>
                                     <div style={{ fontSize: 13, color: '#374151' }}>{c.body}</div>
@@ -544,9 +541,7 @@ export default function YearGroupDetailPage() {
               ) : (
                 members.map(m => (
                   <div key={m.id} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-                    <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
-                      {m.user.profile?.avatarUrl ? <img src={m.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (m.user.profile?.fullName || m.user.email).charAt(0).toUpperCase()}
-                    </div>
+                    <Avatar src={m.user.profile?.avatarUrl} name={m.user.profile?.fullName || m.user.email} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                         {m.user.profile?.fullName || m.user.email}

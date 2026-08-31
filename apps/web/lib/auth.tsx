@@ -9,6 +9,7 @@ export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 export interface AlumniProfile {
   id: string;
   fullName: string;
+  nickname?: string | null;
   graduationYear: number;
   house?: string | null;
   className?: string | null;

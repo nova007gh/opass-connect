@@ -33,6 +33,12 @@ interface ActivityResponse {
   yearGroup: { id: string; name: string; year: number; imageUrl?: string | null };
 }
 
+interface DMConversation {
+  user: { id: string; email: string; profile: { fullName: string; avatarUrl?: string | null; graduationYear?: number | null; profession?: string | null } | null };
+  lastMessage: string;
+  lastAt: string;
+}
+
 const menuItems = [
   { label: 'My Profile', href: '/dashboard/profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)' },
   { label: 'Year Groups', href: '/dashboard/groups', icon: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 100-8 4 4 0 000 8z', color: 'linear-gradient(135deg, #0051FF 0%, #10B981 100%)' },
@@ -85,6 +91,7 @@ export default function DashboardHome() {
   const [activities, setActivities] = useState<Record<string, ActivityResponse>>({});
   const [activityLoading, setActivityLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [conversations, setConversations] = useState<DMConversation[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const submitSearch = (e: React.FormEvent) => {
@@ -97,10 +104,12 @@ export default function DashboardHome() {
       apiGet<YearGroup[]>('/year-groups?mine=true').catch(() => []),
       apiGet<Project[]>('/projects').catch(() => []),
       apiGet<EventItem[]>('/events').catch(() => []),
-    ]).then(([yg, pr, ev]) => {
+      apiGet<DMConversation[]>('/dm/conversations').catch(() => []),
+    ]).then(([yg, pr, ev, conv]) => {
       setYearGroups(yg);
       setProjects(pr);
       setEvents(ev);
+      setConversations(conv);
       setLoading(false);
       // Load activity for ALL year groups
       if (yg.length > 0) {
@@ -196,6 +205,49 @@ export default function DashboardHome() {
             </div>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, opacity: 0.7, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" /></svg>
           </Link>
+
+          {/* All Chats — conversation history */}
+          <div className="section-header fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>All Chats</h3>
+            <Link href="/dashboard/assembly" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>Assembly →</Link>
+          </div>
+          {loading ? (
+            <div className="card skeleton-card" style={{ marginBottom: 16, padding: 16 }}>
+              <div className="skeleton skeleton-text" style={{ width: '70%', marginBottom: 8 }} />
+              <div className="skeleton skeleton-text sm" style={{ width: '40%' }} />
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="card fade-in-up" style={{ marginBottom: 16, padding: 16, textAlign: 'center' }}>
+              <div style={{ fontSize: 32, marginBottom: 6 }}>💬</div>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>No conversations yet. Visit the <Link href="/dashboard/alumni" style={{ color: 'var(--blue)', fontWeight: 700 }}>Alumni Directory</Link> to start chatting with your classmates, or talk to <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ color: 'var(--blue)', fontWeight: 700 }}>Mamaaa AI</Link>.</p>
+            </div>
+          ) : (
+            <div className="card fade-in-up" style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
+              {conversations.slice(0, 5).map((c, i) => {
+                const name = c.user.profile?.fullName || c.user.email;
+                const isStickerMsg = c.lastMessage?.startsWith('🎴:');
+                const isCallMsg = c.lastMessage?.startsWith('📞');
+                const preview = isStickerMsg ? '🎨 Sticker' : isCallMsg ? c.lastMessage : (c.lastMessage?.slice(0, 45) || 'No messages');
+                return (
+                  <Link key={c.user.id} href={`/dashboard/chat/${c.user.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', textDecoration: 'none', borderBottom: i < Math.min(4, conversations.length - 1) ? '1px solid var(--border)' : 0 }}>
+                    <Avatar src={c.user.profile?.avatarUrl} name={name} size={42} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--black)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {preview}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{timeAgo(c.lastAt)}</span>
+                  </Link>
+                );
+              })}
+              {conversations.length > 5 && (
+                <Link href="/dashboard/assembly" style={{ display: 'block', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--blue)', padding: '10px 0' }}>
+                  View all {conversations.length} conversations →
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* My Year Groups with House Colors + Neon */}
           {myYearGroups.length > 0 && (

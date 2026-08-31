@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiGet, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
+import Avatar from '../../../components/Avatar';
 
 interface Ticket {
   id: string;
@@ -123,9 +124,7 @@ export default function SupportPage() {
               <h2 style={{ margin: '0 0 12px', fontSize: 18, color: 'var(--black)' }}>{selected.subject}</h2>
               {selected.user && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <div className="avatar" style={{ width: 32, height: 32, fontSize: 13 }}>
-                    {selected.user.profile?.avatarUrl ? <img src={selected.user.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (selected.user.profile?.fullName || selected.user.email).charAt(0).toUpperCase()}
-                  </div>
+                  <Avatar src={selected.user.profile?.avatarUrl} name={selected.user.profile?.fullName || selected.user.email} size={32} />
                   <span className="text-sm text-muted">{selected.user.profile?.fullName || selected.user.email}</span>
                 </div>
               )}

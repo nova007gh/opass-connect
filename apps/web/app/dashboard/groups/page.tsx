@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
+import Avatar from '../../../components/Avatar';
 
 interface YearGroup {
   id: string;
@@ -674,9 +675,7 @@ export default function YearGroupsPage() {
                   ) : (
                     inviteResults.map(a => (
                       <div key={a.userId} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-                        <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
-                          {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (a.fullName || '?').charAt(0).toUpperCase()}
-                        </div>
+                        <Avatar src={a.avatarUrl} name={a.fullName} size={36} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{a.fullName}</div>
                           <div className="text-muted text-sm">Class of {a.graduationYear}</div>
@@ -754,9 +753,7 @@ export default function YearGroupsPage() {
               ) : (
                 invitesList.map(inv => (
                   <div key={inv.id} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-                    <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
-                      {inv.invitedUser?.profile?.avatarUrl ? <img src={inv.invitedUser.profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (inv.invitedUser?.profile?.fullName || inv.invitedUser?.email || inv.contactEmail || inv.contactPhone || '?').charAt(0).toUpperCase()}
-                    </div>
+                    <Avatar src={inv.invitedUser?.profile?.avatarUrl} name={inv.invitedUser?.profile?.fullName || inv.invitedUser?.email || inv.contactEmail || inv.contactPhone} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{inv.invitedUser?.profile?.fullName || inv.invitedUser?.email || inv.contactEmail || inv.contactPhone || 'Pending contact'}</div>
                       <div className="text-muted text-sm">

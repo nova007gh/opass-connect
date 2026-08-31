@@ -141,7 +141,7 @@ export default function AssemblyPage() {
   return (
     <div className="app-screen" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
-        <h1>Assembly Hall</h1>
+        <h1>OPASS Connect</h1>
       </div>
 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--white)' }}>
@@ -368,7 +368,7 @@ export default function AssemblyPage() {
                         <div className="name">{r.name}</div>
                         <div className="time">{r._count?.messages ?? 0} messages</div>
                       </div>
-                      {r.isAssemblyHall && <span className="badge badge-dark">Assembly</span>}
+                      {r.isAssemblyHall && <span className="badge badge-dark">Connect</span>}
                     </div>
                   </div>
                 ))}

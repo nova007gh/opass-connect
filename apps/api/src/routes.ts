@@ -528,7 +528,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     return msg;
   });
 
-  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),nickname:z.string().optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
+  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),nickname:z.string().optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),coverUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
   app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     try {
@@ -538,6 +538,18 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
       const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
       notifyAdmins('PROFILE',`Profile photo updated`,`${profile?.fullName||'A member'} updated their profile picture`,'/dashboard/alumni').catch(()=>{});
       return{avatarUrl};
+    } catch(err:any) {
+      if (err.message.includes('No file') || err.message.includes('Only') || err.message.includes('under 5MB')) return reply.code(400).send({error:err.message});
+      return reply.code(500).send({error:'Failed to process image'});
+    }
+  });
+
+  app.post('/profile/cover',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    try {
+      const { buffer, mimetype } = await readFileFromRequest(req);
+      const coverUrl = await processAndStoreImage(buffer, mimetype, `cover-${req.user.sub}-${randomUUID()}`, 'covers', 1200, 400);
+      await prisma.alumniProfile.update({where:{userId:req.user.sub},data:{coverUrl}});
+      return{coverUrl};
     } catch(err:any) {
       if (err.message.includes('No file') || err.message.includes('Only') || err.message.includes('under 5MB')) return reply.code(400).send({error:err.message});
       return reply.code(500).send({error:'Failed to process image'});

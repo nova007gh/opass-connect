@@ -19,6 +19,7 @@ export interface AlumniProfile {
   profession?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
+  coverUrl?: string | null;
   searchable: boolean;
 }
 

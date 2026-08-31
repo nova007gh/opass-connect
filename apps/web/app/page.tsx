@@ -20,7 +20,7 @@ const slides = [
     accent: 'linear-gradient(135deg, #0051FF 0%, #10B981 100%)',
   },
   {
-    title: 'Join Events & Assembly',
+    title: 'Join Events & Connect',
     desc: 'Attend live town halls, reunions, and support school projects that make a difference.',
     icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z',
     accent: 'linear-gradient(135deg, #10B981 0%, #F59E0B 100%)',

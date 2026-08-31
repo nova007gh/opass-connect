@@ -76,12 +76,12 @@ export async function runSeedIfNeeded() {
     await prisma.business.create({ data: { ownerId: bizOwners[i].id, ...businesses[i], verified: true } }).catch(() => null);
   }
 
-  const assemblyHall = await prisma.chatRoom.create({ data: { name: 'OPASS Assembly Hall', isAssemblyHall: true } }).catch(() => null);
+  const assemblyHall = await prisma.chatRoom.create({ data: { name: 'OPASS Connect', isAssemblyHall: true } }).catch(() => null);
   const class2006Room = await prisma.chatRoom.create({ data: { name: 'Class of 2006 Discussion', yearGroupId: yg2006.id } }).catch(() => null);
   await prisma.chatRoom.create({ data: { name: 'General Alumni Lounge' } }).catch(() => null);
 
   if (assemblyHall && members[0]) {
-    await prisma.message.create({ data: { roomId: assemblyHall.id, userId: members[0].id, body: 'Akwaaba everyone! Welcome to the OPASS Assembly Hall.' } }).catch(() => null);
+    await prisma.message.create({ data: { roomId: assemblyHall.id, userId: members[0].id, body: 'Akwaaba everyone! Welcome to OPASS Connect.' } }).catch(() => null);
     await prisma.message.create({ data: { roomId: assemblyHall.id, userId: members[1].id, body: 'Great to be here! Looking forward to the reunion in December.' } }).catch(() => null);
     await prisma.message.create({ data: { roomId: assemblyHall.id, userId: admin.id, body: 'Welcome alumni! Feel free to use this space for announcements and discussions.' } }).catch(() => null);
   }

@@ -15,8 +15,11 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user?.profile) {
@@ -70,6 +73,36 @@ export default function ProfilePage() {
     }
   };
 
+  const pickCover = () => coverInputRef.current?.click();
+
+  const onCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/image\/(jpeg|png|webp|gif)/.test(file.type)) {
+      setError('Please choose a JPEG, PNG, WebP or GIF image.');
+      return;
+    }
+    if (file.size > 5_000_000) {
+      setError('Image must be under 5MB.');
+      return;
+    }
+    setError('');
+    setCoverPreview(URL.createObjectURL(file));
+    setUploadingCover(true);
+    try {
+      const { coverUrl } = await apiUpload<{ coverUrl: string }>('/profile/cover', file);
+      await refresh();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Cover upload failed');
+      setCoverPreview(null);
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -96,8 +129,40 @@ export default function ProfilePage() {
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="app-scroll">
-        <div className="profile-cover">
-          <div className="avatar-uploader" onClick={pickFile}>
+        <div className="profile-cover" style={{ position: 'relative', overflow: 'hidden' }}>
+          {/* Cover background photo */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            {coverPreview || p?.coverUrl ? (
+              <img src={coverPreview || p?.coverUrl || ''} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)' }} />
+            )}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%)' }} />
+          </div>
+
+          {/* Cover upload button */}
+          <button
+            onClick={pickCover}
+            style={{
+              position: 'absolute', top: 12, right: 12, zIndex: 2,
+              background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none',
+              borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {uploadingCover ? <span className="spinner" style={{ width: 14, height: 14 }} /> : (
+              <>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 3.75v16.5a2.25 2.25 0 002.25 2.25h12a2.25 2.25 0 002.25-2.25V3.75m-18 0h18m-18 0L9 9m9.75-5.25L15 9" />
+                </svg>
+                {p?.coverUrl ? 'Change Cover' : 'Add Cover'}
+              </>
+            )}
+          </button>
+          <input ref={coverInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onCoverChange} style={{ display: 'none' }} />
+
+          <div className="avatar-uploader" style={{ position: 'relative', zIndex: 1 }} onClick={pickFile}>
             {avatarPreview || p?.avatarUrl ? (
               <img src={avatarPreview || p?.avatarUrl || ''} alt="" className="avatar avatar-xl" style={{ objectFit: 'cover', border: 0, padding: 0, width: '100%', height: '100%' }} />
             ) : (
@@ -115,17 +180,19 @@ export default function ProfilePage() {
             </div>
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onFileChange} style={{ display: 'none' }} />
           </div>
-          <h2 style={{ color: 'white' }}>{p?.fullName || 'Unnamed'}</h2>
-          {p?.nickname && <div style={{ opacity: 0.9, fontSize: 14, marginTop: 2 }}>@{p.nickname}</div>}
-          <div style={{ opacity: 0.7, fontSize: 13, marginTop: 2 }}>{user.email}</div>
-          <div className="badges" style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>{p?.house || '—'}</span>
-            {p?.graduationYear && <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>Class of {p.graduationYear}</span>}
-            {user.verification === 'VERIFIED' ? (
-              <span className="badge badge-green">✓ Verified</span>
-            ) : (
-              <span className="badge badge-amber">Pending</span>
-            )}
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <h2 style={{ color: 'white', textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>{p?.fullName || 'Unnamed'}</h2>
+            {p?.nickname && <div style={{ opacity: 0.9, fontSize: 14, marginTop: 2 }}>@{p.nickname}</div>}
+            <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>{user.email}</div>
+            <div className="badges" style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>{p?.house || '—'}</span>
+              {p?.graduationYear && <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>Class of {p.graduationYear}</span>}
+              {user.verification === 'VERIFIED' ? (
+                <span className="badge badge-green">✓ Verified</span>
+              ) : (
+                <span className="badge badge-amber">Pending</span>
+              )}
+            </div>
           </div>
         </div>
 

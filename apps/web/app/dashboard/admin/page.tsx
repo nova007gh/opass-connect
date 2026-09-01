@@ -72,6 +72,7 @@ export default function AdminPage() {
   const [aiMessagesLoading, setAiMessagesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState('');
 
   const openAiConversation = async (id: string) => {
     setAiMessagesLoading(true);
@@ -104,10 +105,13 @@ export default function AdminPage() {
 
   const actOnGroupInvite = async (id: string, action: 'approve' | 'reject') => {
     setAction(id);
+    setInviteError('');
     try {
       await apiPost(`/year-group-invites/${id}/${action}`);
       setGroupInvites(prev => prev.filter(g => g.id !== id));
-    } catch { /* noop */ } finally { setAction(null); }
+    } catch (err: any) {
+      setInviteError(err.message || `Failed to ${action} request`);
+    } finally { setAction(null); }
   };
 
   useEffect(loadAll, []);
@@ -361,6 +365,7 @@ export default function AdminPage() {
               {tab === 'groupInvites' && (
                 <div className="card">
                   <h3>Year Group Join Requests</h3>
+                  {inviteError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{inviteError}</div>}
                   {groupInvites.length === 0 ? (
                     <div className="empty-state"><p>No pending group requests.</p></div>
                   ) : (
@@ -368,19 +373,30 @@ export default function AdminPage() {
                       <div key={inv.id} className="list-item" style={{ flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <strong style={{ display: 'block', fontSize: 14 }}>
-                            {inv.invitedUser?.profile?.fullName || inv.invitedUser?.email}
+                            {inv.invitedUser?.profile?.fullName || inv.invitedUser?.email || inv.contactEmail || inv.contactPhone || 'Unknown'}
                           </strong>
                           <div className="text-muted text-sm">
                             {inv.selfRequested ? 'Requested to join' : `Invited by ${inv.invitedBy?.profile?.fullName || inv.invitedBy?.email}`} · Class of {inv.yearGroup?.year} ({inv.yearGroup?.name})
                           </div>
+                          {inv.awaitingRegistration && (
+                            <div className="badge badge-amber" style={{ marginTop: 6, fontSize: 11 }}>Awaiting registration</div>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button className="btn btn-sm btn-success" onClick={() => actOnGroupInvite(inv.id, 'approve')} disabled={action === inv.id}>
-                            {action === inv.id ? <span className="spinner" /> : 'Approve'}
-                          </button>
-                          <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => actOnGroupInvite(inv.id, 'reject')} disabled={action === inv.id}>
-                            Reject
-                          </button>
+                          {inv.awaitingRegistration ? (
+                            <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => actOnGroupInvite(inv.id, 'reject')} disabled={action === inv.id}>
+                              {action === inv.id ? <span className="spinner" /> : 'Cancel Invite'}
+                            </button>
+                          ) : (
+                            <>
+                              <button className="btn btn-sm btn-success" onClick={() => actOnGroupInvite(inv.id, 'approve')} disabled={action === inv.id}>
+                                {action === inv.id ? <span className="spinner" /> : 'Approve'}
+                              </button>
+                              <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => actOnGroupInvite(inv.id, 'reject')} disabled={action === inv.id}>
+                                Reject
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))

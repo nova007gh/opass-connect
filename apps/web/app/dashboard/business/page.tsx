@@ -23,12 +23,12 @@ export default function BusinessPage() {
   const [myBusinesses, setMyBusinesses] = useState<Business[]>([]);
   const [myLoading, setMyLoading] = useState(false);
 
-  const load = () => { apiGet<Business[]>('/businesses').then(setBusinesses).catch(() => {}).finally(() => setLoading(false)); };
+  const load = () => { apiGet<Business[]>('/businesses').then(setBusinesses).catch((e) => { setError(e.message || 'Failed to load businesses'); }).finally(() => setLoading(false)); };
   useEffect(load, []);
 
   const loadMine = () => {
     setMyLoading(true);
-    apiGet<Business[]>('/businesses/mine').then(setMyBusinesses).catch(() => setMyBusinesses([])).finally(() => setMyLoading(false));
+    apiGet<Business[]>('/businesses/mine').then(setMyBusinesses).catch((e) => { setMyBusinesses([]); }).finally(() => setMyLoading(false));
   };
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -45,6 +45,7 @@ export default function BusinessPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.category) { setError('Name and category are required'); return; }
+    if (form.website && !form.website.match(/^https?:\/\//)) { setError('Website must start with http:// or https://'); return; }
     setCreating(true);
     setError('');
     try {
@@ -86,7 +87,7 @@ export default function BusinessPage() {
           {error && <div className="alert alert-error">{error}</div>}
           {success && <div className="alert alert-success">{success}</div>}
 
-          <button className="btn btn-block mb-16" onClick={() => setShowAdd(!showAdd)}>
+          <button className="btn btn-block mb-16" onClick={() => { setShowAdd(!showAdd); setError(''); setSuccess(''); }}>
             {showAdd ? 'Cancel' : '+ Add my business'}
           </button>
 

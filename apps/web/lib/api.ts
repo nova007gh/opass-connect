@@ -52,11 +52,11 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
 
 export const apiGet = <T = any>(path: string) => api<T>(path);
 export const apiPost = <T = any>(path: string, body?: any) =>
-  api<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+  api<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined });
 export const apiPatch = <T = any>(path: string, body?: any) =>
-  api<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined });
+  api<T>(path, { method: 'PATCH', body: body !== undefined ? JSON.stringify(body) : undefined });
 export const apiDelete = <T = any>(path: string, body?: any) =>
-  api<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined });
+  api<T>(path, { method: 'DELETE', body: body !== undefined ? JSON.stringify(body) : undefined });
 
 export async function apiUpload<T = any>(path: string, file: File): Promise<T> {
   const token = getToken();

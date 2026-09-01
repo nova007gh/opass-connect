@@ -143,13 +143,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, fetchUnread]);
 
+  const crumbs = useDynamicBreadcrumb(getBreadcrumb(pathname));
+
   if (loading || !user) {
     return <div className="loading-center" style={{ minHeight: '100vh' }}><span className="spinner" /></div>;
   }
 
   const isActive = (href: string) => pathname === href;
   const menu = isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin');
-  const crumbs = useDynamicBreadcrumb(getBreadcrumb(pathname));
 
   const handleLogout = () => { logout(); router.replace('/'); };
 

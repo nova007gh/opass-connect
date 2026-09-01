@@ -37,9 +37,11 @@ const tabItems = [
 function getBreadcrumb(pathname: string): { label: string; href: string }[] {
   const parts = pathname.replace('/dashboard', '').split('/').filter(Boolean);
   const crumbs = [{ label: 'Home', href: '/dashboard' }];
+  let acc = '/dashboard';
   for (const p of parts) {
+    acc += '/' + p;
     const label = p.charAt(0).toUpperCase() + p.slice(1).replace(/-/g, ' ');
-    crumbs.push({ label, href: `/dashboard/${p}` });
+    crumbs.push({ label, href: acc });
   }
   return crumbs;
 }

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPost, apiDelete, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import Avatar from '../../../../components/Avatar';
 import EmojiPicker from '../../../../components/EmojiPicker';
+import GroupChat from './GroupChat';
 
 function isEmojiOnly(text: string): boolean {
   if (!text) return false;
@@ -160,8 +161,10 @@ function ActivityChart({ stats, loading }: { stats: GroupStats | null; loading: 
 export default function YearGroupDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isAdmin } = useAuth();
   const groupId = params.id as string;
+  const [tab, setTab] = useState<'feed' | 'chat'>(searchParams.get('tab') === 'chat' ? 'chat' : 'feed');
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -385,12 +388,42 @@ export default function YearGroupDetailPage() {
             </div>
           </div>
 
-          {/* Activity chart */}
+          {/* Tab switcher */}
           {canView && (
+            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <button
+                onClick={() => setTab('feed')}
+                style={{
+                  flex: 1, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', border: 0,
+                  background: tab === 'feed' ? 'var(--blue)' : 'var(--white)',
+                  color: tab === 'feed' ? 'white' : 'var(--muted)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s',
+                }}
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                Feed
+              </button>
+              <button
+                onClick={() => setTab('chat')}
+                style={{
+                  flex: 1, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', border: 0,
+                  background: tab === 'chat' ? 'var(--blue)' : 'var(--white)',
+                  color: tab === 'chat' ? 'white' : 'var(--muted)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s',
+                }}
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                Chat
+              </button>
+            </div>
+          )}
+
+          {/* Activity chart - only on feed tab */}
+          {canView && tab === 'feed' && (
             <ActivityChart stats={stats} loading={statsLoading} />
           )}
 
-          {group.isRestricted && (
+          {group.isRestricted && tab === 'feed' && (
             <div className="alert" style={{ background: '#FFFBEB', color: '#D97706', marginBottom: 16, fontSize: 13 }}>
               Your posting access in this group is restricted by the group manager. You can view the tasks but cannot post, comment, or like.
             </div>
@@ -398,10 +431,12 @@ export default function YearGroupDetailPage() {
 
           {!canView ? (
             <div className="empty-state card">
-              <h3>Join to see this group's tasks</h3>
-              <p>You need to be an approved member of this group to view posts and interact with classmates.</p>
+              <h3>Join to see this group's content</h3>
+              <p>You need to be an approved member of this group to view posts, chat, and interact with classmates.</p>
               <Link href="/dashboard/groups" className="btn btn-sm" style={{ marginTop: 12 }}>Back to Year Groups</Link>
             </div>
+          ) : tab === 'chat' ? (
+            <GroupChat groupId={groupId} groupName={group.name} groupYear={group.year} canManage={group.canManage} isRestricted={group.isRestricted} />
           ) : (
             <>
               {/* Composer */}

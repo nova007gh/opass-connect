@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
@@ -101,6 +102,9 @@ export default function ProjectsPage() {
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
+        <Link href="/dashboard" className="back" aria-label="Back">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </Link>
         <h1>Projects</h1>
       </div>
       <div className="app-scroll">

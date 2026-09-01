@@ -346,7 +346,10 @@ export default function YearGroupsPage() {
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
-        <h1>Year Groups</h1>
+        <Link href="/dashboard" className="back" aria-label="Back">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </Link>
+        <h1 style={{ flex: 1 }}>Year Groups</h1>
         {!showCreate && (
           <button className="btn btn-sm" onClick={() => setShowCreate(true)}>+ Create</button>
         )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost, apiUpload } from '../../../lib/api';
 
 interface Business { id: string; name: string; category: string; description?: string | null; website?: string | null; phone?: string | null; logoUrl?: string | null; location?: string | null; verified: boolean; _count?: { ads: number }; }
@@ -77,7 +78,10 @@ export default function BusinessPage() {
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
-        <h1>Business</h1>
+        <Link href="/dashboard" className="back" aria-label="Back">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </Link>
+        <h1 style={{ flex: 1 }}>Business</h1>
         <button className="btn btn-sm" onClick={() => { setShowMine(v => !v); if (!showMine) loadMine(); }}>
           {showMine ? 'Directory' : 'My Listings'}
         </button>

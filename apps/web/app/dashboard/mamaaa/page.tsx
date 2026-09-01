@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
@@ -92,6 +93,9 @@ export default function MamaaaPage() {
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Link href="/dashboard" className="back" aria-label="Back">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </Link>
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 18, flexShrink: 0, boxShadow: '0 2px 8px rgba(11,45,107,0.3)' }}>M</div>
         <div>
           <h1 style={{ fontSize: 18, margin: 0 }}>Mr. Atsu (Mamaaa)</h1>

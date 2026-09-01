@@ -516,7 +516,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         }}>
                           <div style={{ fontWeight: 700, fontSize: 11 }}>{m.replyTo.user?.profile?.fullName || 'A member'}</div>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
-                            {isSticker(m.replyTo.body) ? '🎴 Sticker' : isActivity(m.replyTo.body) ? '🎯 Activity' : m.replyTo.body}
+                            {m.replyTo.audioUrl ? '🎤 Voice note' : m.replyTo.imageUrl ? '📷 Photo' : m.replyTo.videoUrl ? '🎥 Video' : isSticker(m.replyTo.body) ? '🎴 Sticker' : isActivity(m.replyTo.body) ? '🎯 Activity' : m.replyTo.body}
                           </div>
                         </div>
                       )}
@@ -663,7 +663,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>{replyTo.user?.profile?.fullName || 'A member'}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {isSticker(replyTo.body) ? '🎴 Sticker' : isActivity(replyTo.body) ? '🎯 Activity' : replyTo.body}
+              {replyTo.audioUrl ? '🎤 Voice note' : replyTo.imageUrl ? '📷 Photo' : replyTo.videoUrl ? '🎥 Video' : isSticker(replyTo.body) ? '🎴 Sticker' : isActivity(replyTo.body) ? '🎯 Activity' : replyTo.body}
             </div>
           </div>
           <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { apiPatch, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
@@ -128,6 +129,12 @@ export default function ProfilePage() {
 
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
+      <div className="screen-header">
+        <Link href="/dashboard" className="back" aria-label="Back">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </Link>
+        <h1>My Profile</h1>
+      </div>
       <div className="app-scroll">
         <div className="profile-cover" style={{ position: 'relative', overflow: 'hidden' }}>
           {/* Cover background photo */}

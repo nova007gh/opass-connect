@@ -749,8 +749,9 @@ label.switch span > span { transition: transform 0.2s; }
   border-bottom: 1px solid var(--border);
 }
 .screen-header h1 { margin: 0; font-size: 20px; color: var(--blue); font-weight: 800; flex: 1; }
-.screen-header .back { color: var(--blue); }
-.screen-header .back svg { width: 26px; height: 26px; }
+.screen-header .back { color: var(--blue); display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; transition: background 0.15s; text-decoration: none; flex-shrink: 0; }
+.screen-header .back:hover { background: var(--blue-50); }
+.screen-header .back svg { width: 24px; height: 24px; }
 
 /* ===== Cards ===== */
 .card {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
@@ -153,7 +154,10 @@ export default function SupportPage() {
   return (
     <div className="app-screen fade-in" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
-        <h1>Support</h1>
+        <Link href="/dashboard" className="back" aria-label="Back">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </Link>
+        <h1 style={{ flex: 1 }}>Support</h1>
         {!showForm && (
           <button className="btn btn-sm" onClick={() => setShowForm(true)}>New Ticket</button>
         )}

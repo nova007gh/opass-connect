@@ -578,8 +578,23 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
   app.get('/chat/rooms',{preHandler:[app.authenticate]},async()=>prisma.chatRoom.findMany({orderBy:{createdAt:'asc'},include:{_count:{select:{messages:true}},yearGroup:{select:{year:true,name:true}}}}));
   app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({name:z.string().min(2).max(100),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false),imageUrl:z.string().optional()}).parse(req.body);if(b.isAssemblyHall&&!['ADMIN','SUPER_ADMIN'].includes(req.user.role))return{error:'Only admins can create assembly halls'}as any;return prisma.chatRoom.create({data:{...b,isAssemblyHall:b.isAssemblyHall&&['ADMIN','SUPER_ADMIN'].includes(req.user.role)?true:false}})});
   app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
-  app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}}}})});
-  app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().min(1).max(4000)}).parse(req.body);const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${b.body.slice(0,100)}`,link,req.user.sub).catch(()=>{});}return msg;});
+  app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
+  app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().min(1).max(4000),replyToId:z.string().optional()}).parse(req.body);const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body,...(b.replyToId?{replyToId:b.replyToId}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${b.body.slice(0,100)}`,link,req.user.sub).catch(()=>{});}return msg;});
+  // Toggle a reaction on a message
+  app.post('/chat/rooms/:id/messages/:msgId/react',{preHandler:[app.authenticate]},async(req:any,reply:any)=>{
+    const b=z.object({emoji:z.string().min(1).max(10)}).parse(req.body);
+    const msg=await prisma.message.findUnique({where:{id:req.params.msgId}});
+    if(!msg||msg.roomId!==req.params.id)return reply.code(404).send({error:'Message not found'});
+    const reactions=(msg.reactions as Record<string,string[]>)||{};
+    const emoji=b.emoji;
+    const userId=req.user.sub;
+    if(!reactions[emoji])reactions[emoji]=[userId];
+    else if(reactions[emoji].includes(userId))reactions[emoji]=reactions[emoji].filter((u:string)=>u!==userId);
+    else reactions[emoji]=[...reactions[emoji],userId];
+    if(reactions[emoji].length===0)delete reactions[emoji];
+    const updated=await prisma.message.update({where:{id:msg.id},data:{reactions:reactions as any},select:{id:true,reactions:true}});
+    return updated;
+  });
 
   // Auto-create or find a chat room for a year group
   app.get('/year-groups/:id/chat-room',{preHandler:[app.authenticate]},async(req:any,reply:any)=>{

@@ -13,6 +13,7 @@
   --green: #10B981;
   --red: #EF4444;
   --amber: #F59E0B;
+  --chat-bg: #E5DDD5;
   --radius: 12px;
   --radius-lg: 18px;
   --radius-xl: 28px;
@@ -1181,6 +1182,7 @@ label.switch span > span { transition: transform 0.2s; }
   --muted: #9090b0;
   --blue-50: #161630;
   --blue-100: #222250;
+  --chat-bg: #0a0a14;
   --shadow: 0 4px 20px rgba(0,0,0,0.4);
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
 }

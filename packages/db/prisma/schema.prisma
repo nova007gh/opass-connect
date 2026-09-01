@@ -254,9 +254,13 @@ model Message {
   roomId String
   userId String
   body String
+  replyToId String?
+  reactions Json?
   createdAt DateTime @default(now())
   room ChatRoom @relation(fields:[roomId], references:[id], onDelete:Cascade)
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  replyTo Message? @relation("MessageReply", fields:[replyToId], references:[id], onDelete:SetNull)
+  replies Message[] @relation("MessageReply")
   @@index([roomId, createdAt])
 }
 

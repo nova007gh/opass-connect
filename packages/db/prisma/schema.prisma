@@ -254,6 +254,9 @@ model Message {
   roomId String
   userId String
   body String
+  audioUrl String?
+  imageUrl String?
+  videoUrl String?
   replyToId String?
   reactions Json?
   createdAt DateTime @default(now())

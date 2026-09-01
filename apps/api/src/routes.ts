@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AccessToken } from 'livekit-server-sdk';
 import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
-import { notifyUser, notifyAllUsers, notifyAdmins } from './notifications.js';
+import { notifyUser, notifyAllUsers, notifyAdmins, notifyYearGroup } from './notifications.js';
 import { sendEmail } from './email.js';
 import { env } from './config.js';
 import { randomUUID } from 'node:crypto';
@@ -578,8 +578,24 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
   app.get('/chat/rooms',{preHandler:[app.authenticate]},async()=>prisma.chatRoom.findMany({orderBy:{createdAt:'asc'},include:{_count:{select:{messages:true}},yearGroup:{select:{year:true,name:true}}}}));
   app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({name:z.string().min(2).max(100),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false),imageUrl:z.string().optional()}).parse(req.body);if(b.isAssemblyHall&&!['ADMIN','SUPER_ADMIN'].includes(req.user.role))return{error:'Only admins can create assembly halls'}as any;return prisma.chatRoom.create({data:{...b,isAssemblyHall:b.isAssemblyHall&&['ADMIN','SUPER_ADMIN'].includes(req.user.role)?true:false}})});
   app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
-  app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
-  app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().min(1).max(4000),replyToId:z.string().optional()}).parse(req.body);const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body,...(b.replyToId?{replyToId:b.replyToId}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${b.body.slice(0,100)}`,link,req.user.sub).catch(()=>{});}return msg;});
+  app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,audioUrl:true,imageUrl:true,videoUrl:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
+  app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().max(4000),replyToId:z.string().optional(),audioUrl:z.string().optional(),imageUrl:z.string().optional(),videoUrl:z.string().optional()}).parse(req.body);const hasMedia=b.audioUrl||b.imageUrl||b.videoUrl;if(!b.body.trim()&&!hasMedia)return{error:'Message cannot be empty'}as any;const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body||'',...(b.replyToId?{replyToId:b.replyToId}:{}),...(b.audioUrl?{audioUrl:b.audioUrl}:{}),...(b.imageUrl?{imageUrl:b.imageUrl}:{}),...(b.videoUrl?{videoUrl:b.videoUrl}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;const preview=b.audioUrl?'🎤 Voice note':b.imageUrl?'📷 Photo':b.videoUrl?'🎥 Video':b.body.slice(0,100);if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}else{notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}}return msg;});
+  // Upload voice note for group chat
+  app.post('/chat/rooms/:id/voice',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readAudioFileFromRequest(req);const audioUrl=await processAndStoreAudio(buffer,mimetype,`${req.params.id}-${randomUUID()}`);return{audioUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
+  // Upload image for group chat
+  app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,`${req.params.id}-${randomUUID()}`,'chat-images',800,800);return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
+  // Upload video for group chat
+  app.post('/chat/rooms/:id/video',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    try{
+      const file=await req.file();if(!file)throw new Error('No file uploaded');
+      const ALLOWED_VIDEO_MIME=new Set(['video/webm','video/mp4','video/quicktime','video/ogg']);
+      if(!ALLOWED_VIDEO_MIME.has(file.mimetype))throw new Error('Unsupported video format (use MP4, WebM, or MOV)');
+      const chunks:Buffer[]=[];for await(const chunk of file.file){chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));}
+      const buffer=Buffer.concat(chunks);if(buffer.length>50_000_000)throw new Error('Video must be under 50MB');
+      if(CLOUDINARY_CONFIGURED){try{const cloudinary=await import('cloudinary');const cloud=cloudinary.v2;cloud.config({cloud_name:process.env.CLOUDINARY_CLOUD_NAME,api_key:process.env.CLOUDINARY_API_KEY,api_secret:process.env.CLOUDINARY_API_SECRET});const publicId=`chat-video-${req.params.id}-${randomUUID()}`;const videoUrl=await new Promise((resolve,reject)=>{const stream=cloud.uploader.upload_stream({public_id:publicId,folder:'opass-chat-videos',resource_type:'video'},(err,result)=>{if(err)reject(err);else resolve(result!.secure_url);});stream.end(buffer);});return{videoUrl};}catch{}}
+      return reply.code(400).send({error:'Video upload requires Cloudinary configuration'});
+    }catch(err:any){return reply.code(400).send({error:err.message});}
+  });
   // Toggle a reaction on a message
   app.post('/chat/rooms/:id/messages/:msgId/react',{preHandler:[app.authenticate]},async(req:any,reply:any)=>{
     const b=z.object({emoji:z.string().min(1).max(10)}).parse(req.body);
@@ -605,6 +621,34 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
       room=await prisma.chatRoom.create({data:{name:`${yg.name} Chat`,yearGroupId:yg.id}});
     }
     return room;
+  });
+
+  // Start a group call (audio/video) via LiveKit
+  app.post('/chat/rooms/:id/call',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(!env.LIVEKIT_API_KEY||!env.LIVEKIT_API_SECRET||!env.LIVEKIT_URL)return reply.code(503).send({error:'Live provider not configured'});
+    const b=z.object({type:z.enum(['audio','video'])}).parse(req.body);
+    const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});
+    if(!room)return reply.code(404).send({error:'Chat room not found'});
+    const roomKey=`group-${room.id}`;
+    const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+    const callerName=profile?.fullName||'Someone';
+    const token=new AccessToken(env.LIVEKIT_API_KEY,env.LIVEKIT_API_SECRET,{identity:req.user.sub,name:callerName,metadata:JSON.stringify({callType:b.type,groupId:room.yearGroupId||''})});
+    token.addGrant({room:roomKey,roomJoin:true,canPublish:true,canSubscribe:true});
+    // Notify group members
+    if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`Group ${b.type} call`,`${callerName} started a ${b.type} call in ${room.name}.`,room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:'/dashboard/assembly',req.user.sub).catch(()=>{});}
+    return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey,type:b.type};
+  });
+
+  // Join a group call
+  app.post('/chat/rooms/:id/call/join',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(!env.LIVEKIT_API_KEY||!env.LIVEKIT_API_SECRET||!env.LIVEKIT_URL)return reply.code(503).send({error:'Live provider not configured'});
+    const room=await prisma.chatRoom.findUnique({where:{id:req.params.id}});
+    if(!room)return reply.code(404).send({error:'Chat room not found'});
+    const roomKey=`group-${room.id}`;
+    const profile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+    const token=new AccessToken(env.LIVEKIT_API_KEY,env.LIVEKIT_API_SECRET,{identity:req.user.sub,name:profile?.fullName||'Member'});
+    token.addGrant({room:roomKey,roomJoin:true,canPublish:true,canSubscribe:true});
+    return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey};
   });
 
   app.get('/elections',{preHandler:[app.authenticate]},async()=>prisma.election.findMany({orderBy:{opensAt:'desc'},include:{_count:{select:{candidates:true,votes:true}},yearGroup:{select:{year:true,name:true}}}}));

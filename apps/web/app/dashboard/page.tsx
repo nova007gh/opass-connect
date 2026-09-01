@@ -376,12 +376,12 @@ export default function DashboardHome() {
                           </div>
                         )}
 
-                        {/* Compact activity timeline (max 3 items) */}
+                        {/* Compact activity timeline — scrollable */}
                         {activityLoading ? (
                           <div style={{ padding: 12, textAlign: 'center' }}><span className="spinner" /></div>
                         ) : act && act.activities.length > 0 ? (
-                          <div className="activity-timeline" style={{ maxHeight: 180, overflow: 'hidden' }}>
-                            {act.activities.slice(0, 3).map(a => (
+                          <div className="activity-timeline" style={{ maxHeight: 260, overflowY: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: 8, paddingRight: 4 }}>
+                            {act.activities.map(a => (
                               <div key={a.id} className="activity-item" style={{ padding: '10px 0' }}>
                                 <div className="activity-dot">
                                   <Avatar src={a.avatarUrl} name={a.fullName} size={32} />
@@ -400,11 +400,9 @@ export default function DashboardHome() {
                                 </div>
                               </div>
                             ))}
-                            {act.activities.length > 3 && (
-                              <Link href={`/dashboard/groups/${yg.id}`} style={{ display: 'block', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--blue)', padding: '8px 0' }}>
-                                View all {act.activities.length} activities →
-                              </Link>
-                            )}
+                            <Link href={`/dashboard/groups/${yg.id}`} style={{ display: 'block', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--blue)', padding: '8px 0', position: 'sticky', bottom: 0, background: 'var(--white)' }}>
+                              View all {act.activities.length} activities →
+                            </Link>
                           </div>
                         ) : (
                           <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>

@@ -114,6 +114,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const lastTypingRef = useRef<number>(0);
 
   // Load or create the chat room
   const loadRoom = useCallback(async () => {
@@ -187,6 +188,26 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     pollRef.current = setInterval(() => loadMessages(room.id, false), 2500);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [room, loadMessages]);
+
+  // Poll for typing indicators every 2 seconds
+  useEffect(() => {
+    if (!room) return;
+    const interval = setInterval(async () => {
+      try {
+        const { users } = await apiGet<{ users: string[] }>(`/chat/rooms/${room.id}/typing`);
+        // Resolve user names from members or messages
+        const names: string[] = [];
+        for (const uid of users) {
+          const m = members.find(mm => mm.userId === uid);
+          const msg = messages.find(mm => mm.userId === uid);
+          const name = m?.user?.profile?.fullName || msg?.user?.profile?.fullName || 'Someone';
+          if (!names.includes(name)) names.push(name);
+        }
+        setTypingUsers(names);
+      } catch { setTypingUsers([]); }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [room, members, messages]);
 
   // Auto-scroll
   useEffect(() => {
@@ -649,6 +670,18 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
         </div>
       )}
 
+      {/* Typing indicator */}
+      {typingUsers.length > 0 && (
+        <div style={{ padding: '4px 14px', fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--white)', borderTop: '1px solid var(--border)' }}>
+          <span style={{ display: 'inline-flex', gap: 3 }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted)', animation: 'typing-bounce 1.4s infinite' }} />
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted)', animation: 'typing-bounce 1.4s infinite 0.2s' }} />
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted)', animation: 'typing-bounce 1.4s infinite 0.4s' }} />
+          </span>
+          {typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.length} people are typing...`}
+        </div>
+      )}
+
       {/* Activity panel — scrollable grid of fun buttons */}
       {showActivityBar && (
         <div style={{
@@ -763,7 +796,13 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
             <input
               type="text"
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => {
+                setInput(e.target.value);
+                if (room && Date.now() - lastTypingRef.current > 2000) {
+                  lastTypingRef.current = Date.now();
+                  apiPost(`/chat/rooms/${room.id}/typing`, {}).catch(() => {});
+                }
+              }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder="Type a message..."
               style={{
@@ -884,6 +923,10 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
+        }
+        @keyframes typing-bounce {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-4px); opacity: 1; }
         }
         /* Show message actions on hover (desktop) */
         @media (hover: hover) {

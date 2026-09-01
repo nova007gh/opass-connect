@@ -596,6 +596,10 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
       return reply.code(400).send({error:'Video upload requires Cloudinary configuration'});
     }catch(err:any){return reply.code(400).send({error:err.message});}
   });
+  // Typing indicator — in-memory map (room → userId → timestamp)
+  const typingMap=new Map<string,Map<string,number>>();
+  app.post('/chat/rooms/:id/typing',{preHandler:[app.authenticate]},async(req:any)=>{const roomId=req.params.id;const userId=req.user.sub;if(!typingMap.has(roomId))typingMap.set(roomId,new Map());typingMap.get(roomId)!.set(userId,Date.now());return{ok:true};});
+  app.get('/chat/rooms/:id/typing',{preHandler:[app.authenticate]},async(req:any)=>{const roomId=req.params.id;const now=Date.now();const room=typingMap.get(roomId);if(!room)return{users:[]};const users:string[]=[];for(const[userId,ts]of room){if(now-ts<4000&&userId!==req.user.sub){users.push(userId);}else if(now-ts>=4000){room.delete(userId);}}return{users};});
   // Toggle a reaction on a message
   app.post('/chat/rooms/:id/messages/:msgId/react',{preHandler:[app.authenticate]},async(req:any,reply:any)=>{
     const b=z.object({emoji:z.string().min(1).max(10)}).parse(req.body);

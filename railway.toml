@@ -1,6 +1,6 @@
 [build]
-builder = "dockerfile"
-dockerfilePath = "apps/api/Dockerfile"
+builder = "nixpacks"
+buildCommand = "pnpm --filter @opass/api... build"
 
 [deploy]
 startCommand = "pnpm --filter @opass/api start"

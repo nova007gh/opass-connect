@@ -303,7 +303,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     setUploadingMedia(true);
     setError('');
     try {
-      const { imageUrl } = await apiUpload<{ imageUrl: string }>(`/chat/rooms/${room.id}/image`, file);
+      const { imageUrl } = await apiUpload<{ imageUrl: string }>(`/chat/rooms/${room.id}/upload-image`, file);
       const msg = await apiPost<ChatMessage>(`/chat/rooms/${room.id}/messages`, { body: '', imageUrl });
       seenIdsRef.current.add(msg.id);
       setMessages(prev => [...prev, msg]);

@@ -7,6 +7,8 @@ COPY packages/db/package.json packages/db/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN pnpm install --no-frozen-lockfile
 COPY . .
+# Bust cache: ensure latest source is always rebuilt
+ARG CACHEBUST=1
 RUN pnpm --filter @opass/db prisma:generate && pnpm --filter @opass/shared build && pnpm --filter @opass/db build && pnpm --filter @opass/api build
 EXPOSE 4000
 CMD ["sh", "-c", "pnpm --filter @opass/api prisma:migrate && pnpm --filter @opass/api start"]

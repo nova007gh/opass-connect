@@ -1,12 +1,33 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
 import { notifyUser, notifyAllUsers, notifyAdmins, notifyYearGroup } from './notifications.js';
 import { sendEmail } from './email.js';
 import { env } from './config.js';
 import { randomUUID } from 'node:crypto';
+
+// Lazily-constructed LiveKit room service client (used to check whether a
+// call room actually still has participants in it, rather than relying on
+// a stale "was there a call message recently" heuristic).
+let roomService: RoomServiceClient | null = null;
+function getRoomService(): RoomServiceClient | null {
+  if (!env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET || !env.LIVEKIT_URL) return null;
+  if (!roomService) roomService = new RoomServiceClient(env.LIVEKIT_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
+  return roomService;
+}
+// Returns true if the given LiveKit room currently has any connected participants.
+async function isRoomActive(roomKey: string): Promise<boolean> {
+  const svc = getRoomService();
+  if (!svc) return false;
+  try {
+    const participants = await svc.listParticipants(roomKey);
+    return participants.length > 0;
+  } catch {
+    return false;
+  }
+}
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_BYTES = 5_000_000;
@@ -500,6 +521,16 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey};
   });
 
+  // Check if a 1-on-1 call is still active (someone still connected to the LiveKit room).
+  // A call stays joinable for as long as at least one side remains connected,
+  // regardless of who initiated it or how long ago.
+  app.get('/dm/:userId/call/active',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot call yourself'});
+    const roomKey=`dm-${[req.user.sub,req.params.userId].sort().join('-')}`;
+    const active=await isRoomActive(roomKey);
+    return{active};
+  });
+
   // Upload a voice note for a DM
   app.post('/dm/:userId/voice',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
@@ -528,7 +559,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     return msg;
   });
 
-  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),nickname:z.string().optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),coverUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
+  app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),nickname:z.string().optional(),gender:z.enum(['MALE','FEMALE']).optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),coverUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
   app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     try {
@@ -656,11 +687,16 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     token.addGrant({room:roomKey,roomJoin:true,canPublish:true,canSubscribe:true});
     return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey};
   });
-  // Check if a group call is active (recent call message in last 2 minutes)
+  // Check if a group call is active. A call stays "active" and joinable by
+  // anyone for as long as at least one participant remains connected to the
+  // LiveKit room — independent of who started it or how long ago that was.
   app.get('/chat/rooms/:id/call/active',{preHandler:[app.authenticate]},async(req:any)=>{
-    const twoMinAgo=new Date(Date.now()-2*60*1000);
-    const recentCall=await prisma.message.findFirst({where:{roomId:req.params.id,body:{startsWith:'📞 Group'},createdAt:{gte:twoMinAgo}},orderBy:{createdAt:'desc'}});
-    return{active:!!recentCall,callMsg:recentCall?{id:recentCall.id,type:recentCall.body.includes('video')?'video':'audio',createdAt:recentCall.createdAt}:null};
+    const roomKey=`group-${req.params.id}`;
+    const active=await isRoomActive(roomKey);
+    if(!active)return{active:false,callMsg:null};
+    // Use the most recent call-start message just to know the call type for the join banner.
+    const recentCall=await prisma.message.findFirst({where:{roomId:req.params.id,body:{startsWith:'📞 Group'}},orderBy:{createdAt:'desc'}});
+    return{active:true,callMsg:recentCall?{id:recentCall.id,type:recentCall.body.includes('video')?'video':'audio',createdAt:recentCall.createdAt}:{id:'',type:'audio',createdAt:new Date()}};
   });
 
   app.get('/elections',{preHandler:[app.authenticate]},async()=>prisma.election.findMany({orderBy:{opensAt:'desc'},include:{_count:{select:{candidates:true,votes:true}},yearGroup:{select:{year:true,name:true}}}}));

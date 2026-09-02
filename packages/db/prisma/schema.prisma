@@ -122,12 +122,18 @@ model User {
   directMessagesReceived DirectMessage[] @relation("DMRecipient")
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
 model AlumniProfile {
   id String @id @default(cuid())
   userId String @unique
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
   fullName String
   nickname String?
+  gender Gender?
   graduationYear Int
   house String?
   className String?

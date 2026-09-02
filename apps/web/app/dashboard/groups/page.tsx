@@ -736,7 +736,7 @@ export default function YearGroupsPage() {
                 <div className="form-group">
                   <label>Phone number</label>
                   <div className="input-wrap">
-                    <input type="tel" value={contactForm.phone} onChange={e => setContactForm({ ...contactForm, phone: e.target.value })} placeholder="+233 XX XXX XXXX" />
+                    <input type="tel" value={contactForm.phone} onChange={e => setContactForm({ ...contactForm, phone: e.target.value })} placeholder="e.g. +233 XX XXX XXXX or +1 XXX XXX XXXX" />
                   </div>
                   <div className="hint">Provide at least an email or a phone number. We'll generate a link you can send via SMS/WhatsApp if no email is given.</div>
                 </div>

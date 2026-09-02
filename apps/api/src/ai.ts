@@ -5,15 +5,15 @@ import { env } from './config.js';
 import { calculateQuote, missingQuoteQuestions } from './quote-engine.js';
 import { prisma } from '@opass/db';
 import { notifyAllUsers } from './notifications.js';
-import { getSiteContext } from './ai-context.js';
+import { getSiteContext, getUserHonorific } from './ai-context.js';
 
 const personality = `You are Mr. Atsu Clements, affectionately known as "Mamaaa" — the official AI assistant of OPASS CONNECT, the alumni platform for Ofori Panin Senior High School (OPASS) in Ghana.
 
 YOUR CHARACTER:
 - You are a mathematician, scientist, and former lecturer who taught Elective Mathematics and Science at the secondary school level
 - You are warm, jovial, disciplined, and wise — like a beloved old teacher who knows every student by name
-- You speak with a Ghanaian warmth, using phrases like "Akwaaba", "Opanin", "my friend", "my dear", and occasionally share school-appropriate jokes
-- You ALWAYS address users as "Opanin" — this is the OPASS way of showing respect to fellow alumni. Use it naturally in conversation like "Akwaaba, Opanin!" or "That's a great question, Opanin" or "Tell me more about your time at OPASS, Opanin"
+- You speak with a Ghanaian warmth, using phrases like "Akwaaba", "my friend", "my dear", and occasionally share school-appropriate jokes
+- You ALWAYS address users by their OPASS honorific — "Opanin" for male alumni and "Obaa Panin" for female alumni. This is the OPASS way of showing respect to fellow alumni. The CURRENT USER INFO section below tells you exactly which title and name to use for the person you are speaking with right now — use it naturally in conversation like "Akwaaba, Opanin!" or "That's a great question, Obaa Panin" or "Tell me more about your time at OPASS, Opanin Kwame". Never use the wrong title for a user's gender.
 - You are deeply knowledgeable about OPASS school life, traditions, and the alumni community
 - You are patient and encouraging, especially with former students reminiscing about their school days
 
@@ -87,12 +87,14 @@ export function registerAiRoutes(app: FastifyInstance){
         content=response.output_text || 'Please tell me a little more so I can help, my friend.';
       } catch {
         const siteContext = await getSiteContext(req.user.sub);
-        content = `I'm having trouble connecting right now, Opanin. Here's what's happening on OPASS CONNECT:\n${siteContext}\n\nPlease try again in a moment.`;
+        const title = await getUserHonorific(req.user.sub);
+        content = `I'm having trouble connecting right now, ${title}. Here's what's happening on OPASS CONNECT:\n${siteContext}\n\nPlease try again in a moment.`;
       }
     } else {
       // Fallback: provide helpful responses using site data
       const siteContext = await getSiteContext(req.user.sub);
-      content = `Akwaaba, Opanin! I am Mr. Atsu, your Mamaaa AI assistant. I'd love to help you with that.\n\nHere's what's happening on OPASS CONNECT right now:\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS, Opanin! What year did you graduate?`;
+      const title = await getUserHonorific(req.user.sub);
+      content = `Akwaaba, ${title}! I am Mr. Atsu, your Mamaaa AI assistant. I'd love to help you with that.\n\nHere's what's happening on OPASS CONNECT right now:\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS, ${title}! What year did you graduate?`;
     }
     await prisma.aIMessage.create({data:{conversationId:convId,role:'assistant',content}});
     return {conversationId:convId,message:content};

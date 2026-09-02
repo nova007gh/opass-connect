@@ -9,7 +9,7 @@ import Avatar from '../../../components/Avatar';
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
   const [form, setForm] = useState({
-    fullName: '', nickname: '', graduationYear: '', house: '', className: '', positionHeld: '',
+    fullName: '', nickname: '', gender: '', graduationYear: '', house: '', className: '', positionHeld: '',
     country: '', city: '', profession: '', bio: '', avatarUrl: '', searchable: true,
   });
   const [saved, setSaved] = useState(false);
@@ -27,6 +27,7 @@ export default function ProfilePage() {
       setForm({
         fullName: user.profile.fullName || '',
         nickname: user.profile.nickname || '',
+        gender: user.profile.gender || '',
         graduationYear: user.profile.graduationYear ? String(user.profile.graduationYear) : '',
         house: user.profile.house || '',
         className: user.profile.className || '',
@@ -113,6 +114,7 @@ export default function ProfilePage() {
       const payload: any = { ...form };
       if (payload.graduationYear) payload.graduationYear = parseInt(payload.graduationYear, 10);
       else delete payload.graduationYear;
+      if (!payload.gender) delete payload.gender;
       await apiPatch('/profile', payload);
       await refresh();
       setSaved(true);
@@ -221,6 +223,28 @@ export default function ProfilePage() {
                 <input type="text" value={form.nickname} onChange={e => set('nickname', e.target.value)} placeholder="e.g. POPASSION" />
               </div>
               <div className="hint">Your unique nickname on OPASS CONNECT.</div>
+            </div>
+            <div className="form-group">
+              <label>Gender</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => set('gender', 'MALE')}
+                  className={`picker-tile ${form.gender === 'MALE' ? 'active' : ''}`}
+                  style={{ flex: 1, padding: '12px 0' }}
+                >
+                  Male
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('gender', 'FEMALE')}
+                  className={`picker-tile ${form.gender === 'FEMALE' ? 'active' : ''}`}
+                  style={{ flex: 1, padding: '12px 0' }}
+                >
+                  Female
+                </button>
+              </div>
+              <div className="hint">Mamaaa AI will address you as {form.gender === 'FEMALE' ? '"Obaa Panin"' : '"Opanin"'} based on this.</div>
             </div>
             <div className="form-row">
               <div className="form-group">

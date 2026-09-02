@@ -1,6 +1,26 @@
 import { prisma } from '@opass/db';
 
 /**
+ * The respectful OPASS title to address a user by, based on gender.
+ * Defaults to "Opanin" when gender is not set.
+ */
+export function honorific(gender?: string | null): string {
+  return gender === 'FEMALE' ? 'Obaa Panin' : 'Opanin';
+}
+
+/**
+ * Returns the full respectful form of address for a user, e.g. "Opanin Kwame"
+ * or "Obaa Panin Efua", using their first name.
+ */
+export async function getUserHonorific(userId?: string): Promise<string> {
+  if (!userId) return 'Opanin';
+  const profile = await prisma.alumniProfile.findUnique({ where: { userId }, select: { fullName: true, gender: true } });
+  if (!profile) return 'Opanin';
+  const firstName = profile.fullName?.split(' ')[0] || '';
+  return `${honorific(profile.gender)}${firstName ? ' ' + firstName : ''}`;
+}
+
+/**
  * Gather comprehensive site context for the AI.
  * This gives Mamaaa AI the ability to "scrape" all data, actions, and inputs
  * happening across the app and respond intelligently.
@@ -26,14 +46,17 @@ export async function getSiteContext(userId?: string): Promise<string> {
   let userContext = '';
   if (userId) {
     const [userProfile, userDues, userGroups, userNotifications] = await Promise.all([
-      prisma.alumniProfile.findUnique({ where: { userId }, select: { fullName: true, nickname: true, graduationYear: true, house: true, profession: true, country: true, city: true } }),
+      prisma.alumniProfile.findUnique({ where: { userId }, select: { fullName: true, nickname: true, gender: true, graduationYear: true, house: true, profession: true, country: true, city: true } }),
       prisma.payment.findMany({ where: { userId, status: 'PAID' }, select: { amount: true, purpose: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
       prisma.yearGroupMembership.findMany({ where: { userId, banned: false }, include: { yearGroup: { select: { name: true, year: true } } } }),
       prisma.notification.findMany({ where: { userId, read: false }, take: 5, select: { title: true, type: true } }),
     ]);
     if (userProfile) {
+      const firstName = userProfile.fullName?.split(' ')[0] || '';
+      const title = honorific(userProfile.gender);
       userContext = `\nCURRENT USER INFO:
 - Name: ${userProfile.fullName}, Nickname: ${userProfile.nickname || 'POPASSION'}
+- How to address this user: "${title}" (or "${title} ${firstName}") — ${userProfile.gender === 'FEMALE' ? 'she is female, so use "Obaa Panin", never "Opanin"' : userProfile.gender === 'MALE' ? 'he is male, so use "Opanin"' : 'gender not set, default to "Opanin"'}
 - Class of ${userProfile.graduationYear}, House: ${userProfile.house || 'Not set'}
 - Profession: ${userProfile.profession || 'Not set'}, Location: ${[userProfile.city, userProfile.country].filter(Boolean).join(', ') || 'Not set'}
 - Joined year groups: ${userGroups.map(g => `${g.yearGroup.name} (${g.yearGroup.year})`).join(', ') || 'None'}

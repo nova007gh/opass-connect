@@ -10,6 +10,7 @@ export interface AlumniProfile {
   id: string;
   fullName: string;
   nickname?: string | null;
+  gender?: 'MALE' | 'FEMALE' | null;
   graduationYear: number;
   house?: string | null;
   className?: string | null;

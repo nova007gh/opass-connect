@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPatch, apiPost, apiUpload, setToken } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { COUNTRY_DIAL_CODES, DEFAULT_COUNTRY } from '../../lib/countries';
 
 const HOUSES = ['Mensah House', 'Danso House', 'Brew House', 'Gedi House', 'Andoh House'];
 
@@ -29,9 +30,10 @@ function RegisterForm() {
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const [form, setForm] = useState({
-    fullName: '', email: '', phone: '', password: '', nickname: '',
+    fullName: '', email: '', phone: '', password: '', nickname: '', gender: '',
     graduationYear: '', house: '', positionHeld: '', country: 'Ghana', city: '', profession: '', bio: '',
   });
+  const [phoneDial, setPhoneDial] = useState(DEFAULT_COUNTRY.dial);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +58,7 @@ function RegisterForm() {
   const validateStep1 = () => {
     if (!form.fullName.trim()) return 'Full name is required.';
     if (!form.email.trim()) return 'Email is required.';
+    if (!form.gender) return 'Please select whether you are male or female.';
     if (form.password.length < 10) return 'Password must be at least 10 characters.';
     return '';
   };
@@ -92,10 +95,11 @@ function RegisterForm() {
     try {
       const data = await apiPost<{ token: string }>('/auth/register', {
         email: form.email,
-        phone: form.phone || undefined,
+        phone: form.phone ? `${phoneDial} ${form.phone}` : undefined,
         password: form.password,
         fullName: form.fullName,
         nickname: form.nickname || undefined,
+        gender: form.gender || undefined,
         graduationYear: parseInt(form.graduationYear, 10),
         house: form.house || undefined,
         positionHeld: form.positionHeld || undefined,
@@ -175,11 +179,39 @@ function RegisterForm() {
               </div>
             </div>
             <div className="form-group">
+              <label>Gender</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => set('gender', 'MALE')}
+                  className={`picker-tile ${form.gender === 'MALE' ? 'active' : ''}`}
+                  style={{ flex: 1, padding: '14px 0' }}
+                >
+                  Male
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('gender', 'FEMALE')}
+                  className={`picker-tile ${form.gender === 'FEMALE' ? 'active' : ''}`}
+                  style={{ flex: 1, padding: '14px 0' }}
+                >
+                  Female
+                </button>
+              </div>
+            </div>
+            <div className="form-group">
               <label>Phone Number</label>
-              <div className="input-wrap" style={{ gap: 12 }}>
-                <span style={{ fontSize: 20 }}>🇬🇭</span>
-                <span className="prefix">+233</span>
-                <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="Enter your phone" />
+              <div className="input-wrap" style={{ gap: 8 }}>
+                <select
+                  value={phoneDial}
+                  onChange={e => setPhoneDial(e.target.value)}
+                  style={{ border: 0, background: 'transparent', fontSize: 15, fontWeight: 600, color: 'var(--black)', flexShrink: 0, maxWidth: 110 }}
+                >
+                  {COUNTRY_DIAL_CODES.map(c => (
+                    <option key={c.code} value={c.dial}>{c.flag} {c.dial}</option>
+                  ))}
+                </select>
+                <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value.replace(/[^0-9]/g, ''))} placeholder="Enter your phone number" />
               </div>
             </div>
             <div className="form-group">

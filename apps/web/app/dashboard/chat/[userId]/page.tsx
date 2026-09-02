@@ -257,6 +257,8 @@ export default function DirectChatPage() {
     if (!peer) return;
     setCallError('');
     try {
+      const { active } = await apiGet<{ active: boolean }>(`/dm/${peerId}/call/active`);
+      if (!active) { setCallError('That call has ended.'); return; }
       const data = await apiPost<{ url: string; token: string }>(`/dm/${peerId}/call/join`);
       setActiveCall({ type, mode: 'join' });
       startCallCtx({ callType: type, peerName: displayName, peerAvatarUrl: peer.profile?.avatarUrl || null, isGroupCall: false, url: data.url, token: data.token, roomId: peerId });

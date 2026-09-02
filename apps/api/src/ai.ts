@@ -87,12 +87,12 @@ export function registerAiRoutes(app: FastifyInstance){
         content=response.output_text || 'Please tell me a little more so I can help, my friend.';
       } catch {
         const siteContext = await getSiteContext(req.user.sub);
-        content = `I'm having trouble connecting right now, my friend. Here's what's happening on OPASS CONNECT:\n${siteContext}\n\nPlease try again in a moment.`;
+        content = `I'm having trouble connecting right now, Opanin. Here's what's happening on OPASS CONNECT:\n${siteContext}\n\nPlease try again in a moment.`;
       }
     } else {
       // Fallback: provide helpful responses using site data
       const siteContext = await getSiteContext(req.user.sub);
-      content = `Akwaaba, my friend! I am Mr. Atsu, your Mamaaa AI assistant. I'd love to help you with that.\n\nHere's what's happening on OPASS CONNECT right now:\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS! What year did you graduate?`;
+      content = `Akwaaba, Opanin! I am Mr. Atsu, your Mamaaa AI assistant. I'd love to help you with that.\n\nHere's what's happening on OPASS CONNECT right now:\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS, Opanin! What year did you graduate?`;
     }
     await prisma.aIMessage.create({data:{conversationId:convId,role:'assistant',content}});
     return {conversationId:convId,message:content};

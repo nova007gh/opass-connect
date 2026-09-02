@@ -654,6 +654,12 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     token.addGrant({room:roomKey,roomJoin:true,canPublish:true,canSubscribe:true});
     return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey};
   });
+  // Check if a group call is active (recent call message in last 2 minutes)
+  app.get('/chat/rooms/:id/call/active',{preHandler:[app.authenticate]},async(req:any)=>{
+    const twoMinAgo=new Date(Date.now()-2*60*1000);
+    const recentCall=await prisma.message.findFirst({where:{roomId:req.params.id,body:{startsWith:'📞 Group'},createdAt:{gte:twoMinAgo}},orderBy:{createdAt:'desc'}});
+    return{active:!!recentCall,callMsg:recentCall?{id:recentCall.id,type:recentCall.body.includes('video')?'video':'audio',createdAt:recentCall.createdAt}:null};
+  });
 
   app.get('/elections',{preHandler:[app.authenticate]},async()=>prisma.election.findMany({orderBy:{opensAt:'desc'},include:{_count:{select:{candidates:true,votes:true}},yearGroup:{select:{year:true,name:true}}}}));
   app.post('/elections',{preHandler:[app.authenticate,requireRoles('YEAR_ADMIN','ADMIN','SUPER_ADMIN')]},async(req)=>{const b=z.object({title:z.string().min(2),description:z.string().optional(),yearGroupId:z.string().optional(),opensAt:z.string().datetime(),closesAt:z.string().datetime()}).parse(req.body);return prisma.election.create({data:{...b,opensAt:new Date(b.opensAt),closesAt:new Date(b.closesAt),status:'SCHEDULED'}})});

@@ -103,6 +103,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [groupCall, setGroupCall] = useState<{ url: string; token: string; type: 'audio' | 'video' } | null>(null);
+  const [activeGroupCall, setActiveGroupCall] = useState<{ type: 'audio' | 'video' } | null>(null);
 
   const messagesEnd = useRef<HTMLDivElement>(null);
   const messagesContainer = useRef<HTMLDivElement>(null);
@@ -208,6 +209,20 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     }, 2000);
     return () => clearInterval(interval);
   }, [room, members, messages]);
+
+  // Poll for active group calls every 5 seconds
+  useEffect(() => {
+    if (!room || groupCall) return;
+    const checkActiveCall = async () => {
+      try {
+        const res = await apiGet<{ active: boolean; callMsg: { type: 'audio' | 'video' } | null }>(`/chat/rooms/${room.id}/call/active`);
+        setActiveGroupCall(res.active && res.callMsg ? { type: res.callMsg.type } : null);
+      } catch { setActiveGroupCall(null); }
+    };
+    checkActiveCall();
+    const interval = setInterval(checkActiveCall, 5000);
+    return () => clearInterval(interval);
+  }, [room, groupCall]);
 
   // Auto-scroll
   useEffect(() => {
@@ -364,8 +379,19 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     try {
       const res = await apiPost<{ url: string; token: string; roomKey: string; type: string }>(`/chat/rooms/${room.id}/call`, { type });
       setGroupCall({ url: res.url, token: res.token, type });
+      setActiveGroupCall({ type });
     } catch (err: any) {
       setError(err.message || 'Failed to start call');
+    }
+  };
+
+  const joinGroupCall = async () => {
+    if (!room) return;
+    try {
+      const res = await apiPost<{ url: string; token: string; roomKey: string }>(`/chat/rooms/${room.id}/call/join`, {});
+      setGroupCall({ url: res.url, token: res.token, type: activeGroupCall?.type || 'audio' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to join call');
     }
   };
 
@@ -433,6 +459,19 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 200px)', minHeight: 400 }}>
       {error && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13, padding: '6px 12px' }}>{error}<button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 0, cursor: 'pointer' }}>×</button></div>}
       {callError && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13 }}>{callError}</div>}
+
+      {/* Active call banner — join button */}
+      {activeGroupCall && !groupCall && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: 'white', borderRadius: 0 }}>
+          <span style={{ fontSize: 20 }}>{activeGroupCall.type === 'video' ? '🎥' : '📞'}</span>
+          <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
+            A group {activeGroupCall.type} call is live
+          </div>
+          <button onClick={joinGroupCall} style={{ background: 'white', color: '#059669', border: 0, borderRadius: 999, padding: '6px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            Join
+          </button>
+        </div>
+      )}
 
       {/* Chat header */}
       <div style={{ padding: '10px 14px', borderRadius: '12px 12px 0 0', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border)', background: 'var(--white)' }}>
@@ -910,6 +949,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
           peerAvatarUrl={null}
           connect={async () => ({ url: groupCall.url, token: groupCall.token })}
           onClose={() => setGroupCall(null)}
+          isGroupCall
         />
       )}
 

@@ -9,9 +9,10 @@ interface CallModalProps {
   peerAvatarUrl?: string | null;
   connect: () => Promise<{ url: string; token: string }>;
   onClose: () => void;
+  isGroupCall?: boolean;
 }
 
-export default function CallModal({ callType, peerName, peerAvatarUrl, connect, onClose }: CallModalProps) {
+export default function CallModal({ callType, peerName, peerAvatarUrl, connect, onClose, isGroupCall }: CallModalProps) {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [error, setError] = useState('');
   const [micOn, setMicOn] = useState(true);
@@ -115,8 +116,13 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
             </div>
             <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{peerName}</div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 6 }}>
-              {status === 'connecting' ? 'Connecting…' : status === 'error' ? error : peerConnected ? fmtDuration(duration) : 'Ringing…'}
+              {status === 'connecting' ? 'Connecting…' : status === 'error' ? error : peerConnected ? fmtDuration(duration) : isGroupCall ? 'Waiting for others to join…' : 'Ringing…'}
             </div>
+            {isGroupCall && status === 'connected' && !peerConnected && (
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 8, maxWidth: 280 }}>
+                Others can join from the chat header
+              </div>
+            )}
           </div>
         )}
         <audio ref={remoteAudioRef} autoPlay />

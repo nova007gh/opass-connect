@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
 import ConnectGlyph from '../../../components/ConnectGlyph';
 import Avatar from '../../../components/Avatar';
+import InstallPrompt, { InstallButton } from '../../../components/InstallPrompt';
 
 const menuGroups = [
   {
@@ -55,6 +57,7 @@ export default function MenuPage() {
   const { user, logout } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const role = roleLabel[user?.role || 'MEMBER'] || 'Member';
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   return (
     <div className="app-screen">
@@ -75,6 +78,11 @@ export default function MenuPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </Link>
+
+          {/* Install App button */}
+          <div style={{ marginBottom: 16 }}>
+            <InstallButton onTrigger={() => setShowInstallModal(true)} />
+          </div>
 
           {/* Menu groups */}
           {menuGroups.map((group) => {
@@ -122,6 +130,81 @@ export default function MenuPage() {
             <div className="menu-footer-tag">Developed by SmartThinkers™ Tech</div>
           </div>
         </div>
+      </div>
+
+      {/* Install instructions modal (for iOS where beforeinstallprompt isn't supported) */}
+      {showInstallModal && <InstallPromptModal onClose={() => setShowInstallModal(false)} />}
+    </div>
+  );
+}
+
+function InstallPromptModal({ onClose }: { onClose: () => void }) {
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+        zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20, WebkitBackdropFilter: 'blur(4px)', backdropFilter: 'blur(4px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--white, #fff)', borderRadius: 20, padding: 28,
+          maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{
+          width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px',
+          background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 32, height: 32 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px', color: 'var(--black, #050505)' }}>
+          Install OPASS CONNECT
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--muted, #6B7280)', margin: '0 0 20px', lineHeight: 1.5 }}>
+          {isIOS ? (
+            <>Tap the <strong>Share</strong> button in Safari, then select <strong>"Add to Home Screen"</strong> to install the app.</>
+          ) : isAndroid ? (
+            <>Tap the <strong>three-dot menu</strong> in your browser, then select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</>
+          ) : (
+            <>Click the <strong>install icon</strong> in your browser's address bar, or use your browser menu to install this app.</>
+          )}
+        </p>
+
+        {isIOS && (
+          <div style={{
+            background: 'var(--bg, #F7F8FA)', borderRadius: 12, padding: 16, marginBottom: 16,
+            display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+          }}>
+            <svg fill="none" stroke="var(--blue, #0B2D6B)" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 28, height: 28, flexShrink: 0 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+            </svg>
+            <div style={{ fontSize: 13, color: 'var(--muted, #6B7280)' }}>
+              Look for this <strong>Share</strong> icon at the bottom of Safari
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', padding: '14px 24px', borderRadius: 999, border: 0,
+            background: 'var(--blue-bright, #0051FF)', color: 'white',
+            fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 48,
+          }}
+        >
+          Got it
+        </button>
       </div>
     </div>
   );

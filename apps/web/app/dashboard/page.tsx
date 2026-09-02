@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import ConnectGlyph from '../../components/ConnectGlyph';
 import Avatar from '../../components/Avatar';
 import { getYearGroupColor } from '../../lib/houseColors';
+import InstallPrompt from '../../components/InstallPrompt';
 
 interface YearGroup { id: string; year: number; name: string; imageUrl?: string | null; _count: { memberships: number } }
 interface Project { id: string; title: string; description: string; targetAmount: string; raisedAmount: string; status: string; imageUrl?: string | null }
@@ -166,6 +167,7 @@ export default function DashboardHome() {
 
         {/* Quick Stats */}
         <div className="home-content">
+          <InstallPrompt />
           <div className="quick-stats fade-in-up">
             <div className="quick-stat-card">
               <div className="quick-stat-value">{loading ? '–' : yearGroups.length}</div>

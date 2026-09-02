@@ -638,6 +638,8 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     const callerName=profile?.fullName||'Someone';
     const token=new AccessToken(env.LIVEKIT_API_KEY,env.LIVEKIT_API_SECRET,{identity:req.user.sub,name:callerName,metadata:JSON.stringify({callType:b.type,groupId:room.yearGroupId||''})});
     token.addGrant({room:roomKey,roomJoin:true,canPublish:true,canSubscribe:true});
+    // Log the call as a chat message so others can see and join
+    await prisma.message.create({data:{roomId:room.id,userId:req.user.sub,body:`📞 Group ${b.type} call started by ${callerName}`}});
     // Notify group members
     if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`Group ${b.type} call`,`${callerName} started a ${b.type} call in ${room.name}.`,room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:'/dashboard/assembly',req.user.sub).catch(()=>{});}
     return{url:env.LIVEKIT_URL,token:await token.toJwt(),roomKey,type:b.type};

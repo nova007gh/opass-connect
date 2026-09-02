@@ -1,0 +1,37 @@
+{
+  "name": "OPASS CONNECT",
+  "short_name": "OPASS",
+  "description": "One School. One Network. One Legacy. The official OPASS alumni platform.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B2D6B",
+  "theme_color": "#0B2D6B",
+  "categories": ["social", "education", "lifestyle"],
+  "icons": [
+    {
+      "src": "/opass-crest.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/opass-crest.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/opass-crest.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/opass-crest.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    }
+  ]
+}

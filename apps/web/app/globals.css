@@ -7,6 +7,7 @@
   --blue-100: #DBEAFE;
   --black: #050505;
   --white: #ffffff;
+  --text: #050505;
   --bg: #F7F8FA;
   --border: #E5E7EB;
   --muted: #6B7280;
@@ -400,6 +401,7 @@ label.switch span > span { transition: transform 0.2s; }
   gap: 12px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   padding-bottom: 4px;
 }
 .events-scroll::-webkit-scrollbar { display: none; }
@@ -1202,11 +1204,19 @@ label.switch span > span { transition: transform 0.2s; }
 [data-theme="dark"] {
   --black: #e8e8f0;
   --white: #1a1a2e;
+  --text: #e8e8f0;
   --bg: #0d0d1a;
   --border: #2a2a45;
   --muted: #9090b0;
+  --blue: #7aa8ff;
+  --blue-light: #60a5fa;
+  --blue-bright: #3b82f6;
+  --blue-dark: #1e3a5f;
   --blue-50: #161630;
   --blue-100: #222250;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
   --chat-bg: #0a0a14;
   --shadow: 0 4px 20px rgba(0,0,0,0.4);
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
@@ -1300,6 +1310,19 @@ label.switch span > span { transition: transform 0.2s; }
 [data-theme="dark"] .badge-blue { background: rgba(37,99,235,0.15); color: #7aa8ff; }
 [data-theme="dark"] .badge-dark { background: var(--blue-50); color: var(--muted); }
 [data-theme="dark"] .badge-gray { background: var(--blue-50); color: var(--muted); }
+[data-theme="dark"] .activity-type-post { background: rgba(122,168,255,0.12); color: #7aa8ff; }
+[data-theme="dark"] .activity-type-comment { background: rgba(52,211,153,0.12); color: #4ade80; }
+[data-theme="dark"] .activity-type-like { background: rgba(248,113,113,0.12); color: #f87171; }
+[data-theme="dark"] .stats-pill .count { color: #7aa8ff; }
+[data-theme="dark"] .stats-pill svg { color: #7aa8ff; }
+[data-theme="dark"] .home-tagline span { color: #7aa8ff; }
+[data-theme="dark"] .yg-card { background: var(--white); border-color: var(--border); }
+[data-theme="dark"] .home-crest { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+[data-theme="dark"] .events-scroll { scrollbar-width: none; }
+[data-theme="dark"] .chat-bubble-other { background: var(--white); color: var(--black); }
+[data-theme="dark"] .chat-bubble-me { background: var(--blue-bright); }
+[data-theme="dark"] .chat-date-sep { background: var(--blue-50); color: var(--muted); }
+[data-theme="dark"] .chat-reply-quote { background: var(--blue-50); border-left-color: var(--blue-bright); }
 
 /* ===== Year Group Cards with House Colors + Neon ===== */
 .yg-card {

@@ -103,8 +103,8 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [uploadingMedia, setUploadingMedia] = useState(false);
-  const [groupCall, setGroupCall] = useState<{ url: string; token: string; type: 'audio' | 'video' } | null>(null);
   const [activeGroupCall, setActiveGroupCall] = useState<{ type: 'audio' | 'video' } | null>(null);
+  const { startCall: startCallCtx, activeCall: activeCallCtx, endCall: endCallCtx } = useCall();
 
   const messagesEnd = useRef<HTMLDivElement>(null);
   const messagesContainer = useRef<HTMLDivElement>(null);
@@ -213,7 +213,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
 
   // Poll for active group calls every 5 seconds
   useEffect(() => {
-    if (!room || groupCall) return;
+    if (!room || activeCallCtx) return;
     const checkActiveCall = async () => {
       try {
         const res = await apiGet<{ active: boolean; callMsg: { type: 'audio' | 'video' } | null }>(`/chat/rooms/${room.id}/call/active`);
@@ -223,7 +223,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     checkActiveCall();
     const interval = setInterval(checkActiveCall, 5000);
     return () => clearInterval(interval);
-  }, [room, groupCall]);
+  }, [room, activeCallCtx]);
 
   // Auto-scroll
   useEffect(() => {
@@ -375,12 +375,10 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   };
 
   // ===== Group call =====
-  const { startCall: startCallCtx } = useCall();
   const startGroupCall = async (type: 'audio' | 'video') => {
     if (!room) return;
     try {
       const res = await apiPost<{ url: string; token: string; roomKey: string; type: string }>(`/chat/rooms/${room.id}/call`, { type });
-      setGroupCall({ url: res.url, token: res.token, type });
       setActiveGroupCall({ type });
       startCallCtx({ callType: type, peerName: groupName, peerAvatarUrl: null, isGroupCall: true, url: res.url, token: res.token, roomId: room.id });
     } catch (err: any) {
@@ -392,7 +390,6 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     if (!room) return;
     try {
       const res = await apiPost<{ url: string; token: string; roomKey: string }>(`/chat/rooms/${room.id}/call/join`, {});
-      setGroupCall({ url: res.url, token: res.token, type: activeGroupCall?.type || 'audio' });
       startCallCtx({ callType: activeGroupCall?.type || 'audio', peerName: groupName, peerAvatarUrl: null, isGroupCall: true, url: res.url, token: res.token, roomId: room.id });
     } catch (err: any) {
       setError(err.message || 'Failed to join call');
@@ -435,12 +432,13 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const startCall = async (type: 'audio' | 'video', member: Member) => {
     if (member.userId === user?.id) return;
     setCallError('');
-    setActiveCall({ type, peerId: member.userId, peerName: member.user.profile?.fullName || member.user.email, peerAvatar: member.user.profile?.avatarUrl });
-  };
-
-  const connectCall = async () => {
-    if (!activeCall) throw new Error('No active call');
-    return apiPost<{ url: string; token: string }>(`/dm/${activeCall.peerId}/call`, { type: activeCall.type });
+    try {
+      const res = await apiPost<{ url: string; token: string }>(`/dm/${member.userId}/call`, { type });
+      setActiveCall({ type, peerId: member.userId, peerName: member.user.profile?.fullName || member.user.email, peerAvatar: member.user.profile?.avatarUrl });
+      startCallCtx({ callType: type, peerName: member.user.profile?.fullName || member.user.email, peerAvatarUrl: member.user.profile?.avatarUrl || null, isGroupCall: false, url: res.url, token: res.token, roomId: member.userId });
+    } catch (err: any) {
+      setCallError(err.message || 'Failed to start call');
+    }
   };
 
   if (loading) return <div className="loading-center" style={{ minHeight: 200 }}><span className="spinner" /></div>;
@@ -465,7 +463,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       {callError && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13 }}>{callError}</div>}
 
       {/* Active call banner — join button */}
-      {activeGroupCall && !groupCall && (
+      {activeGroupCall && !activeCallCtx && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: 'white', borderRadius: 0 }}>
           <span style={{ fontSize: 20 }}>{activeGroupCall.type === 'video' ? '🎥' : '📞'}</span>
           <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
@@ -519,7 +517,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
             <div key={gi}>
               {/* Date separator */}
               <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0 8px' }}>
-                <span style={{ background: 'rgba(0,0,0,0.08)', color: 'var(--muted)', fontSize: 11, fontWeight: 600, padding: '3px 12px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
+                <span className="chat-date-sep" style={{ background: 'rgba(0,0,0,0.08)', color: 'var(--muted)', fontSize: 11, fontWeight: 600, padding: '3px 12px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
                   {group.date === dateKey(new Date().toISOString()) ? 'Today' : group.date}
                 </span>
               </div>
@@ -548,7 +546,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                     >
                       {/* Reply quote */}
                       {m.replyTo && (
-                        <div style={{
+                        <div className={isMe ? '' : 'chat-reply-quote'} style={{
                           background: isMe ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)',
                           borderLeft: '3px solid var(--blue)',
                           borderRadius: '8px 8px 0 0',
@@ -578,7 +576,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                           <span style={{ fontSize: 32 }}>{activity.emoji}</span>
                           <div>
                             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: isMe ? 'rgba(255,255,255,0.7)' : 'var(--blue)' }}>Activity</div>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: isMe ? 'white' : 'var(--text)' }}>{activity.label}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: isMe ? 'white' : 'var(--black)' }}>{activity.label}</div>
                           </div>
                           <span style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : 'var(--muted)', marginLeft: 'auto' }}>{timeLabel(m.createdAt)}</span>
                         </div>
@@ -586,7 +584,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         /* Regular message bubble — WhatsApp style with tail */
                         <div style={{
                           background: isMe ? 'var(--blue)' : 'var(--white)',
-                          color: isMe ? 'white' : 'var(--text)',
+                          color: isMe ? 'white' : 'var(--black)',
                           borderRadius: isMe
                             ? `16px ${isLastInGroup ? '4px' : '16px'} 16px ${isFirstInGroup ? '4px' : '16px'}`
                             : `${isFirstInGroup ? '4px' : '16px'} 16px ${isLastInGroup ? '4px' : '16px'} 16px`,
@@ -746,7 +744,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
               onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'scale(1)'; }}
             >
               <span style={{ fontSize: 28 }}>{a.emoji}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', textAlign: 'center' }}>{a.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--black)', whiteSpace: 'nowrap', textAlign: 'center' }}>{a.label}</span>
             </button>
           ))}
         </div>
@@ -768,9 +766,9 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
         ) : isRecording ? (
           /* Recording UI */
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0' }}>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', borderRadius: 22, padding: '8px 16px' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#EF4444', animation: 'pulse 1s infinite' }} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#DC2626' }}>Recording... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', borderRadius: 22, padding: '8px 16px' }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--red)', animation: 'pulse 1s infinite' }} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--red)' }}>Recording... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
             </div>
             <button onClick={() => stopRecording(true)} title="Cancel" style={{ width: 36, height: 36, borderRadius: '50%', border: 0, cursor: 'pointer', background: 'var(--muted)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18 }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -935,24 +933,22 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       )}
 
       {/* Call modal (1-on-1 from members list) */}
-      {activeCall && (
+      {activeCall && activeCallCtx && !activeCallCtx.isGroupCall && (
         <CallModal
           callType={activeCall.type}
           peerName={activeCall.peerName}
           peerAvatarUrl={activeCall.peerAvatar}
-          connect={connectCall}
-          onClose={() => setActiveCall(null)}
+          onClose={() => { setActiveCall(null); endCallCtx(); }}
         />
       )}
 
-      {/* Group call modal */}
-      {groupCall && (
+      {/* Group call modal — uses CallProvider's room */}
+      {activeCallCtx && activeCallCtx.isGroupCall && (
         <CallModal
-          callType={groupCall.type}
-          peerName={groupName}
-          peerAvatarUrl={null}
-          connect={async () => ({ url: groupCall.url, token: groupCall.token })}
-          onClose={() => setGroupCall(null)}
+          callType={activeCallCtx.callType}
+          peerName={activeCallCtx.peerName}
+          peerAvatarUrl={activeCallCtx.peerAvatarUrl}
+          onClose={() => endCallCtx()}
           isGroupCall
         />
       )}

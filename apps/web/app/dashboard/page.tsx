@@ -129,7 +129,7 @@ export default function DashboardHome() {
 
   const upcoming = events.filter(e => new Date(e.startsAt) > new Date()).slice(0, 3);
   const firstName = user?.profile?.fullName?.split(' ')[0] || 'Alumnus';
-  const totalRaised = projects.reduce((sum, p) => sum + Number(p.raisedAmount), 0);
+  const totalRaised = projects.reduce((sum, p) => sum + (Number(p.raisedAmount) || 0), 0);
   const activeProjects = projects.filter(p => p.status === 'ACTIVE').length;
   const myYearGroups = yearGroups;
 
@@ -460,8 +460,8 @@ export default function DashboardHome() {
           ) : projects.length > 0 ? (
             <div className="card fade-in-up" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
               {projects.slice(0, 3).map((p, i) => {
-                const target = Number(p.targetAmount);
-                const raised = Number(p.raisedAmount);
+                const target = Number(p.targetAmount) || 0;
+                const raised = Number(p.raisedAmount) || 0;
                 const pct = target > 0 ? Math.min(100, (raised / target) * 100) : 0;
                 const isFunded = pct >= 100;
                 return (

@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import { playSchoolBell, playBuzzSound } from '../../../../lib/sound';
 import CallModal from '../../../../components/CallModal';
+import { useCall } from '../../../../components/CallProvider';
 import Avatar from '../../../../components/Avatar';
 import EmojiPicker from '../../../../components/EmojiPicker';
 
@@ -237,25 +238,31 @@ export default function DirectChatPage() {
     setRecording(false);
   };
 
+  const { startCall: startCallCtx, endCall: endCallCtx, activeCall: activeCallCtx } = useCall();
+
   const startCall = async (type: 'audio' | 'video') => {
+    if (!peer) return;
     setCallError('');
-    setActiveCall({ type, mode: 'start' });
+    try {
+      const data = await apiPost<{ url: string; token: string }>(`/dm/${peerId}/call`, { type });
+      load();
+      setActiveCall({ type, mode: 'start' });
+      startCallCtx({ callType: type, peerName: displayName, peerAvatarUrl: peer.profile?.avatarUrl || null, isGroupCall: false, url: data.url, token: data.token, roomId: peerId });
+    } catch (err: any) {
+      setCallError(err.message || 'Failed to start call');
+    }
   };
 
   const joinCall = async (type: 'audio' | 'video') => {
+    if (!peer) return;
     setCallError('');
-    setActiveCall({ type, mode: 'join' });
-  };
-
-  const connectCall = async () => {
-    if (!activeCall) throw new Error('No active call');
-    if (activeCall.mode === 'start') {
-      const data = await apiPost<{ url: string; token: string }>(`/dm/${peerId}/call`, { type: activeCall.type });
-      load();
-      return data;
+    try {
+      const data = await apiPost<{ url: string; token: string }>(`/dm/${peerId}/call/join`);
+      setActiveCall({ type, mode: 'join' });
+      startCallCtx({ callType: type, peerName: displayName, peerAvatarUrl: peer.profile?.avatarUrl || null, isGroupCall: false, url: data.url, token: data.token, roomId: peerId });
+    } catch (err: any) {
+      setCallError(err.message || 'Failed to join call');
     }
-    const data = await apiPost<{ url: string; token: string }>(`/dm/${peerId}/call/join`);
-    return data;
   };
 
   if (loading) {
@@ -501,13 +508,12 @@ export default function DirectChatPage() {
         )}
       </div>
 
-      {activeCall && (
+      {activeCall && activeCallCtx && !activeCallCtx.isGroupCall && (
         <CallModal
           callType={activeCall.type}
           peerName={displayName}
           peerAvatarUrl={peer.profile?.avatarUrl}
-          connect={connectCall}
-          onClose={() => setActiveCall(null)}
+          onClose={() => { setActiveCall(null); endCallCtx(); }}
         />
       )}
 

@@ -1,146 +1,26 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant, LocalParticipant, VideoPresets, ConnectionQuality } from 'livekit-client';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useCall } from './CallProvider';
+import { ConnectionQuality } from 'livekit-client';
 
 interface CallModalProps {
   callType: 'audio' | 'video';
   peerName: string;
   peerAvatarUrl?: string | null;
-  connect: () => Promise<{ url: string; token: string }>;
   onClose: () => void;
   isGroupCall?: boolean;
 }
 
-interface RemoteParticipantInfo {
-  identity: string;
-  name: string;
-  hasVideo: boolean;
-  hasAudio: boolean;
-  quality: ConnectionQuality;
-}
+export default function CallModal({ callType, peerName, peerAvatarUrl, onClose, isGroupCall }: CallModalProps) {
+  const {
+    isMinimized, minimize, endCall, status, error, duration, micOn, camOn,
+    participantCount, remoteParticipants, activeSpeakerId, localQuality, camFacing,
+    toggleMic, toggleCam, flipCamera, localVideoRef, remoteVideoRefs,
+  } = useCall();
 
-export default function CallModal({ callType, peerName, peerAvatarUrl, connect, onClose, isGroupCall }: CallModalProps) {
-  const { isMinimized, minimize, endCall } = useCall();
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'error'>('connecting');
-  const [error, setError] = useState('');
-  const [micOn, setMicOn] = useState(true);
-  const [camOn, setCamOn] = useState(callType === 'video');
-  const [duration, setDuration] = useState(0);
-  const [participantCount, setParticipantCount] = useState(1);
-  const [remoteParticipants, setRemoteParticipants] = useState<Map<string, RemoteParticipantInfo>>(new Map());
-  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
-  const [camFacing, setCamFacing] = useState<'front' | 'back'>('front');
-  const [localQuality, setLocalQuality] = useState<ConnectionQuality>(ConnectionQuality.Excellent);
   const [showControls, setShowControls] = useState(true);
-
-  const roomRef = useRef<Room | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const updateRemoteParticipant = useCallback((p: RemoteParticipant) => {
-    setRemoteParticipants(prev => {
-      const next = new Map(prev);
-      const videoPub = p.getTrackPublication(Track.Source.Camera);
-      const audioPub = p.getTrackPublication(Track.Source.Microphone);
-      next.set(p.identity, {
-        identity: p.identity,
-        name: p.name || p.identity,
-        hasVideo: !!videoPub?.track && videoPub.isSubscribed,
-        hasAudio: !!audioPub?.track && audioPub.isSubscribed,
-        quality: p.connectionQuality,
-      });
-      return next;
-    });
-  }, []);
-
-  const removeRemoteParticipant = useCallback((identity: string) => {
-    setRemoteParticipants(prev => {
-      const next = new Map(prev);
-      next.delete(identity);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    const room = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-      videoCaptureDefaults: { resolution: { width: 640, height: 360 }, facingMode: 'user' },
-      publishDefaults: { videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360] },
-    });
-    roomRef.current = room;
-
-    room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
-      if (track.kind === Track.Kind.Audio) {
-        const el = remoteAudioRefs.current.get(participant.identity);
-        if (el) track.attach(el);
-      } else if (track.kind === Track.Kind.Video) {
-        const el = remoteVideoRefs.current.get(participant.identity);
-        if (el) track.attach(el);
-      }
-      updateRemoteParticipant(participant);
-    });
-    room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
-      track.detach();
-      updateRemoteParticipant(participant as RemoteParticipant);
-    });
-    room.on(RoomEvent.ParticipantConnected, (p) => updateRemoteParticipant(p));
-    room.on(RoomEvent.ParticipantDisconnected, (p) => removeRemoteParticipant(p.identity));
-    room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-      setActiveSpeakerId(speakers.length > 0 ? speakers[0].identity : null);
-    });
-    room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
-      if (participant instanceof LocalParticipant === false && (participant as any).identity) {
-        updateRemoteParticipant(participant as RemoteParticipant);
-      } else {
-        setLocalQuality(quality as ConnectionQuality);
-      }
-    });
-    room.on(RoomEvent.Reconnecting, () => { if (mounted) setStatus('reconnecting'); });
-    room.on(RoomEvent.Reconnected, () => { if (mounted) setStatus('connected'); });
-    room.on(RoomEvent.Disconnected, () => { if (mounted) onClose(); });
-
-    (async () => {
-      try {
-        const { url, token } = await connect();
-        if (!mounted) return;
-        await room.connect(url, token);
-        await room.localParticipant.setMicrophoneEnabled(true);
-        if (callType === 'video') {
-          await room.localParticipant.setCameraEnabled(true);
-          const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-          if (camPub?.track && localVideoRef.current) camPub.track.attach(localVideoRef.current);
-        }
-        if (!mounted) return;
-        setStatus('connected');
-        setParticipantCount(room.remoteParticipants.size + 1);
-        timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
-        room.remoteParticipants.forEach(p => updateRemoteParticipant(p));
-      } catch (err: any) {
-        if (!mounted) return;
-        setError(err.message || 'Failed to connect to call');
-        setStatus('error');
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
-      room.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    setParticipantCount(remoteParticipants.size + 1);
-  }, [remoteParticipants]);
 
   const resetControlsTimer = useCallback(() => {
     setShowControls(true);
@@ -153,40 +33,7 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
     return () => { if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current); };
   }, [status, callType, resetControlsTimer]);
 
-  const toggleMic = async () => {
-    const room = roomRef.current; if (!room) return;
-    const next = !micOn;
-    await room.localParticipant.setMicrophoneEnabled(next);
-    setMicOn(next);
-  };
-
-  const toggleCam = async () => {
-    const room = roomRef.current; if (!room) return;
-    const next = !camOn;
-    await room.localParticipant.setCameraEnabled(next);
-    if (next) {
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-      if (camPub?.track && localVideoRef.current) camPub.track.attach(localVideoRef.current);
-    }
-    setCamOn(next);
-  };
-
-  const flipCamera = async () => {
-    const room = roomRef.current; if (!room) return;
-    const next = camFacing === 'front' ? 'back' : 'front';
-    try {
-      await room.localParticipant.setCameraEnabled(false);
-      await room.switchActiveDevice('videoinput', next === 'back' ? 'environment' : 'user');
-      await room.localParticipant.setCameraEnabled(true);
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-      if (camPub?.track && localVideoRef.current) camPub.track.attach(localVideoRef.current);
-      setCamFacing(next);
-    } catch {
-      await room.localParticipant.setCameraEnabled(true);
-    }
-  };
-
-  const hangUp = () => { roomRef.current?.disconnect(); onClose(); };
+  const hangUp = () => { endCall(); onClose(); };
 
   const fmtDuration = (s: number) => {
     const h = Math.floor(s / 3600);
@@ -213,7 +60,6 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
             <span style={{ color: qualityColor(localQuality), fontSize: 10, fontWeight: 700 }}>{qualityIcon(localQuality)}</span>
             <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{status === 'connecting' ? 'Connecting…' : status === 'reconnecting' ? 'Reconnecting…' : status === 'error' ? 'Error' : fmtDuration(duration)}</span>
           </div>
-          {/* Minimize button */}
           <button onClick={minimize} style={{ background: 'rgba(255,255,255,0.15)', border: 0, borderRadius: 999, padding: '6px 14px', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Minimize</button>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
@@ -241,7 +87,7 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
             </>
           )}
         </div>
-        {remoteList.map(p => <audio key={p.identity} ref={el => { if (el) remoteAudioRefs.current.set(p.identity, el); }} autoPlay />)}
+        {/* Remote audio is rendered persistently by CallProvider so it keeps playing when minimized */}
         <div style={{ padding: '24px 20px', paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, opacity: showControls ? 1 : 0, transition: 'opacity 0.3s' }}>
           <button onClick={toggleMic} style={controlBtnStyle(micOn)} title={micOn ? 'Mute' : 'Unmute'}>
             {micOn ? <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 28, height: 28 }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" /></svg> : <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 28, height: 28 }}><path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.25l13.5 13.5M15 10.5V4.5a3 3 0 00-5.94-.6M12 18.75a6 6 0 006-6v-1.5m-9 4.243A5.978 5.978 0 016 12.75v-1.5m6 7.5v3.75m-3.75 0h7.5" /></svg>}
@@ -264,7 +110,6 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
             {remoteList.map(p => (
               <div key={p.identity} style={{ position: 'relative', background: '#1a1a2e', borderRadius: 4, overflow: 'hidden', border: activeSpeakerId === p.identity ? '2px solid #22C55E' : '2px solid transparent' }}>
                 {p.hasVideo ? <video ref={el => { if (el) remoteVideoRefs.current.set(p.identity, el); }} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}><div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #0051FF 0%, #0B2D6B 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: 'white' }}>{p.name.charAt(0).toUpperCase()}</div></div>}
-                <audio ref={el => { if (el) remoteAudioRefs.current.set(p.identity, el); }} autoPlay />
                 <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, maxWidth: 'calc(100% - 8px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                 {!p.hasAudio && <div style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(239,68,68,0.9)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 12, height: 12 }}><path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.25l13.5 13.5M15 10.5V4.5a3 3 0 00-5.94-.6" /></svg></div>}
               </div>
@@ -273,7 +118,6 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
         ) : !isGroupCall && remoteList.length > 0 && remoteList[0].hasVideo ? (
           <>
             <video ref={el => { if (el) remoteVideoRefs.current.set(remoteList[0].identity, el); }} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <audio ref={el => { if (el) remoteAudioRefs.current.set(remoteList[0].identity, el); }} autoPlay />
           </>
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
@@ -297,7 +141,6 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, connect, 
             <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: camFacing === 'front' ? 'scaleX(-1)' : 'none' }} />
           </div>
         )}
-        {/* Top info bar with minimize button */}
         <div style={{ position: 'absolute', top: 'calc(12px + env(safe-area-inset-top, 0px))', left: 12, display: 'flex', alignItems: 'center', gap: 8, opacity: showControls ? 1 : 0, transition: 'opacity 0.3s', zIndex: 5 }}>
           <div style={{ background: 'rgba(0,0,0,0.5)', color: 'white', padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, WebkitBackdropFilter: 'blur(8px)' }}>
             <span>{isGroupCall ? `${peerName} · ${participantCount}` : peerName}</span>

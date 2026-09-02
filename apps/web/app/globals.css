@@ -24,7 +24,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; overflow-x: hidden; }
 
 body {
   margin: 0;
@@ -33,6 +33,7 @@ body {
   background: var(--bg);
   line-height: 1.4;
   overscroll-behavior-y: none;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-user-select: none;

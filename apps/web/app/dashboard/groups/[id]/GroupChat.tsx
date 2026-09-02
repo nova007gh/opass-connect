@@ -7,6 +7,7 @@ import { useAuth } from '../../../../lib/auth';
 import Avatar from '../../../../components/Avatar';
 import EmojiPicker from '../../../../components/EmojiPicker';
 import CallModal from '../../../../components/CallModal';
+import { useCall } from '../../../../components/CallProvider';
 import { playSchoolBell, playPop, playGunshot, playWhistle, playDrumRoll, playTada, playShush, primeAudio } from '../../../../lib/sound';
 
 interface ChatMessage {
@@ -374,12 +375,14 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   };
 
   // ===== Group call =====
+  const { startCall: startCallCtx } = useCall();
   const startGroupCall = async (type: 'audio' | 'video') => {
     if (!room) return;
     try {
       const res = await apiPost<{ url: string; token: string; roomKey: string; type: string }>(`/chat/rooms/${room.id}/call`, { type });
       setGroupCall({ url: res.url, token: res.token, type });
       setActiveGroupCall({ type });
+      startCallCtx({ callType: type, peerName: groupName, peerAvatarUrl: null, isGroupCall: true, url: res.url, token: res.token, roomId: room.id });
     } catch (err: any) {
       setError(err.message || 'Failed to start call');
     }
@@ -390,6 +393,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     try {
       const res = await apiPost<{ url: string; token: string; roomKey: string }>(`/chat/rooms/${room.id}/call/join`, {});
       setGroupCall({ url: res.url, token: res.token, type: activeGroupCall?.type || 'audio' });
+      startCallCtx({ callType: activeGroupCall?.type || 'audio', peerName: groupName, peerAvatarUrl: null, isGroupCall: true, url: res.url, token: res.token, roomId: room.id });
     } catch (err: any) {
       setError(err.message || 'Failed to join call');
     }

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useCall } from './CallProvider';
-import { ConnectionQuality } from 'livekit-client';
+import { ConnectionQuality, Track } from 'livekit-client';
 
 interface CallModalProps {
   callType: 'audio' | 'video';
@@ -16,8 +16,26 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, onClose, 
   const {
     isMinimized, minimize, endCall, status, error, duration, micOn, camOn,
     participantCount, remoteParticipants, activeSpeakerId, localQuality, camFacing,
-    toggleMic, toggleCam, flipCamera, localVideoRef, remoteVideoRefs,
+    toggleMic, toggleCam, flipCamera, localVideoRef, remoteVideoRefs, room,
   } = useCall();
+
+  // Attach the current camera track to a freshly-mounted local video element
+  // (needed because this element remounts every time the modal is
+  // maximized after being minimized).
+  const attachLocalVideo = useCallback((el: HTMLVideoElement | null) => {
+    (localVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+    if (!el || !room) return;
+    const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+    if (camPub?.track) camPub.track.attach(el);
+  }, [room, localVideoRef]);
+
+  // Attach a remote participant's current video track to a freshly-mounted element.
+  const attachRemoteVideo = useCallback((identity: string, el: HTMLVideoElement | null) => {
+    if (!el) return;
+    remoteVideoRefs.current.set(identity, el);
+    const pub = room?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.Camera);
+    if (pub?.track) pub.track.attach(el);
+  }, [room, remoteVideoRefs]);
 
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,7 +127,7 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, onClose, 
           <div style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: remoteList.length <= 1 ? '1fr' : remoteList.length <= 4 ? '1fr 1fr' : '1fr 1fr 1fr', gridTemplateRows: remoteList.length <= 2 ? '1fr' : '1fr 1fr', gap: 2, padding: 2 }}>
             {remoteList.map(p => (
               <div key={p.identity} style={{ position: 'relative', background: '#1a1a2e', borderRadius: 4, overflow: 'hidden', border: activeSpeakerId === p.identity ? '2px solid #22C55E' : '2px solid transparent' }}>
-                {p.hasVideo ? <video ref={el => { if (el) remoteVideoRefs.current.set(p.identity, el); }} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}><div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #0051FF 0%, #0B2D6B 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: 'white' }}>{p.name.charAt(0).toUpperCase()}</div></div>}
+                {p.hasVideo ? <video ref={el => attachRemoteVideo(p.identity, el)} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}><div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #0051FF 0%, #0B2D6B 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: 'white' }}>{p.name.charAt(0).toUpperCase()}</div></div>}
                 <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, maxWidth: 'calc(100% - 8px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                 {!p.hasAudio && <div style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(239,68,68,0.9)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 12, height: 12 }}><path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.25l13.5 13.5M15 10.5V4.5a3 3 0 00-5.94-.6" /></svg></div>}
               </div>
@@ -117,7 +135,7 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, onClose, 
           </div>
         ) : !isGroupCall && remoteList.length > 0 && remoteList[0].hasVideo ? (
           <>
-            <video ref={el => { if (el) remoteVideoRefs.current.set(remoteList[0].identity, el); }} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <video ref={el => attachRemoteVideo(remoteList[0].identity, el)} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </>
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
@@ -138,7 +156,7 @@ export default function CallModal({ callType, peerName, peerAvatarUrl, onClose, 
         )}
         {camOn && (
           <div style={{ position: 'absolute', top: 'calc(12px + env(safe-area-inset-top, 0px))', right: 12, width: '28vw', maxWidth: 140, minWidth: 90, aspectRatio: '9 / 16', borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.25)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', background: '#000', zIndex: 10 }}>
-            <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: camFacing === 'front' ? 'scaleX(-1)' : 'none' }} />
+            <video ref={attachLocalVideo} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: camFacing === 'front' ? 'scaleX(-1)' : 'none' }} />
           </div>
         )}
         <div style={{ position: 'absolute', top: 'calc(12px + env(safe-area-inset-top, 0px))', left: 12, display: 'flex', alignItems: 'center', gap: 8, opacity: showControls ? 1 : 0, transition: 'opacity 0.3s', zIndex: 5 }}>

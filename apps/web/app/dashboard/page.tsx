@@ -213,16 +213,17 @@ export default function DashboardHome() {
 
           {/* Mamaa AI Welcome Message */}
           {mamaaWelcome && (
-            <div className="card fade-in-up" style={{ marginBottom: 16, padding: 16, background: 'linear-gradient(135deg, #F0F7FF 0%, #E0EDFF 100%)', border: '1px solid rgba(0,81,255,0.15)', borderRadius: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🎓</div>
+            <div className="fade-in-up" style={{ marginBottom: 16, padding: 16, background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)', borderRadius: 14, boxShadow: '0 4px 16px rgba(0,81,255,0.2)', color: 'white', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, position: 'relative' }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0, border: '2px solid rgba(255,255,255,0.2)' }}>🎓</div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--blue)' }}>Mamaa AI</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>Mr. Atsu Clements — your AI companion</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: 'white' }}>Mamaa AI</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Mr. Atsu Clements — your AI companion</div>
                 </div>
               </div>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--black)', whiteSpace: 'pre-wrap' }}>{mamaaWelcome}</p>
-              <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ display: 'inline-block', marginTop: 10, fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>Chat with Mamaa AI →</Link>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.95)', whiteSpace: 'pre-wrap', position: 'relative' }}>{mamaaWelcome}</p>
+              <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12, fontSize: 12, fontWeight: 700, color: 'white', background: 'rgba(255,255,255,0.15)', padding: '6px 14px', borderRadius: 20, textDecoration: 'none', position: 'relative' }}>Chat with Mamaa AI →</Link>
             </div>
           )}
 

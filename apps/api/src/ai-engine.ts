@@ -346,10 +346,21 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
       const hour = new Date().getHours();
       const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
       const unread = data.userNotifications.length;
-      let resp = `${timeGreeting}, ${title}! Akwaaba to OPASS CONNECT. I'm Mr. Atsu, your Mamaa AI assistant. `;
-      if (data.events.length > 0) resp += `I see ${data.events.length} upcoming event${data.events.length > 1 ? 's' : ''} you might be interested in. `;
-      if (unread > 0) resp += `You also have ${unread} unread notification${unread > 1 ? 's' : ''}. `;
-      resp += `How can I help you today? You can ask me about events, elections, projects, dues, year groups, or just chat about your OPASS memories!`;
+      const upcomingEvent = data.events[0];
+      const activeChats = data.chatRooms.filter(c => c.messageCount > 0).length;
+      let resp = `${timeGreeting}, ${title}! Akwaaba to OPASS CONNECT. 🎓\n\n`;
+      resp += `I'm Mr. Atsu, your Mamaa AI assistant. Here's what's happening on the platform:\n\n`;
+      if (upcomingEvent) {
+        resp += `📅 Next event: **${upcomingEvent.title}** on ${fmtDate(upcomingEvent.startsAt)}${upcomingEvent.venue ? ` at ${upcomingEvent.venue}` : ''}\n`;
+      }
+      if (data.events.length > 1) resp += `📅 Total upcoming events: ${data.events.length}\n`;
+      const activeProjects = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
+      if (activeProjects.length > 0) resp += `🏗️ Active projects: ${activeProjects.length} (${fmtMoney(activeProjects.reduce((s, p) => s + Number(p.raisedAmount), 0))} raised so far)\n`;
+      if (data.elections.filter(e => e.status === 'OPEN').length > 0) resp += `🗳️ Active elections: ${data.elections.filter(e => e.status === 'OPEN').length}\n`;
+      if (activeChats > 0) resp += `💬 Active chat rooms: ${activeChats}\n`;
+      if (data.recentPosts.length > 0) resp += `📝 Recent posts: ${data.recentPosts.length} new posts in year groups\n`;
+      if (unread > 0) resp += `🔔 Unread notifications: ${unread}\n`;
+      resp += `\nHow can I help you today? Ask me about events, elections, projects, dues, year groups, members, or just chat about your OPASS memories!`;
       return resp;
     }
 
@@ -448,7 +459,7 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
     }
 
     case 'help':
-      return `I'm here to help, ${title}! Here are some things I can assist you with:\n\n• **Events** — Ask about upcoming events\n• **Elections** — Check active elections and candidates\n• **Projects** — See fundraising progress\n• **Dues** — Learn how to pay or check your payment history\n• **Year Groups** — Find and join your class group\n• **Businesses** — Browse alumni businesses\n• **Your Profile** — Ask about your account info\n• **Platform Stats** — Get an overview of OPASS CONNECT\n• **Math** — I can solve math problems too! 📚\n• **Memories** — Chat about your OPASS school days\n\nWhat would you like to know?`;
+      return `I'm here to help, ${title}! 🎓 Here's everything I can do for you:\n\n📅 **Events** — "What events are coming up?"\n🗳️ **Elections** — "Who's winning the election?"\n🏗️ **Projects** — "How much has been raised?"\n💰 **Dues** — "How do I pay dues?" or "My dues"\n👥 **Year Groups** — "Which year groups exist?"\n🔍 **Find Members** — "Find Kwame" or "Who is Akosua?"\n💬 **Recent Chats** — "What are people talking about?"\n📊 **Platform Stats** — "Give me an overview"\n🏢 **Businesses** — "Show me alumni businesses"\n👤 **My Profile** — "Tell me about my profile"\n📈 **My Activity** — "What have I done?"\n🔔 **Notifications** — "What did I miss?"\n🧮 **Math** — "What is 25 × 4?"\n😄 **Jokes** — "Tell me a joke"\n🎓 **Memories** — "Tell me about OPASS school life"\n\nJust ask me naturally, ${title}! What would you like to know?`;
 
     case 'about_opass':
       return `Ofori Panin Senior High School (OPASS) is a prestigious secondary school in Ghana, known for its rich traditions, strong alumni network, and commitment to excellence. OPASS CONNECT is the official alumni platform that brings together old students to:\n\n• Stay connected with classmates through year groups\n• Pay dues and support alumni projects\n• Participate in elections and events\n• Discover alumni businesses\n• Share memories and keep the OPASS spirit alive\n\nThe school motto and traditions have shaped generations of leaders, and OPASS CONNECT keeps that bond strong. What year did you graduate, ${title}?`;
@@ -672,17 +683,40 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
       // Check conversation context for follow-up
       const lastAssistant = [...history].reverse().find(m => m.role === 'assistant');
       if (lastAssistant && /memor|school.*life|dorm|dining|what.*year|favorite/.test(lastAssistant.content)) {
-        // User is in a memories conversation
         return `That's wonderful, ${title}! Thank you for sharing that. OPASS memories are precious — they connect us across generations. Is there anything else you'd like to know about OPASS CONNECT? I can tell you about upcoming events, active projects, or help you navigate the platform.`;
       }
 
-      // Try to find relevant data based on keywords
       const m = userMsg.toLowerCase();
-      if (m.includes('thank')) return `You're very welcome, ${title}! I'm always here to help. Is there anything else you'd like to know about OPASS CONNECT?`;
+      if (m.includes('thank')) return `You're very welcome, ${title}! I'm always here to help. Is there anything else you'd like to know? 🎓`;
       if (m.includes('bye') || m.includes('goodbye')) return `Goodbye for now, ${title}! Remember, OPASS CONNECT is your home away from home. Akwaaba back anytime! 👋`;
       if (m.includes('how are you')) return `I'm doing wonderfully, ${title}! Always happy to help a fellow OPASS alumni. How can I assist you today?`;
 
-      return `That's an interesting question, ${title}! I may not have a specific answer for that, but I can help you with:\n\n• Events, elections, and projects on the platform\n• Paying dues and joining year groups\n• Your profile and activity stats\n• Math problems and OPASS memories\n• Platform statistics${isAdmin ? '\n• Admin tools — user lists, revenue, tickets' : ''}\n\nTry asking me about any of these, or say "help" for more options!`;
+      // Try to match member names in the message
+      const words = m.split(/\s+/).filter(w => w.length > 2);
+      for (const word of words) {
+        const memberMatch = data.allMembers.find(mem =>
+          mem.fullName?.toLowerCase().includes(word) || mem.nickname?.toLowerCase().includes(word)
+        );
+        if (memberMatch) {
+          let resp = `I found **${memberMatch.fullName}** in our alumni directory, ${title}!\n\n`;
+          resp += `• Class of ${memberMatch.graduationYear || 'Unknown'}\n`;
+          if (memberMatch.house) resp += `• House: ${memberMatch.house}\n`;
+          if (memberMatch.profession) resp += `• Profession: ${memberMatch.profession}\n`;
+          if (memberMatch.city || memberMatch.country) resp += `• Location: ${[memberMatch.city, memberMatch.country].filter(Boolean).join(', ')}\n`;
+          resp += `\nYou can find them in the Alumni Directory. Is there anything else you'd like to know?`;
+          return resp;
+        }
+      }
+
+      // Try to match chat topics
+      if (m.includes('who') || m.includes('what') || m.includes('tell me')) {
+        if (data.recentChatMessages.length > 0) {
+          const latest = data.recentChatMessages[0];
+          return `The latest message on the platform was from ${latest.userFullName || 'a member'} in ${latest.roomName}: "${latest.body?.slice(0, 60) || '(media)'}" (${timeAgo(latest.createdAt)}). Would you like to know more about recent activity, ${title}?`;
+        }
+      }
+
+      return `I'm not sure I caught that, ${title}, but I'm here to help! 🎓\n\nHere's what I can do for you:\n\n📅 **Events** — What's coming up\n🗳️ **Elections** — Active votes and candidates\n🏗️ **Projects** — Fundraising progress\n💰 **Dues** — How to pay and your history\n👥 **Year Groups** — Find and join your class\n🔍 **Find Members** — Search by name\n💬 **Recent Chats** — What people are talking about\n📊 **Platform Stats** — Full overview\n🧮 **Math** — I can solve calculations\n😄 **Jokes** — OPASS-themed humor\n🎓 **Memories** — Chat about school days\n\nJust ask me anything, ${title}!`;
     }
   }
 }

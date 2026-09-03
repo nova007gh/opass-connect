@@ -3,8 +3,27 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 
 export async function runSeedIfNeeded() {
+  // Always ensure the Mamaa AI bot user exists
+  const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
+  const existingBot = await prisma.user.findUnique({ where: { id: MAMAAA_BOT_ID } }).catch(() => null);
+  if (!existingBot) {
+    try {
+      await prisma.user.create({
+        data: {
+          id: MAMAAA_BOT_ID,
+          email: 'mamaaa@opassconnect.edu',
+          passwordHash: 'bot-no-login',
+          role: UserRole.MEMBER,
+          verification: VerificationStatus.VERIFIED,
+          profile: { create: { fullName: 'Mamaa AI', nickname: 'Mamaa AI', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat! I can see all activities, members, and conversations.' } },
+        },
+      });
+      console.log('[seed] Mamaa AI bot user created');
+    } catch { /* already exists */ }
+  }
+
   const userCount = await prisma.user.count();
-  if (userCount > 0) return;
+  if (userCount > 1) return;
 
   console.log('[seed] No users found — running initial seed...');
   const passwordHash = await bcrypt.hash('opassadmin2026', 12);

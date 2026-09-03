@@ -1002,6 +1002,12 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
 
       {/* Input bar — WhatsApp/Telegram style */}
       <div style={{ padding: '8px 10px', borderRadius: '0 0 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--white)', position: 'relative' }}>
+        {/* Mamaa AI hint */}
+        {!isRestricted && (
+          <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: '2px 0 4px' }}>
+            💡 Type <strong style={{ color: 'var(--blue)' }}>@mamaa</strong> to ask Mamaa AI anything in this chat
+          </div>
+        )}
         {/* Attach menu popup */}
         {showAttachMenu && !isRestricted && !isRecording && !uploadingMedia && (
           <div style={{

@@ -80,7 +80,7 @@ export function registerAiRoutes(app: FastifyInstance){
   app.get('/ai/welcome', { preHandler: [app.authenticate] }, async (req:any, reply) => {
     const aiRole: 'admin' | 'member' = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role) ? 'admin' : 'member';
     const { generateAiResponse } = await import('./ai-engine.js');
-    const welcome = await generateAiResponse(req.user.sub, 'greeting', [], aiRole);
+    const welcome = await generateAiResponse(req.user.sub, 'akwaaba', [], aiRole);
     return { message: welcome };
   });
 

@@ -263,6 +263,10 @@ model Message {
   audioUrl String?
   imageUrl String?
   videoUrl String?
+  fileUrl String?
+  fileName String?
+  locationLat Float?
+  locationLng Float?
   replyToId String?
   reactions Json?
   editedAt DateTime?

@@ -627,8 +627,8 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.get('/chat/rooms',{preHandler:[app.authenticate]},async()=>prisma.chatRoom.findMany({orderBy:{createdAt:'asc'},include:{_count:{select:{messages:true}},yearGroup:{select:{year:true,name:true}}}}));
   app.post('/chat/rooms',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({name:z.string().min(2).max(100),yearGroupId:z.string().optional(),isAssemblyHall:z.boolean().default(false),imageUrl:z.string().optional()}).parse(req.body);if(b.isAssemblyHall&&!['ADMIN','SUPER_ADMIN'].includes(req.user.role))return{error:'Only admins can create assembly halls'}as any;return prisma.chatRoom.create({data:{...b,isAssemblyHall:b.isAssemblyHall&&['ADMIN','SUPER_ADMIN'].includes(req.user.role)?true:false}})});
   app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
-  app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,audioUrl:true,imageUrl:true,videoUrl:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
-  app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().max(4000),replyToId:z.string().optional(),audioUrl:z.string().optional(),imageUrl:z.string().optional(),videoUrl:z.string().optional()}).parse(req.body);const hasMedia=b.audioUrl||b.imageUrl||b.videoUrl;if(!b.body.trim()&&!hasMedia)return{error:'Message cannot be empty'}as any;const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body||'',...(b.replyToId?{replyToId:b.replyToId}:{}),...(b.audioUrl?{audioUrl:b.audioUrl}:{}),...(b.imageUrl?{imageUrl:b.imageUrl}:{}),...(b.videoUrl?{videoUrl:b.videoUrl}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;const preview=b.audioUrl?'🎤 Voice note':b.imageUrl?'📷 Photo':b.videoUrl?'🎥 Video':b.body.slice(0,100);if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}else{notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}}return msg;});
+  app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,audioUrl:true,imageUrl:true,videoUrl:true,fileUrl:true,fileName:true,locationLat:true,locationLng:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
+  app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().max(4000),replyToId:z.string().optional(),audioUrl:z.string().optional(),imageUrl:z.string().optional(),videoUrl:z.string().optional(),fileUrl:z.string().optional(),fileName:z.string().optional(),locationLat:z.number().optional(),locationLng:z.number().optional()}).parse(req.body);const hasMedia=b.audioUrl||b.imageUrl||b.videoUrl||b.fileUrl||(b.locationLat!==undefined&&b.locationLng!==undefined);if(!b.body.trim()&&!hasMedia)return{error:'Message cannot be empty'}as any;const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body||'',...(b.replyToId?{replyToId:b.replyToId}:{}),...(b.audioUrl?{audioUrl:b.audioUrl}:{}),...(b.imageUrl?{imageUrl:b.imageUrl}:{}),...(b.videoUrl?{videoUrl:b.videoUrl}:{}),...(b.fileUrl?{fileUrl:b.fileUrl}:{}),...(b.fileName?{fileName:b.fileName}:{}),...(b.locationLat!==undefined?{locationLat:b.locationLat}:{}),...(b.locationLng!==undefined?{locationLng:b.locationLng}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;const preview=b.audioUrl?'🎤 Voice note':b.imageUrl?'📷 Photo':b.videoUrl?'🎥 Video':b.fileUrl?`📎 ${b.fileName||'File'}`:(b.locationLat!==undefined?'📍 Location':b.body.slice(0,100));if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}else{notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}}return msg;});
   // Edit a chat message (within 10 minutes of sending)
   app.patch('/chat/rooms/:id/messages/:msgId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     const msg=await prisma.message.findUnique({where:{id:req.params.msgId}});
@@ -656,6 +656,44 @@ export function registerCoreRoutes(app:FastifyInstance){
       if(CLOUDINARY_CONFIGURED){try{const cloudinary=await import('cloudinary');const cloud=cloudinary.v2;cloud.config({cloud_name:process.env.CLOUDINARY_CLOUD_NAME,api_key:process.env.CLOUDINARY_API_KEY,api_secret:process.env.CLOUDINARY_API_SECRET});const publicId=`chat-video-${req.params.id}-${randomUUID()}`;const videoUrl=await new Promise((resolve,reject)=>{const stream=cloud.uploader.upload_stream({public_id:publicId,folder:'opass-chat-videos',resource_type:'video'},(err,result)=>{if(err)reject(err);else resolve(result!.secure_url);});stream.end(buffer);});return{videoUrl};}catch{}}
       return reply.code(400).send({error:'Video upload requires Cloudinary configuration'});
     }catch(err:any){return reply.code(400).send({error:err.message});}
+  });
+  // Upload file/document for group chat
+  app.post('/chat/rooms/:id/upload-file',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    try{
+      const file=await req.file();if(!file)throw new Error('No file uploaded');
+      const ALLOWED_MIME=new Set(['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/plain','text/csv','application/zip','application/x-zip-compressed','application/x-rar-compressed','image/jpeg','image/png','image/webp','image/gif']);
+      const ALLOWED_EXT=new Set(['.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.csv','.zip','.rar','.jpg','.jpeg','.png','.webp','.gif']);
+      const ext='.'+(file.filename||'').split('.').pop()?.toLowerCase();
+      if(!ALLOWED_MIME.has(file.mimetype)&&!ALLOWED_EXT.has(ext))throw new Error('Unsupported file type. Allowed: PDF, Word, Excel, PowerPoint, TXT, CSV, ZIP, images.');
+      const chunks:Buffer[]=[];for await(const chunk of file.file){chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));}
+      const buffer=Buffer.concat(chunks);if(buffer.length>25_000_000)throw new Error('File must be under 25MB');
+      const fileName=file.filename||`file-${Date.now()}`;
+      if(CLOUDINARY_CONFIGURED){
+        try{
+          const cloudinary=await import('cloudinary');const cloud=cloudinary.v2;
+          cloud.config({cloud_name:process.env.CLOUDINARY_CLOUD_NAME,api_key:process.env.CLOUDINARY_API_KEY,api_secret:process.env.CLOUDINARY_API_SECRET});
+          const publicId=`chat-file-${req.params.id}-${randomUUID()}`;
+          const isImage=file.mimetype.startsWith('image/');
+          const resourceType=isImage?'image':'raw';
+          const fileUrl=await new Promise((resolve,reject)=>{
+            const stream=cloud.uploader.upload_stream({public_id:publicId,folder:'opass-chat-files',resource_type:resourceType as any},(err,result)=>{if(err)reject(err);else resolve(result!.secure_url);});
+            stream.end(buffer);
+          });
+          return{fileUrl:fileUrl as string,fileName};
+        }catch(err:any){return reply.code(400).send({error:'File upload failed: '+err.message});}
+      }
+      return reply.code(400).send({error:'File upload requires Cloudinary configuration'});
+    }catch(err:any){return reply.code(400).send({error:err.message});}
+  });
+  // Get live members for a chat room (returns members with avatars for the header display)
+  app.get('/chat/rooms/:id/live-members',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});
+    if(!room)return reply.code(404).send({error:'Room not found'});
+    if(room.yearGroupId){
+      const members=await prisma.yearGroupMembership.findMany({where:{yearGroupId:room.yearGroupId,banned:false},take:50,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}}}});
+      return{members:members.map(m=>({userId:m.user.id,fullName:m.user.profile?.fullName||'Member',avatarUrl:m.user.profile?.avatarUrl||null})),total:await prisma.yearGroupMembership.count({where:{yearGroupId:room.yearGroupId,banned:false}})};
+    }
+    return{members:[],total:0};
   });
   // Typing indicator — in-memory map (room → userId → timestamp)
   const typingMap=new Map<string,Map<string,number>>();

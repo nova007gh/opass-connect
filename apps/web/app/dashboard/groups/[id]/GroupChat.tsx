@@ -18,11 +18,15 @@ interface ChatMessage {
   audioUrl?: string | null;
   imageUrl?: string | null;
   videoUrl?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
   reactions?: Record<string, string[]> | null;
   replyToId?: string | null;
   editedAt?: string | null;
   createdAt: string;
-  replyTo?: { id: string; body: string; userId: string; audioUrl?: string | null; imageUrl?: string | null; videoUrl?: string | null; user: { profile?: { fullName?: string | null } | null } } | null;
+  replyTo?: { id: string; body: string; userId: string; audioUrl?: string | null; imageUrl?: string | null; videoUrl?: string | null; fileUrl?: string | null; fileName?: string | null; locationLat?: number | null; locationLng?: number | null; user: { profile?: { fullName?: string | null } | null } } | null;
   user: { id: string; profile?: { fullName?: string | null; avatarUrl?: string | null } | null };
 }
 
@@ -31,6 +35,12 @@ interface ChatRoom { id: string; name: string; yearGroupId?: string | null; }
 interface Member {
   id: string; userId: string; banned: boolean; restricted: boolean; isLeader: boolean;
   user: { id: string; email: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null } | null };
+}
+
+interface LiveMember {
+  userId: string;
+  fullName: string;
+  avatarUrl: string | null;
 }
 
 // ===== Helpers =====
@@ -106,6 +116,10 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [activeGroupCall, setActiveGroupCall] = useState<{ type: 'audio' | 'video' } | null>(null);
+  const [liveMembers, setLiveMembers] = useState<LiveMember[]>([]);
+  const [liveMemberTotal, setLiveMemberTotal] = useState(0);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [sharingLocation, setSharingLocation] = useState(false);
   const { startCall: startCallCtx, activeCall: activeCallCtx, endCall: endCallCtx } = useCall();
 
   const messagesEnd = useRef<HTMLDivElement>(null);
@@ -118,6 +132,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTypingRef = useRef<number>(0);
 
   // Load or create the chat room
@@ -293,7 +308,8 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   // Check if a message can be edited (own message, within 10 minutes, text only)
   const canEdit = (m: ChatMessage) => {
     if (m.userId !== user?.id) return false;
-    if (m.audioUrl || m.imageUrl || m.videoUrl) return false;
+    if (m.audioUrl || m.imageUrl || m.videoUrl || m.fileUrl) return false;
+    if (m.locationLat !== null && m.locationLat !== undefined) return false;
     if (isSticker(m.body) || isActivity(m.body)) return false;
     const ageMs = Date.now() - new Date(m.createdAt).getTime();
     return ageMs <= 10 * 60 * 1000;
@@ -434,6 +450,79 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     }
   };
 
+  // ===== Live members =====
+  const loadLiveMembers = useCallback(async () => {
+    if (!room) return;
+    try {
+      const res = await apiGet<{ members: LiveMember[]; total: number }>(`/chat/rooms/${room.id}/live-members`);
+      setLiveMembers(res.members);
+      setLiveMemberTotal(res.total);
+    } catch { /* noop */ }
+  }, [room]);
+
+  useEffect(() => {
+    if (!room) return;
+    loadLiveMembers();
+    const interval = setInterval(loadLiveMembers, 10000);
+    return () => clearInterval(interval);
+  }, [room, loadLiveMembers]);
+
+  // ===== File/document upload =====
+  const onFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !room) return;
+    if (file.size > 25_000_000) { setError('File must be under 25MB'); return; }
+    setUploadingMedia(true);
+    setError('');
+    setShowAttachMenu(false);
+    try {
+      const { fileUrl, fileName } = await apiUpload<{ fileUrl: string; fileName: string }>(`/chat/rooms/${room.id}/upload-file`, file);
+      const msg = await apiPost<ChatMessage>(`/chat/rooms/${room.id}/messages`, { body: '', fileUrl, fileName });
+      seenIdsRef.current.add(msg.id);
+      setMessages(prev => [...prev, msg]);
+      if (messagesContainer.current) messagesContainer.current.scrollTop = messagesContainer.current.scrollHeight;
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload file');
+    } finally {
+      setUploadingMedia(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // ===== Location sharing =====
+  const shareLocation = () => {
+    if (!room || isRestricted) return;
+    setShowAttachMenu(false);
+    setSharingLocation(true);
+    if (!navigator.geolocation) {
+      setError('Location sharing is not supported on this device.');
+      setSharingLocation(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setSharingLocation(false);
+        try {
+          const msg = await apiPost<ChatMessage>(`/chat/rooms/${room.id}/messages`, {
+            body: '',
+            locationLat: pos.coords.latitude,
+            locationLng: pos.coords.longitude,
+          });
+          seenIdsRef.current.add(msg.id);
+          setMessages(prev => [...prev, msg]);
+          if (messagesContainer.current) messagesContainer.current.scrollTop = messagesContainer.current.scrollHeight;
+        } catch (err: any) {
+          setError(err.message || 'Failed to share location');
+        }
+      },
+      (err) => {
+        setSharingLocation(false);
+        setError(err.message || 'Could not get your location. Please allow location access.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const toggleReaction = async (msgId: string, emoji: string) => {
     setReactingTo(null);
     if (!room) return;
@@ -522,9 +611,39 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
           <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{groupName}</div>
           <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
-            {memberCount || '...'} members
+            {liveMemberTotal || memberCount || '...'} members
           </div>
         </div>
+        {/* Live members — avatar circles with glowing edges */}
+        {liveMembers.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: 4 }}>
+            {liveMembers.slice(0, 5).map((m, i) => (
+              <div key={m.userId} style={{
+                marginLeft: i === 0 ? 0 : -8,
+                width: 28, height: 28, borderRadius: '50%',
+                border: '2px solid var(--blue)',
+                boxShadow: '0 0 6px rgba(59,130,246,0.6), 0 0 12px rgba(59,130,246,0.3)',
+                overflow: 'hidden', background: 'var(--blue)',
+                zIndex: 5 - i, position: 'relative',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {m.avatarUrl ? (
+                  <img src={m.avatarUrl} alt={m.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ color: 'white', fontSize: 10, fontWeight: 700 }}>{m.fullName.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+            ))}
+            {liveMembers.length > 5 && (
+              <div style={{
+                marginLeft: -8, width: 28, height: 28, borderRadius: '50%',
+                background: 'var(--blue-50)', border: '2px solid var(--blue)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 700, color: 'var(--blue)', zIndex: 0,
+              }}>+{liveMembers.length - 5}</div>
+            )}
+          </div>
+        )}
         <button onClick={() => startGroupCall('audio')} title="Group voice call" style={{ width: 36, height: 36, borderRadius: '50%', border: 0, cursor: 'pointer', background: 'var(--blue-50)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h1.5a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106a2.25 2.25 0 00-2.239.68l-.665.766c-.283.326-.756.409-1.079.226a11.978 11.978 0 01-4.994-4.994c-.183-.323-.1-.796.226-1.079l.766-.665a2.25 2.25 0 00.68-2.239L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
         </button>
@@ -617,7 +736,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         }}>
                           <div style={{ fontWeight: 700, fontSize: 11 }}>{m.replyTo.user?.profile?.fullName || 'A member'}</div>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
-                            {m.replyTo.audioUrl ? '🎤 Voice note' : m.replyTo.imageUrl ? '📷 Photo' : m.replyTo.videoUrl ? '🎥 Video' : isSticker(m.replyTo.body) ? '🎴 Sticker' : isActivity(m.replyTo.body) ? '🎯 Activity' : m.replyTo.body}
+                            {m.replyTo.audioUrl ? '🎤 Voice note' : m.replyTo.imageUrl ? '📷 Photo' : m.replyTo.videoUrl ? '🎥 Video' : m.replyTo.fileUrl ? `📎 ${m.replyTo.fileName || 'File'}` : (m.replyTo.locationLat !== undefined && m.replyTo.locationLat !== null) ? '📍 Location' : isSticker(m.replyTo.body) ? '🎴 Sticker' : isActivity(m.replyTo.body) ? '🎯 Activity' : m.replyTo.body}
                           </div>
                         </div>
                       )}
@@ -674,6 +793,56 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                           {/* Video */}
                           {m.videoUrl && (
                             <video controls src={m.videoUrl} style={{ maxWidth: 240, maxHeight: 240, borderRadius: 8, display: 'block', margin: '2px 0' }} />
+                          )}
+                          {/* File/document attachment */}
+                          {m.fileUrl && (
+                            <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                              background: isMe ? 'rgba(255,255,255,0.15)' : 'var(--blue-50)',
+                              borderRadius: 8, margin: '2px 0', textDecoration: 'none',
+                              color: isMe ? 'white' : 'var(--blue)', fontSize: 13, fontWeight: 600,
+                              maxWidth: 240, transition: 'all 0.15s',
+                            }}>
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 22, height: 22, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 13, fontWeight: 700 }}>{m.fileName || 'File'}</div>
+                                <div style={{ fontSize: 10, opacity: 0.7 }}>Tap to download</div>
+                              </div>
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                            </a>
+                          )}
+                          {/* Location */}
+                          {m.locationLat !== null && m.locationLat !== undefined && m.locationLng !== null && m.locationLng !== undefined && (
+                            <a href={`https://www.google.com/maps?q=${m.locationLat},${m.locationLng}`} target="_blank" rel="noopener noreferrer" style={{
+                              display: 'flex', flexDirection: 'column', gap: 4, padding: 0,
+                              borderRadius: 8, margin: '2px 0', textDecoration: 'none', overflow: 'hidden',
+                              maxWidth: 240,
+                            }}>
+                              <div style={{
+                                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                                background: isMe ? 'rgba(255,255,255,0.15)' : '#EFF6FF',
+                                color: isMe ? 'white' : 'var(--blue)',
+                              }}>
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 22, height: 22, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700 }}>Location</div>
+                                  <div style={{ fontSize: 10, opacity: 0.7 }}>{m.locationLat.toFixed(4)}, {m.locationLng.toFixed(4)}</div>
+                                </div>
+                              </div>
+                              <div style={{
+                                height: 100, background: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                position: 'relative',
+                              }}>
+                                <div style={{
+                                  width: 36, height: 36, borderRadius: '50%', background: '#EF4444',
+                                  border: '3px solid white', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  <svg fill="white" viewBox="0 0 24 24" style={{ width: 18, height: 18 }}><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                                </div>
+                              </div>
+                            </a>
                           )}
                           {/* Text body (skip if it's a sticker or emoji-only) */}
                           {isSticker(m.body) ? stickerContent(m.body) : isEmojiOnly(m.body) ? m.body : m.body}
@@ -774,7 +943,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>{replyTo.user?.profile?.fullName || 'A member'}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {replyTo.audioUrl ? '🎤 Voice note' : replyTo.imageUrl ? '📷 Photo' : replyTo.videoUrl ? '🎥 Video' : isSticker(replyTo.body) ? '🎴 Sticker' : isActivity(replyTo.body) ? '🎯 Activity' : replyTo.body}
+              {replyTo.audioUrl ? '🎤 Voice note' : replyTo.imageUrl ? '📷 Photo' : replyTo.videoUrl ? '🎥 Video' : replyTo.fileUrl ? `📎 ${replyTo.fileName || 'File'}` : (replyTo.locationLat !== undefined && replyTo.locationLat !== null) ? '📍 Location' : isSticker(replyTo.body) ? '🎴 Sticker' : isActivity(replyTo.body) ? '🎯 Activity' : replyTo.body}
             </div>
           </div>
           <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
@@ -833,6 +1002,59 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
 
       {/* Input bar — WhatsApp/Telegram style */}
       <div style={{ padding: '8px 10px', borderRadius: '0 0 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--white)', position: 'relative' }}>
+        {/* Attach menu popup */}
+        {showAttachMenu && !isRestricted && !isRecording && !uploadingMedia && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: 10, marginBottom: 4,
+            background: 'var(--white)', borderRadius: 16, padding: 8,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 20,
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4,
+          }}>
+            {/* Photo */}
+            <button onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }} title="Photo" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 0, cursor: 'pointer', padding: '8px 10px', borderRadius: 12, transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg fill="none" stroke="#16A34A" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 22, height: 22 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--black)' }}>Photo</span>
+            </button>
+            {/* Video */}
+            <button onClick={() => { videoInputRef.current?.click(); setShowAttachMenu(false); }} title="Video" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 0, cursor: 'pointer', padding: '8px 10px', borderRadius: 12, transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg fill="none" stroke="#DC2626" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 22, height: 22 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--black)' }}>Video</span>
+            </button>
+            {/* File/Document */}
+            <button onClick={() => { fileInputRef.current?.click(); }} title="File/Document" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 0, cursor: 'pointer', padding: '8px 10px', borderRadius: 12, transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg fill="none" stroke="#2563EB" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 22, height: 22 }}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--black)' }}>File</span>
+            </button>
+            {/* Location */}
+            <button onClick={shareLocation} title="Share location" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 0, cursor: 'pointer', padding: '8px 10px', borderRadius: 12, transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg fill="none" stroke="#D97706" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 22, height: 22 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--black)' }}>Location</span>
+            </button>
+          </div>
+        )}
+        {/* Location sharing indicator */}
+        {sharingLocation && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0' }}>
+            <span className="spinner" style={{ width: 18, height: 18 }} />
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>Getting your location...</span>
+          </div>
+        )}
         {showEmojiPicker && (
           <EmojiPicker
             onPick={(emoji) => setInput(prev => prev + emoji)}
@@ -865,10 +1087,24 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end' }}>
+            {/* Attach menu button (paperclip) */}
+            <button
+              type="button"
+              onClick={() => { setShowAttachMenu(v => !v); setShowEmojiPicker(false); setShowActivityBar(false); }}
+              title="Attach file, photo, video, or location"
+              style={{
+                width: 36, height: 36, borderRadius: '50%', border: 0, cursor: 'pointer',
+                background: showAttachMenu ? 'var(--blue-50)' : 'var(--bg)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                transition: 'all 0.15s', transform: showAttachMenu ? 'rotate(45deg)' : 'none',
+              }}
+            >
+              <svg fill="none" stroke="var(--muted)" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-3.732 3.738c-1.598 1.6-4.192 1.6-5.79 0a4.095 4.095 0 010-5.793l5.79-5.792a2.731 2.731 0 013.86 0 2.731 2.731 0 010 3.86l-5.79 5.791a1.366 1.366 0 01-1.93 0 1.366 1.366 0 010-1.93l5.378-5.379" /></svg>
+            </button>
             {/* Activities button */}
             <button
               type="button"
-              onClick={() => { setShowActivityBar(v => !v); setShowEmojiPicker(false); }}
+              onClick={() => { setShowActivityBar(v => !v); setShowEmojiPicker(false); setShowAttachMenu(false); }}
               title="Fun activities"
               style={{
                 width: 36, height: 36, borderRadius: '50%', border: 0, cursor: 'pointer',
@@ -877,32 +1113,6 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                 transition: 'all 0.15s', transform: showActivityBar ? 'rotate(45deg)' : 'none',
               }}
             >⚡</button>
-            {/* Image upload button */}
-            <button
-              type="button"
-              onClick={() => imageInputRef.current?.click()}
-              title="Send photo"
-              style={{
-                width: 36, height: 36, borderRadius: '50%', border: 0, cursor: 'pointer',
-                background: 'var(--bg)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}
-            >
-              <svg fill="none" stroke="var(--muted)" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
-            </button>
-            {/* Video upload button */}
-            <button
-              type="button"
-              onClick={() => videoInputRef.current?.click()}
-              title="Send video"
-              style={{
-                width: 36, height: 36, borderRadius: '50%', border: 0, cursor: 'pointer',
-                background: 'var(--bg)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}
-            >
-              <svg fill="none" stroke="var(--muted)" viewBox="0 0 24 24" strokeWidth={1.8} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>
-            </button>
             {/* Emoji button */}
             <button
               type="button"
@@ -966,6 +1176,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       </div>
       <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onImageSelect} style={{ display: 'none' }} />
       <input ref={videoInputRef} type="file" accept="video/mp4,video/webm,video/quicktime,video/ogg" onChange={onVideoSelect} style={{ display: 'none' }} />
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,image/jpeg,image/png,image/webp,image/gif" onChange={onFileSelect} style={{ display: 'none' }} />
 
       {/* Members sidebar */}
       {showMembers && (

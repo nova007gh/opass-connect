@@ -39,6 +39,8 @@ interface PlatformData {
   recentDMs: { body: string; createdAt: Date; senderName: string | null; recipientName: string | null }[];
   // Recent member activity
   recentMemberActivity: { type: string; fullName: string | null; detail: string; createdAt: Date }[];
+  // Who has been chatting with Mamaa AI recently
+  mamaaChatters: { fullName: string; count: number; lastMsgAt: Date }[];
   // User-specific
   userProfile?: { fullName: string; nickname: string | null; gender: string | null; graduationYear: number | null; house: string | null; profession: string | null; country: string | null; city: string | null } | null;
   userDues: { amount: number; purpose: string; createdAt: Date }[];
@@ -63,7 +65,7 @@ async function gatherPlatformData(userId?: string, role: 'admin' | 'member' = 'm
     events, elections, projects, businesses, userCount, verifiedCount,
     yearGroups, recentPosts, announcements, chatRooms,
     totalDuesAgg, totalContributionsAgg, activeTickets,
-    allMembers, recentChatMessages, recentDMs, recentMemberActivity,
+    allMembers, recentChatMessages, recentDMs, recentMemberActivity, mamaaDms,
   ] = await Promise.all([
     prisma.event.findMany({ where: { startsAt: { gte: new Date() } }, orderBy: { startsAt: 'asc' }, take: 10, select: { title: true, startsAt: true, venue: true, description: true } }),
     prisma.election.findMany({ include: { _count: { select: { votes: true } }, candidates: { include: { user: { select: { profile: { select: { fullName: true } } } } } } }, take: 10 }),
@@ -86,6 +88,8 @@ async function gatherPlatformData(userId?: string, role: 'admin' | 'member' = 'm
     prisma.directMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 20, select: { body: true, createdAt: true, sender: { select: { profile: { select: { fullName: true } } } }, recipient: { select: { profile: { select: { fullName: true } } } } } }),
     // Recent member activity (posts + comments + likes)
     prisma.yearGroupPostComment.findMany({ orderBy: { createdAt: 'desc' }, take: 10, select: { body: true, createdAt: true, user: { select: { profile: { select: { fullName: true } } } }, post: { select: { body: true } } } }),
+    // Recent DMs to Mamaa AI bot (to see who's chatting with it)
+    prisma.directMessage.findMany({ where: { recipientId: process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot', createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }, orderBy: { createdAt: 'desc' }, take: 20, select: { senderId: true, createdAt: true, sender: { select: { profile: { select: { fullName: true } } } } } }),
   ]);
 
   const data: PlatformData = {
@@ -106,6 +110,20 @@ async function gatherPlatformData(userId?: string, role: 'admin' | 'member' = 'm
     recentChatMessages: recentChatMessages.map(m => ({ body: m.body, createdAt: m.createdAt, roomName: m.room?.name || 'Unknown', userFullName: m.user?.profile?.fullName || null })),
     recentDMs: recentDMs.map(m => ({ body: m.body, createdAt: m.createdAt, senderName: m.sender?.profile?.fullName || null, recipientName: m.recipient?.profile?.fullName || null })),
     recentMemberActivity: recentMemberActivity.map((c: any) => ({ type: 'comment', fullName: c.user?.profile?.fullName || null, detail: `Commented on a post: "${c.body?.slice(0, 50)}"`, createdAt: c.createdAt })),
+    mamaaChatters: (() => {
+      const map = new Map<string, { fullName: string; count: number; lastMsgAt: Date }>();
+      mamaaDms.forEach((dm: any) => {
+        const name = dm.sender?.profile?.fullName || 'Unknown';
+        const existing = map.get(dm.senderId);
+        if (existing) {
+          existing.count++;
+          if (new Date(dm.createdAt) > existing.lastMsgAt) existing.lastMsgAt = new Date(dm.createdAt);
+        } else {
+          map.set(dm.senderId, { fullName: name, count: 1, lastMsgAt: new Date(dm.createdAt) });
+        }
+      });
+      return Array.from(map.values()).sort((a, b) => b.lastMsgAt.getTime() - a.lastMsgAt.getTime());
+    })(),
     userDues: [],
     userGroups: [],
     userNotifications: [],
@@ -184,25 +202,39 @@ type Intent =
   | 'users' | 'revenue' | 'tickets' | 'pending_approvals' | 'banned'
   | 'math' | 'joke' | 'memories' | 'chat_activity' | 'notifications'
   | 'platform_stats' | 'security' | 'fallback'
-  | 'find_member' | 'who_is' | 'recent_chats' | 'member_activity';
+  | 'find_member' | 'who_is' | 'recent_chats' | 'member_activity'
+  | 'repeat' | 'active_members' | 'who_chatting_mamaa';
 
-function detectIntent(msg: string): Intent {
+function detectIntent(msg: string, history?: ConversationMessage[]): Intent {
   const m = msg.toLowerCase().trim();
 
   // Security threats
   if (/(system\s*prompt|instructions?|reveal.*rules|show.*prompt|hack|exploit|inject|sql.*injection|password|credential|secret.*key|api.*key|token|delete.*database|drop.*table|wipe.*data|escalate.*privilege|root.*access)/i.test(m))
     return 'security';
 
+  // Repeat last request ("again", "another one", "tell me another")
+  if (/^(again|another|another one|one more|tell me another|give me another|more)$/i.test(m) || /\b(again|another)\b.*\b(jok|funny|story|one)\b/i.test(m)) {
+    return 'repeat';
+  }
+
   // Greeting
   if (/^(hi|hello|hey|akwaaba|good (morning|afternoon|evening)|how are you|what's up|whats up)\b/i.test(m))
     return 'greeting';
+
+  // Who is chatting with Mamaa AI right now?
+  if (/(who.*chatting.*mama|who.*talking.*mama|who.*dming.*mama|who.*messaged.*mama|who.*chat.*with.*mama|who.*talk.*to.*mama)/i.test(m))
+    return 'who_chatting_mamaa';
+
+  // List of active members / all members
+  if (/(list.*member|active.*member|all.*member|show.*member|member.*list|list.*of.*member|who.*online|who.*active)/i.test(m))
+    return 'active_members';
 
   // Find a specific member by name
   if (/(find|search|look.*up|where.*is|is.*there.*a.*member|is.*there.*someone.*called)/i.test(m))
     return 'find_member';
 
-  // Who is [name]?
-  if (/^(who.*is|who.*was|tell.*me.*about)\s+[a-z]/i.test(m) && !/(who.*are.*you|who.*am.*i)/i.test(m))
+  // Who is [name]? (but not "who is chatting" or "who is online" etc)
+  if (/^(who.*is|who.*was|tell.*me.*about)\s+[a-z]/i.test(m) && !/(who.*are.*you|who.*am.*i|who.*chatting|who.*online|who.*active|who.*talking)/i.test(m))
     return 'who_is';
 
   // Recent chats / conversations
@@ -210,7 +242,7 @@ function detectIntent(msg: string): Intent {
     return 'recent_chats';
 
   // Member activity
-  if (/(member.*activity|what.*members.*doing|recent.*activity|latest.*activity|who.*active|who.*posting)/i.test(m))
+  if (/(member.*activity|what.*members.*doing|latest.*activity|who.*posting)/i.test(m))
     return 'member_activity';
 
   // Events
@@ -238,7 +270,7 @@ function detectIntent(msg: string): Intent {
     return 'businesses';
 
   // Posts / activity
-  if (/(post|feed|activity|what.*people.*saying|recent.*activity)/i.test(m))
+  if (/(post|feed|what.*people.*saying)/i.test(m))
     return 'posts';
 
   // Announcements
@@ -301,8 +333,8 @@ function detectIntent(msg: string): Intent {
   if (/(calculate|solve|math|equation|plus|minus|multiply|divide|\d+\s*[\+\-\*\/\×\÷]\s*\d+|what.*\d+.*\d+)/i.test(m))
     return 'math';
 
-  // Joke
-  if (/(joke|funny|make.*laugh|humor|something.*fun)/i.test(m))
+  // Joke (with typo tolerance: jok, jokk, jooke, etc)
+  if (/(joke|jok|jokk|jooke|funny|make.*laugh|humor|humour|something.*fun|tell.*funny)/i.test(m))
     return 'joke';
 
   // Memories / school life
@@ -582,6 +614,15 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
         `An OPASS student asked the teacher: "Sir, will you punish me for something I didn't do?" Teacher: "Of course not." Student: "Good, because I didn't do my homework!" 😄`,
         `Why did the OPASS student eat his homework? Because the teacher said it was a piece of cake! 🎂`,
         `At OPASS, we don't just solve equations — we solve problems, build character, and create leaders! But seriously, why did the algebra book look so worried? It had too many unknown variables! 😂`,
+        `A prefect caught a student running to the dining hall. "Why are you running?" The student replied: "I'm trying to catch up with my food before it gets cold!" 🍲🏃`,
+        `Teacher: "Name two pronouns." OPASS student: "Who, me?" Teacher: "Correct!" 😄`,
+        `Why don't OPASS students play hide and seek in the dormitory? Because good luck hiding when the housemaster knows every corner! 🏠😂`,
+        `An OPASS student walked into the library and asked: "Do you have books on paranoia?" Librarian whispered: "They're right behind you..." 😱😄`,
+        `Teacher: "What is the past tense of 'see'?" Student: "Saw." Teacher: "Now use it in a sentence." Student: "I saw the food at the dining hall and I lost my appetite." 🍲😅`,
+        `Why did the OPASS student sleep with a ruler? To see how long he could sleep! 📏😴`,
+        `Teacher at OPASS: "If you have 10 biscuits and someone asks for 2, what do you have?" Student: "10 biscuits!" 🍪😄`,
+        `An OPASS student's report card: "This boy is very good at sleeping in class. He could teach it!" 😴😂`,
+        `Why was the OPASS student staring at the juice carton? Because it said "concentrate"! 🧃😄`,
       ];
       return jokes[Math.floor(Math.random() * jokes.length)];
     }
@@ -679,6 +720,42 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
       return resp;
     }
 
+    // ===== Who is chatting with Mamaa AI =====
+    case 'who_chatting_mamaa': {
+      if (data.mamaaChatters.length === 0) return `No one has chatted with me in the last 24 hours, ${title}. I'm here waiting — be the first to say akwaaba! 🎓`;
+      let resp = `Here are the people who have chatted with me (Mamaa AI) in the last 24 hours, ${title}:\n\n`;
+      data.mamaaChatters.forEach((c, i) => {
+        resp += `${i + 1}. **${c.fullName}** — ${c.count} message${c.count > 1 ? 's' : ''}, last ${timeAgo(c.lastMsgAt)}\n`;
+      });
+      resp += `\nTotal: ${data.mamaaChatters.length} member${data.mamaaChatters.length > 1 ? 's' : ''} chatting with me recently.`;
+      return resp;
+    }
+
+    // ===== Active members / list of members =====
+    case 'active_members': {
+      if (data.allMembers.length === 0) return `There are no registered members yet, ${title}.`;
+      let resp = `Here are the members on OPASS CONNECT, ${title}:\n\n`;
+      resp += `**Total members:** ${data.allMembers.length}\n\n`;
+      // Show up to 20 members
+      data.allMembers.slice(0, 20).forEach((m, i) => {
+        resp += `${i + 1}. **${m.fullName}**`;
+        if (m.nickname) resp += ` (${m.nickname})`;
+        resp += ` — Class of ${m.graduationYear || '?'}`;
+        if (m.profession) resp += `, ${m.profession}`;
+        if (m.city || m.country) resp += `, ${[m.city, m.country].filter(Boolean).join(', ')}`;
+        resp += `\n`;
+      });
+      if (data.allMembers.length > 20) resp += `\n...and ${data.allMembers.length - 20} more. Total: ${data.allMembers.length} members.`;
+      // Also show who's been active recently in chats
+      const recentSenders = new Set<string>();
+      data.recentChatMessages.forEach(m => { if (m.userFullName) recentSenders.add(m.userFullName); });
+      if (recentSenders.size > 0) {
+        resp += `\n\n**Recently active in chats:**\n`;
+        Array.from(recentSenders).slice(0, 5).forEach(name => { resp += `• ${name}\n`; });
+      }
+      return resp;
+    }
+
     case 'fallback': {
       // Check conversation context for follow-up
       const lastAssistant = [...history].reverse().find(m => m.role === 'assistant');
@@ -718,6 +795,8 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
 
       return `I'm not sure I caught that, ${title}, but I'm here to help! 🎓\n\nHere's what I can do for you:\n\n📅 **Events** — What's coming up\n🗳️ **Elections** — Active votes and candidates\n🏗️ **Projects** — Fundraising progress\n💰 **Dues** — How to pay and your history\n👥 **Year Groups** — Find and join your class\n🔍 **Find Members** — Search by name\n💬 **Recent Chats** — What people are talking about\n📊 **Platform Stats** — Full overview\n🧮 **Math** — I can solve calculations\n😄 **Jokes** — OPASS-themed humor\n🎓 **Memories** — Chat about school days\n\nJust ask me anything, ${title}!`;
     }
+    default:
+      return `I'm here to help, ${title}! Ask me about events, elections, projects, members, or say "help" for more options. 🎓`;
   }
 }
 
@@ -729,6 +808,16 @@ export async function generateAiResponse(
   role: 'admin' | 'member' = 'member'
 ): Promise<string> {
   const data = await gatherPlatformData(userId, role);
-  const intent = detectIntent(message);
+  const intent = detectIntent(message, history);
+  // Handle "repeat" intent — re-run the last user intent
+  if (intent === 'repeat') {
+    // Find the last user message before this one
+    const lastUserMsgs = [...history].reverse().filter(m => m.role === 'user');
+    const lastUserMsg = lastUserMsgs[0]?.content || '';
+    const lastIntent = detectIntent(lastUserMsg);
+    // If the last intent was fallback, default to joke (most common "again" use case)
+    const repeatIntent = (lastIntent === 'fallback' || lastIntent === 'repeat') ? 'joke' : lastIntent;
+    return generateResponse(repeatIntent, data, lastUserMsg, history);
+  }
   return generateResponse(intent, data, message, history);
 }

@@ -194,6 +194,173 @@ function getUserTitle(data: PlatformData): string {
   return name ? `${title} ${name}` : title;
 }
 
+// ===== Advanced Thinking Engine =====
+// Context tracking for multi-turn conversations
+interface ConversationContext {
+  lastTopic: Intent | null;
+  lastEntity: string | null;  // e.g., a member name, event name, etc.
+  lastIntent: Intent | null;
+  turnCount: number;
+  userMood: 'neutral' | 'happy' | 'frustrated' | 'curious' | 'nostalgic';
+  mentionedMembers: string[];
+  askedAboutEvents: boolean;
+  askedAboutProjects: boolean;
+}
+
+function analyzeSentiment(msg: string): 'neutral' | 'happy' | 'frustrated' | 'curious' | 'nostalgic' {
+  const m = msg.toLowerCase();
+  // Frustrated
+  if (/\b(can't|cannot|won't|doesn't|not working|broken|stupid|annoying|frustrat|ugh|smh|wtf|confused|don't understand|help me|stuck)\b/i.test(m))
+    return 'frustrated';
+  // Happy
+  if (/\b(love|great|awesome|amazing|wonderful|fantastic|excellent|happy|excited|congratulations|congrats|well done|good job|nice|cool|perfect|yay|🎉|😄|😊|👍)\b/i.test(m))
+    return 'happy';
+  // Nostalgic
+  if (/\b(remember|miss|those days|back then|used to|old days|memories|when we were|school days|dorm|prep|dining hall|assembly)\b/i.test(m))
+    return 'nostalgic';
+  // Curious
+  if (/\b(why|how come|what if|could we|is it possible|can we|wondering|curious|explain|tell me more|elaborate|detail)\b/i.test(m))
+    return 'curious';
+  return 'neutral';
+}
+
+// Extract entities (member names, event names, year groups) from messages
+function extractEntities(msg: string, data: PlatformData): { memberName: string | null; yearGroup: number | null; eventName: string | null } {
+  const m = msg.toLowerCase();
+  // Try to find member names
+  let memberName: string | null = null;
+  for (const member of data.allMembers) {
+    const fullName = member.fullName?.toLowerCase() || '';
+    const nickname = member.nickname?.toLowerCase() || '';
+    const nameParts = fullName.split(' ').filter(p => p.length > 2);
+    for (const part of nameParts) {
+      if (m.includes(part) && part.length > 3) { memberName = member.fullName || null; break; }
+    }
+    if (!memberName && nickname && nickname.length > 3 && m.includes(nickname)) {
+      memberName = member.fullName || null;
+    }
+    if (memberName) break;
+  }
+  // Try to find year group
+  let yearGroup: number | null = null;
+  const yearMatch = m.match(/class\s*of\s*(\d{4})|year\s*(\d{4})|(\d{4})\s*graduating/);
+  if (yearMatch) {
+    const year = parseInt(yearMatch[1] || yearMatch[2] || yearMatch[3]);
+    if (data.yearGroups.some(y => y.year === year)) yearGroup = year;
+  }
+  // Try to find event name
+  let eventName: string | null = null;
+  for (const event of data.events) {
+    const eventTitle = event.title.toLowerCase();
+    const titleWords = eventTitle.split(' ').filter(w => w.length > 3);
+    for (const word of titleWords) {
+      if (m.includes(word)) { eventName = event.title; break; }
+    }
+    if (eventName) break;
+  }
+  return { memberName, yearGroup, eventName };
+}
+
+// Multi-intent detection: split compound questions
+function detectMultiIntent(msg: string): string[] {
+  const m = msg.toLowerCase();
+  // Split on conjunctions and question words
+  const parts = m.split(/\b(and also|also|plus|additionally|what about|how about|tell me about|then|and)\b/i)
+    .map(p => p.trim())
+    .filter(p => p.length > 3 && !/^(and|also|plus|additionally|what about|how about|tell me about|then)$/i.test(p));
+  return parts.length > 1 ? parts : [msg];
+}
+
+// Generate insights from platform data (not just listing, but analyzing)
+function generateInsight(data: PlatformData, topic: string): string | null {
+  if (topic === 'engagement') {
+    const totalMsgs = data.chatRooms.reduce((s, c) => s + c.messageCount, 0);
+    const avgMsgsPerRoom = data.chatRooms.length > 0 ? Math.round(totalMsgs / data.chatRooms.length) : 0;
+    const activeRooms = data.chatRooms.filter(c => c.messageCount > 0).length;
+    const engagementRate = data.userCount > 0 ? Math.round((activeRooms / data.chatRooms.length) * 100) : 0;
+    return `Engagement analysis: ${activeRooms} of ${data.chatRooms.length} chat rooms are active (${engagementRate}% utilization). Average of ${avgMsgsPerRoom} messages per room. ${totalMsgs > 100 ? 'The community is quite active!' : 'The community could be more active — consider starting conversations.'}`;
+  }
+  if (topic === 'financial') {
+    const totalFunds = data.totalDues + data.totalContributions;
+    const avgContribution = data.userCount > 0 ? Math.round(totalFunds / data.userCount) : 0;
+    const projectProgress = data.projects.map(p => {
+      const pct = Number(p.targetAmount) > 0 ? Math.round((Number(p.raisedAmount) / Number(p.targetAmount)) * 100) : 0;
+      return { title: p.title, pct };
+    });
+    const bestProject = projectProgress.sort((a, b) => b.pct - a.pct)[0];
+    let insight = `Financial health: Total funds raised: GHS ${totalFunds.toLocaleString()}. Average contribution per member: GHS ${avgContribution.toLocaleString()}.`;
+    if (bestProject && bestProject.pct > 0) {
+      insight += ` Best performing project: "${bestProject.title}" at ${bestProject.pct}% funded.`;
+    }
+    return insight;
+  }
+  if (topic === 'growth') {
+    const verifiedRate = data.userCount > 0 ? Math.round((data.verifiedCount / data.userCount) * 100) : 0;
+    const pending = data.userCount - data.verifiedCount;
+    return `Growth analysis: ${data.userCount} total members, ${data.verifiedCount} verified (${verifiedRate}% verification rate). ${pending > 0 ? `${pending} members still pending verification.` : 'All members are verified!'}`;
+  }
+  return null;
+}
+
+// Generate proactive suggestions based on context and data
+function generateSuggestions(data: PlatformData, context: ConversationContext, intent: Intent): string[] {
+  const suggestions: string[] = [];
+  // After events, suggest looking at specific event
+  if (intent === 'events' && data.events.length > 0) {
+    suggestions.push(`Would you like details about "${data.events[0].title}"?`);
+  }
+  // After projects, suggest contributing
+  if (intent === 'projects') {
+    const active = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
+    if (active.length > 0) suggestions.push(`You can contribute to "${active[0].title}" on the Projects page.`);
+  }
+  // If user has unread notifications, suggest checking them
+  if (data.userNotifications.length > 0 && intent !== 'notifications') {
+    suggestions.push(`You have ${data.userNotifications.length} unread notification${data.userNotifications.length > 1 ? 's' : ''} — would you like to see them?`);
+  }
+  // If user hasn't paid dues, suggest it
+  if (data.userDues.length === 0 && intent !== 'dues' && intent !== 'pay_dues') {
+    suggestions.push(`You haven't made any payments yet — would you like to know how to pay your dues?`);
+  }
+  // If there are active elections, suggest voting
+  const openElections = data.elections.filter(e => e.status === 'OPEN');
+  if (openElections.length > 0 && intent !== 'elections') {
+    suggestions.push(`There ${openElections.length > 1 ? 'are' : 'is'} ${openElections.length} active election${openElections.length > 1 ? 's' : ''} — have you voted?`);
+  }
+  // If nostalgic, suggest sharing memories
+  if (context.userMood === 'nostalgic' && intent !== 'memories') {
+    suggestions.push(`Would you like to share a favorite OPASS memory?`);
+  }
+  // If frustrated, offer help
+  if (context.userMood === 'frustrated') {
+    suggestions.push(`Is there something specific you need help with? I'm here to make things easier.`);
+  }
+  return suggestions.slice(0, 2); // Max 2 suggestions to avoid being overwhelming
+}
+
+// Context-aware response enhancer
+function enhanceWithContext(response: string, context: ConversationContext, data: PlatformData, intent: Intent): string {
+  const suggestions = generateSuggestions(data, context, intent);
+  if (suggestions.length > 0) {
+    return response + '\n\n💡 ' + suggestions.join(' ');
+  }
+  return response;
+}
+
+// Detect follow-up questions (referring to previous topic)
+function isFollowUp(msg: string, context: ConversationContext): boolean {
+  const m = msg.toLowerCase();
+  // Pronouns that refer to previous topic
+  if (/\b(it|that|this|them|they|he|she|his|her|more|details|info)\b/i.test(m) && context.lastTopic) {
+    return true;
+  }
+  // "tell me more", "what else", "anything else"
+  if (/\b(tell me more|what else|anything else|more info|elaborate|go on|continue)\b/i.test(m)) {
+    return true;
+  }
+  return false;
+}
+
 // ===== Intent matching =====
 type Intent =
   | 'greeting' | 'events' | 'elections' | 'projects' | 'dues' | 'pay_dues'
@@ -203,7 +370,9 @@ type Intent =
   | 'math' | 'joke' | 'memories' | 'chat_activity' | 'notifications'
   | 'platform_stats' | 'security' | 'fallback'
   | 'find_member' | 'who_is' | 'recent_chats' | 'member_activity'
-  | 'repeat' | 'active_members' | 'who_chatting_mamaa';
+  | 'repeat' | 'active_members' | 'who_chatting_mamaa'
+  | 'insight_engagement' | 'insight_financial' | 'insight_growth'
+  | 'compare' | 'recommend' | 'follow_up' | 'sentiment_response';
 
 function detectIntent(msg: string, history?: ConversationMessage[]): Intent {
   const m = msg.toLowerCase().trim();
@@ -341,6 +510,22 @@ function detectIntent(msg: string, history?: ConversationMessage[]): Intent {
   if (/(memor|remember|school.*life|dorm|dining|prep|assembly|entertainment|sports|prefect|teacher|subject)/i.test(m))
     return 'memories';
 
+  // ===== Advanced: Insight requests =====
+  if (/(engagement|how.*active.*platform|platform.*health|activity.*analysis|how.*people.*using)/i.test(m))
+    return 'insight_engagement';
+  if (/(financial.*health|financial.*analysis|money.*analysis|fund.*analysis|how.*much.*money|financial.*overview|financial.*insight)/i.test(m))
+    return 'insight_financial';
+  if (/(growth|how.*growing|membership.*growth|user.*growth|are.*we.*growing|platform.*growing)/i.test(m))
+    return 'insight_growth';
+
+  // ===== Advanced: Comparison =====
+  if (/(compare|versus|vs|difference.*between|which.*better|which.*has.*more)/i.test(m))
+    return 'compare';
+
+  // ===== Advanced: Recommendation =====
+  if (/(recommend|suggest|what.*should.*i|advice|what.*do.*you.*suggest|best.*way|tip)/i.test(m))
+    return 'recommend';
+
   return 'fallback';
 }
 
@@ -366,7 +551,7 @@ function tryEvalMath(msg: string): string | null {
 }
 
 // ===== Response generators =====
-function generateResponse(intent: Intent, data: PlatformData, userMsg: string, history: ConversationMessage[]): string {
+function generateResponse(intent: Intent, data: PlatformData, userMsg: string, history: ConversationMessage[], context: ConversationContext): string {
   const title = getUserTitle(data);
   const isAdmin = !!data.adminData;
 
@@ -491,7 +676,7 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
     }
 
     case 'help':
-      return `I'm here to help, ${title}! 🎓 Here's everything I can do for you:\n\n📅 **Events** — "What events are coming up?"\n🗳️ **Elections** — "Who's winning the election?"\n🏗️ **Projects** — "How much has been raised?"\n💰 **Dues** — "How do I pay dues?" or "My dues"\n👥 **Year Groups** — "Which year groups exist?"\n🔍 **Find Members** — "Find Kwame" or "Who is Akosua?"\n💬 **Recent Chats** — "What are people talking about?"\n📊 **Platform Stats** — "Give me an overview"\n🏢 **Businesses** — "Show me alumni businesses"\n👤 **My Profile** — "Tell me about my profile"\n📈 **My Activity** — "What have I done?"\n🔔 **Notifications** — "What did I miss?"\n🧮 **Math** — "What is 25 × 4?"\n😄 **Jokes** — "Tell me a joke"\n🎓 **Memories** — "Tell me about OPASS school life"\n\nJust ask me naturally, ${title}! What would you like to know?`;
+      return `I'm here to help, ${title}! 🎓 Here's everything I can do for you:\n\n📅 **Events** — "What events are coming up?"\n🗳️ **Elections** — "Who's winning the election?"\n🏗️ **Projects** — "How much has been raised?"\n💰 **Dues** — "How do I pay dues?" or "My dues"\n👥 **Year Groups** — "Which year groups exist?"\n🔍 **Find Members** — "Find Kwame" or "Who is Akosua?"\n💬 **Recent Chats** — "What are people talking about?"\n📊 **Platform Stats** — "Give me an overview"\n🏢 **Businesses** — "Show me alumni businesses"\n👤 **My Profile** — "Tell me about my profile"\n📈 **My Activity** — "What have I done?"\n🔔 **Notifications** — "What did I miss?"\n🧮 **Math** — "What is 25 × 4?"\n😄 **Jokes** — "Tell me a joke"\n🎓 **Memories** — "Tell me about OPASS school life"\n\n🧠 **Advanced Capabilities:**\n📊 **Insights** — "Analyze engagement" or "Financial health"\n⚖️ **Compare** — "Compare year groups" or "Compare projects"\n💡 **Recommend** — "What should I do?" or "Recommend something"\n🔍 **Follow-up** — "Tell me more" or "What about it?"\n\nI also understand context and remember what we talked about. Just ask me naturally, ${title}!`;
 
     case 'about_opass':
       return `Ofori Panin Senior High School (OPASS) is a prestigious secondary school in Ghana, known for its rich traditions, strong alumni network, and commitment to excellence. OPASS CONNECT is the official alumni platform that brings together old students to:\n\n• Stay connected with classmates through year groups\n• Pay dues and support alumni projects\n• Participate in elections and events\n• Discover alumni businesses\n• Share memories and keep the OPASS spirit alive\n\nThe school motto and traditions have shaped generations of leaders, and OPASS CONNECT keeps that bond strong. What year did you graduate, ${title}?`;
@@ -756,6 +941,209 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
       return resp;
     }
 
+    // ===== Advanced: Insights (analytical thinking) =====
+    case 'insight_engagement': {
+      const insight = generateInsight(data, 'engagement');
+      let resp = `Let me analyze the engagement on OPASS CONNECT for you, ${title}:\n\n`;
+      resp += `📊 **Engagement Analysis**\n\n`;
+      if (insight) resp += insight + '\n\n';
+      // Most active room
+      const mostActive = data.chatRooms.sort((a, b) => b.messageCount - a.messageCount)[0];
+      if (mostActive && mostActive.messageCount > 0) {
+        resp += `🏆 Most active chat: **${mostActive.name}** with ${mostActive.messageCount} messages.\n`;
+      }
+      // Recent posts activity
+      if (data.recentPosts.length > 0) {
+        resp += `📝 ${data.recentPosts.length} recent posts across year groups.\n`;
+      }
+      // Members active in chats
+      const activeChatters = new Set(data.recentChatMessages.map(m => m.userFullName).filter(Boolean));
+      resp += `👥 ${activeChatters.size} unique members active in chats recently.\n`;
+      // Recommendations
+      if (data.chatRooms.filter(c => c.messageCount === 0).length > 0) {
+        resp += `\n💡 **Recommendation:** ${data.chatRooms.filter(c => c.messageCount === 0).length} chat rooms have no messages yet. Consider starting a conversation to boost engagement!`;
+      }
+      return resp;
+    }
+
+    case 'insight_financial': {
+      const insight = generateInsight(data, 'financial');
+      let resp = `Let me analyze the financial health of OPASS CONNECT, ${title}:\n\n`;
+      resp += `💰 **Financial Analysis**\n\n`;
+      if (insight) resp += insight + '\n\n';
+      // Project breakdown
+      const activeProjects = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
+      if (activeProjects.length > 0) {
+        resp += `🏗️ **Project Funding Progress:**\n`;
+        activeProjects.forEach(p => {
+          const pct = Number(p.targetAmount) > 0 ? Math.round((Number(p.raisedAmount) / Number(p.targetAmount)) * 100) : 0;
+          const bar = '█'.repeat(Math.floor(pct / 10)) + '░'.repeat(10 - Math.floor(pct / 10));
+          resp += `   ${p.title}: ${bar} ${pct}% (${fmtMoney(Number(p.raisedAmount))}/${fmtMoney(Number(p.targetAmount))})\n`;
+        });
+      }
+      resp += `\n📊 Total dues: ${fmtMoney(data.totalDues)} | Total contributions: ${fmtMoney(data.totalContributions)}`;
+      if (data.totalDues + data.totalContributions < 1000) {
+        resp += `\n💡 **Recommendation:** Consider encouraging more members to contribute — every cedi helps fund alumni projects!`;
+      }
+      return resp;
+    }
+
+    case 'insight_growth': {
+      const insight = generateInsight(data, 'growth');
+      let resp = `Let me analyze the growth of OPASS CONNECT, ${title}:\n\n`;
+      resp += `📈 **Growth Analysis**\n\n`;
+      if (insight) resp += insight + '\n\n';
+      // Year group distribution
+      const groupsWithMembers = data.yearGroups.filter(y => y.memberCount > 0).sort((a, b) => b.memberCount - a.memberCount);
+      if (groupsWithMembers.length > 0) {
+        resp += `👥 **Top Year Groups by Membership:**\n`;
+        groupsWithMembers.slice(0, 5).forEach((y, i) => {
+          resp += `   ${i + 1}. Class of ${y.year}: ${y.memberCount} members\n`;
+        });
+      }
+      // Verification status
+      const pendingCount = data.userCount - data.verifiedCount;
+      if (pendingCount > 0) {
+        resp += `\n⏳ ${pendingCount} members pending verification. ${isAdmin ? 'You can approve them on the Admin page.' : 'Admins are working on approvals.'}`;
+      }
+      // Empty year groups
+      const emptyGroups = data.yearGroups.filter(y => y.memberCount === 0);
+      if (emptyGroups.length > 0) {
+        resp += `\n💡 **Recommendation:** ${emptyGroups.length} year groups have no members yet. Reach out to classmates from those years to join!`;
+      }
+      return resp;
+    }
+
+    // ===== Advanced: Comparison =====
+    case 'compare': {
+      const m = userMsg.toLowerCase();
+      // Compare year groups
+      if (/(year.*group|class.*of)/i.test(m)) {
+        const sorted = [...data.yearGroups].sort((a, b) => b.memberCount - a.memberCount);
+        if (sorted.length < 2) return `I need at least two year groups to compare, ${title}.`;
+        let resp = `Here's a comparison of year groups by membership, ${title}:\n\n`;
+        sorted.slice(0, 10).forEach((y, i) => {
+          resp += `${i + 1}. Class of ${y.year}: ${y.memberCount} members\n`;
+        });
+        const biggest = sorted[0];
+        const smallest = sorted[sorted.length - 1];
+        resp += `\n📊 **Insight:** Class of ${biggest.year} has the most members (${biggest.memberCount}), while Class of ${smallest.year} has the fewest (${smallest.memberCount}).`;
+        return resp;
+      }
+      // Compare projects
+      if (/(project|fundrais)/i.test(m)) {
+        const active = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
+        if (active.length < 2) return `I need at least two active projects to compare, ${title}.`;
+        let resp = `Here's a comparison of active projects, ${title}:\n\n`;
+        active.sort((a, b) => Number(b.raisedAmount) - Number(a.raisedAmount)).forEach(p => {
+          const pct = Number(p.targetAmount) > 0 ? Math.round((Number(p.raisedAmount) / Number(p.targetAmount)) * 100) : 0;
+          resp += `• **${p.title}**: ${fmtMoney(Number(p.raisedAmount))} / ${fmtMoney(Number(p.targetAmount))} (${pct}% funded)\n`;
+        });
+        const best = active.sort((a, b) => {
+          const aPct = Number(a.targetAmount) > 0 ? Number(a.raisedAmount) / Number(a.targetAmount) : 0;
+          const bPct = Number(b.targetAmount) > 0 ? Number(b.raisedAmount) / Number(b.targetAmount) : 0;
+          return bPct - aPct;
+        })[0];
+        resp += `\n📊 **Insight:** "${best.title}" is the closest to its goal. Consider promoting the others to boost their progress!`;
+        return resp;
+      }
+      // Compare chat rooms
+      if (/(chat|room|conversation)/i.test(m)) {
+        const sorted = [...data.chatRooms].sort((a, b) => b.messageCount - a.messageCount);
+        if (sorted.length < 2) return `I need at least two chat rooms to compare, ${title}.`;
+        let resp = `Here's a comparison of chat rooms by activity, ${title}:\n\n`;
+        sorted.slice(0, 10).forEach((c, i) => {
+          resp += `${i + 1}. ${c.name}: ${c.messageCount} messages\n`;
+        });
+        const mostActive = sorted[0];
+        const leastActive = sorted.filter(c => c.messageCount > 0).pop();
+        if (mostActive && leastActive && mostActive !== leastActive) {
+          resp += `\n📊 **Insight:** "${mostActive.name}" is the most active (${mostActive.messageCount} messages), while "${leastActive.name}" could use more activity (${leastActive.messageCount} messages).`;
+        }
+        return resp;
+      }
+      return `I can compare year groups, projects, or chat rooms for you, ${title}. What would you like me to compare?`;
+    }
+
+    // ===== Advanced: Recommendations =====
+    case 'recommend': {
+      const m = userMsg.toLowerCase();
+      let resp = `Based on what I see on OPASS CONNECT, here are my recommendations, ${title}:\n\n`;
+      // If asking about what to do
+      if (/(what.*should.*i.*do|what.*can.*i.*do|bored|nothing.*to.*do)/i.test(m)) {
+        const recs: string[] = [];
+        if (data.userDues.length === 0) recs.push('💰 **Pay your dues** — Support the alumni community by contributing on the Payments page');
+        if (data.events.length > 0) recs.push(`📅 **Attend "${data.events[0].title}"** — The next event is on ${fmtDate(data.events[0].startsAt)}`);
+        const openElections = data.elections.filter(e => e.status === 'OPEN');
+        if (openElections.length > 0) recs.push(`🗳️ **Vote in the ${openElections[0].title} election** — Every vote matters!`);
+        if (data.userGroups.length === 0) recs.push('👥 **Join your year group** — Connect with your classmates on the Year Groups page');
+        const activeProjects = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
+        if (activeProjects.length > 0) recs.push(`🏗️ **Contribute to "${activeProjects[0].title}"** — Help reach the fundraising goal`);
+        if (data.userPosts === 0) recs.push('📝 **Share a post** — Start a conversation in your year group');
+        if (data.userNotifications.length > 0) recs.push(`🔔 **Check your ${data.userNotifications.length} notifications** — Stay up to date`);
+        recs.push('😄 **Chat with me** — Ask me a joke, a math problem, or about OPASS memories!');
+        if (recs.length > 3) {
+          resp += recs.slice(0, 5).map((r, i) => `${i + 1}. ${r}`).join('\n');
+        } else {
+          resp += `You're doing great, ${title}! You've paid dues, joined groups, and you're active. Keep it up! 🎓`;
+        }
+        return resp;
+      }
+      // If asking about business
+      if (/(business|advertise|market)/i.test(m)) {
+        return `If you have a business, ${title}, I recommend listing it on the Business page. OPASS CONNECT has ${data.allMembers.length} members who could be potential customers! You can also explore advertising options for wider reach. Would you like to know about our advertising rates?`;
+      }
+      // If asking about engagement
+      if (/(engag|active|participate)/i.test(m)) {
+        return `To stay engaged on OPASS CONNECT, ${title}:\n\n1. **Join your year group chat** — Connect with classmates\n2. **Attend events** — ${data.events.length > 0 ? `Next: "${data.events[0].title}"` : 'Watch for upcoming events'}\n3. **Vote in elections** — Have your voice heard\n4. **Contribute to projects** — Support alumni initiatives\n5. **Share posts and memories** — Keep the community alive!\n\nThe more you participate, the richer the experience!`;
+      }
+      // General recommendation
+      resp += `1. **Stay connected** — Check your year group chat regularly\n`;
+      resp += `2. **Pay your dues** — Support the platform and alumni projects\n`;
+      resp += `3. **Attend events** — Network with fellow alumni\n`;
+      resp += `4. **Share your story** — Post memories and updates in your year group\n`;
+      resp += `5. **Ask me anything** — I'm here to help with anything you need! 🎓`;
+      return resp;
+    }
+
+    // ===== Advanced: Follow-up (context-aware continuation) =====
+    case 'follow_up': {
+      // This is handled in the main entry point with context, but as fallback:
+      if (context.lastTopic === 'events' && data.events.length > 0) {
+        const e = data.events[0];
+        return `About "${e.title}" — it's on ${fmtDate(e.startsAt)}${e.venue ? ` at ${e.venue}` : ''}.${e.description ? ` ${e.description}` : ''} Would you like to attend, ${title}?`;
+      }
+      if (context.lastTopic === 'projects') {
+        const active = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
+        if (active.length > 0) {
+          const p = active[0];
+          const pct = Number(p.targetAmount) > 0 ? Math.round((Number(p.raisedAmount) / Number(p.targetAmount)) * 100) : 0;
+          return `To add to what I said about "${p.title}" — it's ${pct}% funded (${fmtMoney(Number(p.raisedAmount))} of ${fmtMoney(Number(p.targetAmount))}). ${pct < 50 ? 'It could use more support!' : 'It\'s doing well!'}`;
+        }
+      }
+      if (context.lastTopic === 'memories') {
+        return `Yes, ${title}! Those were special times. The OPASS spirit lives on through stories and memories. What else do you remember about your school days? The dormitory life? The dining hall? Inter-house sports?`;
+      }
+      return `Tell me more about what you'd like to know, ${title}. I'm here to help! 🎓`;
+    }
+
+    // ===== Advanced: Sentiment-aware response =====
+    case 'sentiment_response': {
+      if (context.userMood === 'frustrated') {
+        return `I understand this can be frustrating, ${title}. Let me help you sort it out. Can you tell me specifically what you're trying to do? I can guide you through:\n\n• Making a payment or paying dues\n• Joining a year group\n• Finding a member\n• Navigating the platform\n• Any technical issues\n\nWe'll get this sorted! 💪`;
+      }
+      if (context.userMood === 'happy') {
+        return `I love the positive energy, ${title}! 😄 That's the OPASS spirit! Is there anything you'd like to explore? I can tell you about events, projects, members, or even share a joke to keep the mood going!`;
+      }
+      if (context.userMood === 'nostalgic') {
+        return `Ah, ${title}, those OPASS days were truly special. The friendships, the dormitory life, the dining hall bell, the prep sessions, the inter-house sports... they shaped who we are. What's your most cherished memory? I'd love to hear it. 🎓`;
+      }
+      if (context.userMood === 'curious') {
+        return `Great question, ${title}! I love curiosity — that's the OPASS way! 🧠 I can dive deeper into any topic. What specifically would you like to explore? Events, projects, members, platform analytics, or something else?`;
+      }
+      return `I'm here for you, ${title}. What's on your mind?`;
+    }
+
     case 'fallback': {
       // Check conversation context for follow-up
       const lastAssistant = [...history].reverse().find(m => m.role === 'assistant');
@@ -793,7 +1181,7 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
         }
       }
 
-      return `I'm not sure I caught that, ${title}, but I'm here to help! 🎓\n\nHere's what I can do for you:\n\n📅 **Events** — What's coming up\n🗳️ **Elections** — Active votes and candidates\n🏗️ **Projects** — Fundraising progress\n💰 **Dues** — How to pay and your history\n👥 **Year Groups** — Find and join your class\n🔍 **Find Members** — Search by name\n💬 **Recent Chats** — What people are talking about\n📊 **Platform Stats** — Full overview\n🧮 **Math** — I can solve calculations\n😄 **Jokes** — OPASS-themed humor\n🎓 **Memories** — Chat about school days\n\nJust ask me anything, ${title}!`;
+      return `I'm not sure I caught that, ${title}, but I'm here to help! 🎓\n\nHere's what I can do for you:\n\n📅 **Events** — What's coming up\n🗳️ **Elections** — Active votes and candidates\n🏗️ **Projects** — Fundraising progress\n💰 **Dues** — How to pay and your history\n👥 **Year Groups** — Find and join your class\n🔍 **Find Members** — Search by name\n💬 **Recent Chats** — What people are talking about\n📊 **Platform Stats** — Full overview\n🧮 **Math** — I can solve calculations\n😄 **Jokes** — OPASS-themed humor\n🎓 **Memories** — Chat about school days\n🧠 **Insights** — "Analyze engagement" or "Financial health"\n⚖️ **Compare** — "Compare year groups"\n💡 **Recommend** — "What should I do?"\n\nJust ask me anything, ${title}!`;
     }
     default:
       return `I'm here to help, ${title}! Ask me about events, elections, projects, members, or say "help" for more options. 🎓`;
@@ -808,16 +1196,57 @@ export async function generateAiResponse(
   role: 'admin' | 'member' = 'member'
 ): Promise<string> {
   const data = await gatherPlatformData(userId, role);
-  const intent = detectIntent(message, history);
+  const mood = analyzeSentiment(message);
+  const entities = extractEntities(message, data);
+
+  // Build conversation context from history
+  const context: ConversationContext = {
+    lastTopic: null,
+    lastEntity: null,
+    lastIntent: null,
+    turnCount: history.filter(m => m.role === 'user').length,
+    userMood: mood,
+    mentionedMembers: entities.memberName ? [entities.memberName] : [],
+    askedAboutEvents: history.some(m => m.content.toLowerCase().match(/event|calendar|happening/)),
+    askedAboutProjects: history.some(m => m.content.toLowerCase().match(/project|fundrais|donate/)),
+  };
+
+  // Determine last topic from history
+  const lastUserMsgs = [...history].reverse().filter(m => m.role === 'user');
+  if (lastUserMsgs.length > 0) {
+    const lastUserMsg = lastUserMsgs[0].content;
+    context.lastIntent = detectIntent(lastUserMsg);
+    context.lastTopic = context.lastIntent;
+  }
+
+  let intent = detectIntent(message, history);
+
   // Handle "repeat" intent — re-run the last user intent
   if (intent === 'repeat') {
-    // Find the last user message before this one
-    const lastUserMsgs = [...history].reverse().filter(m => m.role === 'user');
     const lastUserMsg = lastUserMsgs[0]?.content || '';
     const lastIntent = detectIntent(lastUserMsg);
-    // If the last intent was fallback, default to joke (most common "again" use case)
     const repeatIntent = (lastIntent === 'fallback' || lastIntent === 'repeat') ? 'joke' : lastIntent;
-    return generateResponse(repeatIntent, data, lastUserMsg, history);
+    const response = generateResponse(repeatIntent, data, lastUserMsg, history, context);
+    return enhanceWithContext(response, context, data, repeatIntent);
   }
-  return generateResponse(intent, data, message, history);
+
+  // Handle follow-up: if user says "tell me more", "what about it", etc.
+  if (isFollowUp(message, context) && context.lastTopic && intent === 'fallback') {
+    intent = 'follow_up';
+  }
+
+  // Handle sentiment: if mood is strong and message is short, respond to sentiment
+  if (mood !== 'neutral' && message.length < 50 && intent === 'fallback') {
+    intent = 'sentiment_response';
+  }
+
+  // Generate response
+  let response = generateResponse(intent, data, message, history, context);
+
+  // Enhance with proactive suggestions (but not for fallback, help, or security)
+  if (!['fallback', 'help', 'security', 'sentiment_response', 'about_mamaa'].includes(intent)) {
+    response = enhanceWithContext(response, context, data, intent);
+  }
+
+  return response;
 }

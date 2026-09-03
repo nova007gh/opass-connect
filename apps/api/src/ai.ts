@@ -76,6 +76,14 @@ export function registerAiRoutes(app: FastifyInstance){
     return messages;
   });
 
+  // Get a personalized welcome message from Mamaa AI for the dashboard
+  app.get('/ai/welcome', { preHandler: [app.authenticate] }, async (req:any, reply) => {
+    const aiRole: 'admin' | 'member' = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role) ? 'admin' : 'member';
+    const { generateAiResponse } = await import('./ai-engine.js');
+    const welcome = await generateAiResponse(req.user.sub, 'greeting', [], aiRole);
+    return { message: welcome };
+  });
+
   app.post('/ai/quote', { preHandler: [app.authenticate] }, async (req, reply) => {
     const body = z.object({clientName:z.string().min(2),clientEmail:z.string().email(),clientPhone:z.string().optional(),request:z.object({requestType:z.enum(['advertising','sponsorship','event','partnership','other']).optional(),durationDays:z.number().int().positive().optional(),placement:z.enum(['year_group','home','events','platform_wide']).optional(),audienceSize:z.number().int().positive().optional(),creativeType:z.enum(['image','video','live']).optional(),rush:z.boolean().optional()})}).parse(req.body);
     const questions=missingQuoteQuestions(body.request);

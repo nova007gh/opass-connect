@@ -31,6 +31,14 @@ interface PlatformData {
   totalDues: number;
   totalContributions: number;
   activeTickets: number;
+  // ALL members (for AI to know everyone)
+  allMembers: { id: string; fullName: string; nickname: string | null; graduationYear: number | null; house: string | null; profession: string | null; city: string | null; country: string | null; avatarUrl: string | null }[];
+  // ALL recent chat messages (for AI to read conversations)
+  recentChatMessages: { body: string; createdAt: Date; roomName: string; userFullName: string | null }[];
+  // ALL recent DMs (for AI to know private conversations context)
+  recentDMs: { body: string; createdAt: Date; senderName: string | null; recipientName: string | null }[];
+  // Recent member activity
+  recentMemberActivity: { type: string; fullName: string | null; detail: string; createdAt: Date }[];
   // User-specific
   userProfile?: { fullName: string; nickname: string | null; gender: string | null; graduationYear: number | null; house: string | null; profession: string | null; country: string | null; city: string | null } | null;
   userDues: { amount: number; purpose: string; createdAt: Date }[];
@@ -55,6 +63,7 @@ async function gatherPlatformData(userId?: string, role: 'admin' | 'member' = 'm
     events, elections, projects, businesses, userCount, verifiedCount,
     yearGroups, recentPosts, announcements, chatRooms,
     totalDuesAgg, totalContributionsAgg, activeTickets,
+    allMembers, recentChatMessages, recentDMs, recentMemberActivity,
   ] = await Promise.all([
     prisma.event.findMany({ where: { startsAt: { gte: new Date() } }, orderBy: { startsAt: 'asc' }, take: 10, select: { title: true, startsAt: true, venue: true, description: true } }),
     prisma.election.findMany({ include: { _count: { select: { votes: true } }, candidates: { include: { user: { select: { profile: { select: { fullName: true } } } } } } }, take: 10 }),
@@ -69,6 +78,14 @@ async function gatherPlatformData(userId?: string, role: 'admin' | 'member' = 'm
     prisma.payment.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } }),
     prisma.contribution.aggregate({ _sum: { amount: true } }),
     prisma.supportTicket.count({ where: { status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
+    // ALL members with profiles
+    prisma.alumniProfile.findMany({ select: { userId: true, fullName: true, nickname: true, graduationYear: true, house: true, profession: true, city: true, country: true, avatarUrl: true }, orderBy: { fullName: 'asc' }, take: 200 }),
+    // ALL recent chat messages across all rooms
+    prisma.message.findMany({ orderBy: { createdAt: 'desc' }, take: 30, select: { body: true, createdAt: true, room: { select: { name: true } }, user: { select: { profile: { select: { fullName: true } } } } } }),
+    // ALL recent DMs
+    prisma.directMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 20, select: { body: true, createdAt: true, sender: { select: { profile: { select: { fullName: true } } } }, recipient: { select: { profile: { select: { fullName: true } } } } } }),
+    // Recent member activity (posts + comments + likes)
+    prisma.yearGroupPostComment.findMany({ orderBy: { createdAt: 'desc' }, take: 10, select: { body: true, createdAt: true, user: { select: { profile: { select: { fullName: true } } } }, post: { select: { body: true } } } }),
   ]);
 
   const data: PlatformData = {
@@ -85,6 +102,10 @@ async function gatherPlatformData(userId?: string, role: 'admin' | 'member' = 'm
     totalDues: Number(totalDuesAgg._sum.amount || 0),
     totalContributions: Number(totalContributionsAgg._sum.amount || 0),
     activeTickets,
+    allMembers: allMembers.map(m => ({ id: m.userId, fullName: m.fullName, nickname: m.nickname, graduationYear: m.graduationYear, house: m.house, profession: m.profession, city: m.city, country: m.country, avatarUrl: m.avatarUrl })),
+    recentChatMessages: recentChatMessages.map(m => ({ body: m.body, createdAt: m.createdAt, roomName: m.room?.name || 'Unknown', userFullName: m.user?.profile?.fullName || null })),
+    recentDMs: recentDMs.map(m => ({ body: m.body, createdAt: m.createdAt, senderName: m.sender?.profile?.fullName || null, recipientName: m.recipient?.profile?.fullName || null })),
+    recentMemberActivity: recentMemberActivity.map((c: any) => ({ type: 'comment', fullName: c.user?.profile?.fullName || null, detail: `Commented on a post: "${c.body?.slice(0, 50)}"`, createdAt: c.createdAt })),
     userDues: [],
     userGroups: [],
     userNotifications: [],
@@ -162,7 +183,8 @@ type Intent =
   | 'help' | 'about_opass' | 'about_mamaa' | 'my_profile' | 'my_activity'
   | 'users' | 'revenue' | 'tickets' | 'pending_approvals' | 'banned'
   | 'math' | 'joke' | 'memories' | 'chat_activity' | 'notifications'
-  | 'platform_stats' | 'security' | 'fallback';
+  | 'platform_stats' | 'security' | 'fallback'
+  | 'find_member' | 'who_is' | 'recent_chats' | 'member_activity';
 
 function detectIntent(msg: string): Intent {
   const m = msg.toLowerCase().trim();
@@ -174,6 +196,22 @@ function detectIntent(msg: string): Intent {
   // Greeting
   if (/^(hi|hello|hey|akwaaba|good (morning|afternoon|evening)|how are you|what's up|whats up)\b/i.test(m))
     return 'greeting';
+
+  // Find a specific member by name
+  if (/(find|search|look.*up|where.*is|is.*there.*a.*member|is.*there.*someone.*called)/i.test(m))
+    return 'find_member';
+
+  // Who is [name]?
+  if (/^(who.*is|who.*was|tell.*me.*about)\s+[a-z]/i.test(m) && !/(who.*are.*you|who.*am.*i)/i.test(m))
+    return 'who_is';
+
+  // Recent chats / conversations
+  if (/(recent.*chat|latest.*message|what.*people.*talking|conversation.*history|chat.*history|what.*being.*said)/i.test(m))
+    return 'recent_chats';
+
+  // Member activity
+  if (/(member.*activity|what.*members.*doing|recent.*activity|latest.*activity|who.*active|who.*posting)/i.test(m))
+    return 'member_activity';
 
   // Events
   if (/(event|what's happening|whats happening|upcoming|calendar|gather|meetup|reunion)/i.test(m))
@@ -468,11 +506,13 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
       let resp = `Here's an overview of OPASS CONNECT, ${title}:\n\n`;
       resp += `• **Total users:** ${data.userCount}\n`;
       resp += `• **Verified users:** ${data.verifiedCount}\n`;
+      resp += `• **Alumni profiles:** ${data.allMembers.length}\n`;
       resp += `• **Year groups:** ${data.yearGroups.length}\n`;
       resp += `• **Upcoming events:** ${data.events.length}\n`;
       resp += `• **Active elections:** ${data.elections.filter(e => e.status === 'OPEN').length}\n`;
       resp += `• **Active projects:** ${data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS').length}\n`;
       resp += `• **Verified businesses:** ${data.businesses.length}\n`;
+      resp += `• **Chat rooms:** ${data.chatRooms.length} (${data.chatRooms.reduce((s, c) => s + c.messageCount, 0)} total messages)\n`;
       resp += `• **Total dues collected:** ${fmtMoney(data.totalDues)}\n`;
       resp += `• **Total project contributions:** ${fmtMoney(data.totalContributions)}\n`;
       resp += `• **Open support tickets:** ${data.activeTickets}\n`;
@@ -543,6 +583,89 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
         `OPASS traditions run deep — the school motto, the house rivalries, the entertainment nights, and the lifelong bonds formed in classrooms and dormitories. Every alumni has a story to tell. Share yours, ${title}! What do you miss most about your school days?`,
       ];
       return memories[Math.floor(Math.random() * memories.length)];
+    }
+
+    // ===== New intents: member search, who is, recent chats, member activity =====
+    case 'find_member': {
+      // Try to extract a name from the message
+      const nameMatch = userMsg.match(/(?:called|named|find|search|look.*up.*for|where.*is)\s+([a-zA-Z]+)/i);
+      const searchName = nameMatch ? nameMatch[1].toLowerCase() : '';
+      if (!searchName) {
+        return `I can help you find members, ${title}! Tell me a name and I'll search our alumni directory. For example: "Find Kwame" or "Is there someone called Akosua?"`;
+      }
+      const matches = data.allMembers.filter(m =>
+        m.fullName?.toLowerCase().includes(searchName) ||
+        m.nickname?.toLowerCase().includes(searchName)
+      );
+      if (matches.length === 0) return `I couldn't find anyone named "${searchName}" in our directory, ${title}. Try a different name or check the Alumni Directory page.`;
+      let resp = `I found ${matches.length} member${matches.length > 1 ? 's' : ''} matching "${searchName}", ${title}:\n\n`;
+      matches.slice(0, 5).forEach(m => {
+        resp += `• **${m.fullName}**${m.nickname ? ` (nickname: ${m.nickname})` : ''} — Class of ${m.graduationYear || '?'}`;
+        if (m.house) resp += `, House: ${m.house}`;
+        if (m.profession) resp += `, ${m.profession}`;
+        if (m.city || m.country) resp += `, ${[m.city, m.country].filter(Boolean).join(', ')}`;
+        resp += `\n`;
+      });
+      if (matches.length > 5) resp += `\n...and ${matches.length - 5} more. Visit the Alumni Directory for the full list.`;
+      return resp;
+    }
+
+    case 'who_is': {
+      const nameMatch = userMsg.match(/(?:who.*is|who.*was|tell.*me.*about)\s+([a-zA-Z]+)/i);
+      const searchName = nameMatch ? nameMatch[1].toLowerCase() : '';
+      if (!searchName) return `Tell me a name and I'll tell you about them, ${title}!`;
+      const matches = data.allMembers.filter(m =>
+        m.fullName?.toLowerCase().includes(searchName) ||
+        m.nickname?.toLowerCase().includes(searchName)
+      );
+      if (matches.length === 0) return `I don't have information about anyone named "${searchName}", ${title}. They may not be registered on OPASS CONNECT yet.`;
+      const m = matches[0];
+      let resp = `**${m.fullName}** is an OPASS alumni, ${title}.\n\n`;
+      resp += `• Class of ${m.graduationYear || 'Unknown'}\n`;
+      if (m.nickname) resp += `• Nickname: ${m.nickname}\n`;
+      if (m.house) resp += `• House: ${m.house}\n`;
+      if (m.profession) resp += `• Profession: ${m.profession}\n`;
+      if (m.city || m.country) resp += `• Location: ${[m.city, m.country].filter(Boolean).join(', ')}\n`;
+      // Check if they've been active in chats
+      const theirMessages = data.recentChatMessages.filter(msg => msg.userFullName?.toLowerCase().includes(searchName));
+      if (theirMessages.length > 0) {
+        resp += `• Recent activity: Sent ${theirMessages.length} message${theirMessages.length > 1 ? 's' : ''} in group chats recently.\n`;
+      }
+      return resp;
+    }
+
+    case 'recent_chats': {
+      if (data.recentChatMessages.length === 0 && data.recentDMs.length === 0)
+        return `There are no recent conversations on the platform, ${title}. Be the first to start a chat!`;
+      let resp = `Here's what people are talking about, ${title}:\n\n`;
+      if (data.recentChatMessages.length > 0) {
+        resp += `**Group Chats:**\n`;
+        data.recentChatMessages.slice(0, 10).forEach(msg => {
+          const preview = msg.body?.slice(0, 60) || '(media)';
+          resp += `• ${msg.userFullName || 'Someone'} in ${msg.roomName}: "${preview}${msg.body && msg.body.length > 60 ? '...' : ''}" (${timeAgo(msg.createdAt)})\n`;
+        });
+      }
+      if (data.recentDMs.length > 0 && isAdmin) {
+        resp += `\n**Recent Direct Messages:**\n`;
+        data.recentDMs.slice(0, 5).forEach(msg => {
+          const preview = msg.body?.slice(0, 50) || '(media)';
+          resp += `• ${msg.senderName || 'Someone'} → ${msg.recipientName || 'Someone'}: "${preview}" (${timeAgo(msg.createdAt)})\n`;
+        });
+      }
+      return resp;
+    }
+
+    case 'member_activity': {
+      const activity = [
+        ...data.recentPosts.map(p => ({ type: 'post', fullName: p.user?.profile?.fullName || null, detail: `Posted in ${p.yearGroup.name}: "${p.body?.slice(0, 50)}"`, createdAt: p.createdAt })),
+        ...data.recentMemberActivity.map(a => ({ type: a.type, fullName: a.fullName, detail: a.detail, createdAt: a.createdAt })),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      if (activity.length === 0) return `There's no recent member activity, ${title}. Start a conversation or make a post to get things going!`;
+      let resp = `Here's the recent member activity on OPASS CONNECT, ${title}:\n\n`;
+      activity.slice(0, 10).forEach(a => {
+        resp += `• ${a.fullName || 'A member'} — ${a.detail} (${timeAgo(a.createdAt)})\n`;
+      });
+      return resp;
     }
 
     case 'fallback': {

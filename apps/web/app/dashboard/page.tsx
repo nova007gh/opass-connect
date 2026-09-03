@@ -93,6 +93,7 @@ export default function DashboardHome() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [conversations, setConversations] = useState<DMConversation[]>([]);
+  const [mamaaWelcome, setMamaaWelcome] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const submitSearch = (e: React.FormEvent) => {
@@ -106,11 +107,13 @@ export default function DashboardHome() {
       apiGet<Project[]>('/projects').catch(() => []),
       apiGet<EventItem[]>('/events').catch(() => []),
       apiGet<DMConversation[]>('/dm/conversations').catch(() => []),
-    ]).then(([yg, pr, ev, conv]) => {
+      apiGet<{ message: string }>('/ai/welcome').catch(() => null),
+    ]).then(([yg, pr, ev, conv, welcome]) => {
       setYearGroups(yg);
       setProjects(pr);
       setEvents(ev);
       setConversations(conv);
+      if (welcome) setMamaaWelcome(welcome.message);
       setLoading(false);
       // Load activity for ALL year groups
       if (yg.length > 0) {
@@ -207,6 +210,21 @@ export default function DashboardHome() {
             </div>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, opacity: 0.7, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" /></svg>
           </Link>
+
+          {/* Mamaa AI Welcome Message */}
+          {mamaaWelcome && (
+            <div className="card fade-in-up" style={{ marginBottom: 16, padding: 16, background: 'linear-gradient(135deg, #F0F7FF 0%, #E0EDFF 100%)', border: '1px solid rgba(0,81,255,0.15)', borderRadius: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🎓</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--blue)' }}>Mamaa AI</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>Mr. Atsu Clements — your AI companion</div>
+                </div>
+              </div>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--black)', whiteSpace: 'pre-wrap' }}>{mamaaWelcome}</p>
+              <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ display: 'inline-block', marginTop: 10, fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>Chat with Mamaa AI →</Link>
+            </div>
+          )}
 
           {/* All Chats — conversation history */}
           <div className="section-header fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

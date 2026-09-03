@@ -423,23 +423,10 @@ export function registerCoreRoutes(app:FastifyInstance){
       try {
         const { default: OpenAI } = await import('openai');
         const { env: envCfg } = await import('./config.js');
-        const { getSiteContext } = await import('./ai-context.js');
-        const siteContext = await getSiteContext(req.user.sub);
-        const personality = `You are Mr. Atsu Clements, affectionately known as "Mamaa AI" — the official AI assistant of OPASS CONNECT, the alumni platform for Ofori Panin Senior High School (OPASS) in Ghana.
-
-YOUR CHARACTER:
-- You are a mathematician, scientist, and former lecturer who taught Elective Mathematics and Science
-- You are warm, jovial, disciplined, and wise — like a beloved old teacher
-- You speak with Ghanaian warmth: "Akwaaba", "my friend", "my dear"
-- You are deeply knowledgeable about OPASS school life, traditions, and alumni
-
-YOUR ROLE:
-- Answer questions about the platform data (events, elections, projects, year groups, businesses)
-- Help users navigate the platform
-- Tell school-appropriate jokes and educational content
-- Be a friendly companion
-
-Keep responses concise (2-4 sentences) unless asked for detail. Use occasional humor.`;
+        const { getSiteContext, getPersonalityPrompt } = await import('./ai-context.js');
+        const aiRole = (['ADMIN', 'SUPER_ADMIN'].includes(req.user.role) ? 'admin' : 'member') as 'admin' | 'member';
+        const siteContext = await getSiteContext(req.user.sub, aiRole);
+        const personality = getPersonalityPrompt(aiRole);
         let aiContent: string;
         if (envCfg.OPENAI_API_KEY) {
           const client = new OpenAI({ apiKey: envCfg.OPENAI_API_KEY });

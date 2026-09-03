@@ -618,21 +618,33 @@ export function registerCoreRoutes(app:FastifyInstance){
   // ===== Mamaa AI auto-join + @mention detection in group chat =====
   const MAMAAA_BOT_ID=process.env.MAMAAA_BOT_ID||'mamaaa-ai-bot';
   if(b.body&&req.user.sub!==MAMAAA_BOT_ID){
-    const isMentioned=/@?mamaa+ai?\b/i.test(b.body);
-    // Auto-join: respond to direct questions, @mamaa mentions, or when someone says "mamaa"
+    // Fixed regex: matches @mamaa, @mamaaa, mamaa, mamaaa (with or without @)
+    const mamaaPattern=/@?mamaa+\b/i;
+    const isMentioned=mamaaPattern.test(b.body);
     const isQuestion=/\?$/.test(b.body.trim())&&b.body.length>5;
     const saysMamaa=/mamaa/i.test(b.body);
     const shouldRespond=isMentioned||saysMamaa||(isQuestion&&Math.random()<0.3);
     if(shouldRespond){
       try{
+        // Ensure bot user exists before creating message
+        const botExists=await prisma.user.findUnique({where:{id:MAMAAA_BOT_ID},select:{id:true}}).catch(()=>null);
+        if(!botExists){
+          await prisma.user.upsert({
+            where:{id:MAMAAA_BOT_ID},
+            update:{},
+            create:{id:MAMAAA_BOT_ID,email:'mamaaa@opassconnect.edu',passwordHash:'bot-no-login',role:'MEMBER',verification:'VERIFIED',profile:{create:{fullName:'Mamaa AI',nickname:'Mamaa AI',graduationYear:1980,profession:'AI Assistant'}}},
+          }).catch(()=>{});
+        }
         const{generateAiResponse}=await import('./ai-engine.js');
         const aiRole=(['ADMIN','SUPER_ADMIN'].includes(req.user.role)?'admin':'member') as 'admin'|'member';
         const recentMsgs=await prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:10,include:{user:{select:{profile:{select:{fullName:true}}}}}});
         const history=recentMsgs.reverse().map(m=>({role:(m.userId===MAMAAA_BOT_ID?'assistant':'user') as 'user'|'assistant',content:`${m.user?.profile?.fullName||'Someone'}: ${m.body}`}));
-        const cleanMsg=b.body.replace(/@?mamaa+ai?\b/i,'').trim();
+        const cleanMsg=b.body.replace(mamaaPattern,'').trim();
         const aiContent=await generateAiResponse(req.user.sub,cleanMsg||b.body,history,aiRole);
         await prisma.message.create({data:{roomId:req.params.id,userId:MAMAAA_BOT_ID,body:`🤖 ${aiContent}`}});
-      }catch{}
+      }catch(e:any){
+        console.error('[mamaa] Failed to respond in chat:',e?.message||e);
+      }
     }
   }
   return msg;});

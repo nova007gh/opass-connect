@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet, apiPost, apiUpload } from '../../../../lib/api';
+import { apiGet, apiPost, apiPatch, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import Avatar from '../../../../components/Avatar';
 import EmojiPicker from '../../../../components/EmojiPicker';
@@ -20,6 +20,7 @@ interface ChatMessage {
   videoUrl?: string | null;
   reactions?: Record<string, string[]> | null;
   replyToId?: string | null;
+  editedAt?: string | null;
   createdAt: string;
   replyTo?: { id: string; body: string; userId: string; audioUrl?: string | null; imageUrl?: string | null; videoUrl?: string | null; user: { profile?: { fullName?: string | null } | null } } | null;
   user: { id: string; profile?: { fullName?: string | null; avatarUrl?: string | null } | null };
@@ -97,6 +98,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const [callError, setCallError] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState<ChatMessage | null>(null);
   const [showActivityBar, setShowActivityBar] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -259,6 +261,42 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
     } finally {
       setSending(false);
     }
+  };
+
+  const saveEdit = async () => {
+    if (!editingMsg || !room || !input.trim()) return;
+    setSending(true);
+    setError('');
+    try {
+      const updated = await apiPatch<ChatMessage>(`/chat/rooms/${room.id}/messages/${editingMsg.id}`, { body: input.trim() });
+      setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+      setEditingMsg(null);
+      setInput('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to edit message');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const startEdit = (m: ChatMessage) => {
+    setEditingMsg(m);
+    setInput(m.body);
+    setReplyTo(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingMsg(null);
+    setInput('');
+  };
+
+  // Check if a message can be edited (own message, within 10 minutes, text only)
+  const canEdit = (m: ChatMessage) => {
+    if (m.userId !== user?.id) return false;
+    if (m.audioUrl || m.imageUrl || m.videoUrl) return false;
+    if (isSticker(m.body) || isActivity(m.body)) return false;
+    const ageMs = Date.now() - new Date(m.createdAt).getTime();
+    return ageMs <= 10 * 60 * 1000;
   };
 
   const sendActivity = async (activity: typeof ACTIVITIES[0]) => {
@@ -532,7 +570,29 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                 const reactions = m.reactions || {};
 
                 return (
-                  <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: isLastInGroup ? 8 : 1, gap: 6, alignItems: 'flex-end', position: 'relative' }}>
+                  <div key={m.id}
+                    style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: isLastInGroup ? 8 : 1, gap: 6, alignItems: 'flex-end', position: 'relative', touchAction: 'pan-y' }}
+                    onTouchStart={(e) => {
+                      const touch = e.touches[0];
+                      (e.currentTarget as HTMLElement).dataset.swipeStartX = String(touch.clientX);
+                      (e.currentTarget as HTMLElement).dataset.swipeStartY = String(touch.clientY);
+                      (e.currentTarget as HTMLElement).dataset.swiped = '0';
+                    }}
+                    onTouchMove={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      const startX = parseFloat(el.dataset.swipeStartX || '0');
+                      const startY = parseFloat(el.dataset.swipeStartY || '0');
+                      const dx = e.touches[0].clientX - startX;
+                      const dy = e.touches[0].clientY - startY;
+                      // Only swipe if horizontal movement dominates and is to the right
+                      if (Math.abs(dx) > Math.abs(dy) * 1.5 && dx > 20 && el.dataset.swiped === '0') {
+                        el.dataset.swiped = '1';
+                        setReplyTo(m);
+                        // Haptic feedback
+                        if (navigator.vibrate) navigator.vibrate(10);
+                      }
+                    }}
+                  >
                     {/* Avatar (show only for first message in group, not me) */}
                     {!isMe && (
                       <div style={{ width: 30, flexShrink: 0, visibility: isFirstInGroup ? 'visible' : 'hidden' }}>
@@ -619,6 +679,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                           {isSticker(m.body) ? stickerContent(m.body) : isEmojiOnly(m.body) ? m.body : m.body}
                           {/* Timestamp — WhatsApp style, inline at bottom right */}
                           <span style={{ fontSize: 9, color: isMe ? 'rgba(255,255,255,0.6)' : 'var(--muted)', marginLeft: 8, float: 'right', marginTop: 4, userSelect: 'none' }}>
+                            {m.editedAt && <span style={{ fontStyle: 'italic', marginRight: 3 }}>edited</span>}
                             {timeLabel(m.createdAt)}
                           </span>
                         </div>
@@ -686,6 +747,15 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         >
                           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                         </button>
+                        {canEdit(m) && (
+                          <button
+                            onClick={() => startEdit(m)}
+                            style={{ background: 'none', border: 0, cursor: 'pointer', padding: '2px 4px', color: 'var(--muted)', display: 'flex', alignItems: 'center' }}
+                            title="Edit"
+                          >
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 14, height: 14 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -698,7 +768,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       </div>
 
       {/* Reply preview bar */}
-      {replyTo && (
+      {replyTo && !editingMsg && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'var(--blue-50)', borderTop: '1px solid var(--border)', borderRadius: 0 }}>
           <svg fill="none" stroke="var(--blue)" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -708,6 +778,17 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
             </div>
           </div>
           <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
+        </div>
+      )}
+      {/* Edit preview bar */}
+      {editingMsg && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'var(--blue-50)', borderTop: '1px solid var(--border)', borderRadius: 0 }}>
+          <svg fill="none" stroke="var(--blue)" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>Editing message</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{editingMsg.body}</div>
+          </div>
+          <button onClick={cancelEdit} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
         </div>
       )}
 
@@ -844,8 +925,8 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                   apiPost(`/chat/rooms/${room.id}/typing`, {}).catch(() => {});
                 }
               }}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Type a message..."
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); editingMsg ? saveEdit() : send(); } }}
+              placeholder={editingMsg ? 'Edit message...' : "Type a message..."}
               style={{
                 flex: 1, border: '1px solid var(--border)', borderRadius: 22,
                 padding: '8px 16px', fontSize: 14, outline: 0, background: 'var(--bg)',
@@ -855,7 +936,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
             {/* Voice note button (when input is empty) or Send button */}
             {input.trim() ? (
               <button
-                onClick={() => send()}
+                onClick={() => editingMsg ? saveEdit() : send()}
                 disabled={sending}
                 style={{
                   width: 36, height: 36, borderRadius: '50%', padding: 0, flexShrink: 0,

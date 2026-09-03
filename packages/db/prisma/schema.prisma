@@ -265,6 +265,7 @@ model Message {
   videoUrl String?
   replyToId String?
   reactions Json?
+  editedAt DateTime?
   createdAt DateTime @default(now())
   room ChatRoom @relation(fields:[roomId], references:[id], onDelete:Cascade)
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)

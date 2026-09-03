@@ -71,6 +71,7 @@ export async function notifyAdmins(
 
 /**
  * Create a notification for members of a specific year group.
+ * Pass excludeUserId to avoid notifying the person who triggered the action.
  */
 export async function notifyYearGroup(
   yearGroupId: string,
@@ -78,10 +79,11 @@ export async function notifyYearGroup(
   title: string,
   body: string,
   link?: string,
+  excludeUserId?: string,
   sendEmail = false,
 ) {
   const memberships = await prisma.yearGroupMembership.findMany({
-    where: { yearGroupId },
+    where: { yearGroupId, ...(excludeUserId ? { userId: { not: excludeUserId } } : {}) },
     select: { userId: true },
   });
   if (memberships.length === 0) return [];

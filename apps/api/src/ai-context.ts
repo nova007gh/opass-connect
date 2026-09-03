@@ -14,10 +14,11 @@ export function honorific(gender?: string | null): string {
  */
 export async function getUserHonorific(userId?: string): Promise<string> {
   if (!userId) return 'Opanin';
-  const profile = await prisma.alumniProfile.findUnique({ where: { userId }, select: { fullName: true, gender: true } });
+  const profile = await prisma.alumniProfile.findUnique({ where: { userId }, select: { fullName: true, gender: true, nickname: true } });
   if (!profile) return 'Opanin';
-  const firstName = profile.fullName?.split(' ')[0] || '';
-  return `${honorific(profile.gender)}${firstName ? ' ' + firstName : ''}`;
+  // Prefer nickname if available, otherwise first name
+  const displayName = profile.nickname || profile.fullName?.split(' ')[0] || '';
+  return `${honorific(profile.gender)}${displayName ? ' ' + displayName : ''}`;
 }
 
 export type AiRole = 'admin' | 'member';
@@ -94,10 +95,11 @@ ADMIN-ONLY DATA (this user is an admin — you may share this information):
     ]);
     if (userProfile) {
       const firstName = userProfile.fullName?.split(' ')[0] || '';
+      const nickOrFirst = userProfile.nickname || firstName;
       const title = honorific(userProfile.gender);
       userContext = `\nCURRENT USER INFO:
-- Name: ${userProfile.fullName}, Nickname: ${userProfile.nickname || 'POPASSION'}
-- How to address this user: "${title}" (or "${title} ${firstName}") — ${userProfile.gender === 'FEMALE' ? 'she is female, so use "Obaa Panin", never "Opanin"' : userProfile.gender === 'MALE' ? 'he is male, so use "Opanin"' : 'gender not set, default to "Opanin"'}
+- Name: ${userProfile.fullName}, Nickname: ${userProfile.nickname || 'Not set'}
+- How to address this user: "${title} ${nickOrFirst}" — ${userProfile.gender === 'FEMALE' ? 'she is female, so use "Obaa Panin", never "Opanin"' : userProfile.gender === 'MALE' ? 'he is male, so use "Opanin"' : 'gender not set, default to "Opanin"'}. Always greet them as "${title} ${nickOrFirst}" (e.g. "Akwaaba, ${title} ${nickOrFirst}!"). Use their nickname "${userProfile.nickname}" if set, otherwise their first name.
 - Class of ${userProfile.graduationYear}, House: ${userProfile.house || 'Not set'}
 - Profession: ${userProfile.profession || 'Not set'}, Location: ${[userProfile.city, userProfile.country].filter(Boolean).join(', ') || 'Not set'}
 - Joined year groups: ${userGroups.map(g => `${g.yearGroup.name} (${g.yearGroup.year})`).join(', ') || 'None'}

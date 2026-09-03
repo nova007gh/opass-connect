@@ -45,6 +45,12 @@ interface GroupStats {
   likesByDay: number[];
   totals: { posts: number; comments: number; likes: number };
   members: number;
+  finances?: {
+    duesPaid: number;
+    projects: { title: string; target: number; raised: number; status: string }[];
+    projectTargetTotal: number;
+    projectRaisedTotal: number;
+  };
 }
 
 function timeAgo(date: string) {
@@ -152,6 +158,66 @@ function ActivityChart({ stats, loading }: { stats: GroupStats | null; loading: 
       {!hasActivity && (
         <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>
           No activity in the last 14 days. Be the first to post!
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FinancialStats({ stats }: { stats: GroupStats }) {
+  const fin = stats.finances!;
+  const projectProgress = fin.projectTargetTotal > 0 ? Math.min(100, (fin.projectRaisedTotal / fin.projectTargetTotal) * 100) : 0;
+  return (
+    <div className="card" style={{ marginBottom: 16, padding: 20 }}>
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Year Group Financials</div>
+
+      {/* Dues card */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--blue-50)', borderRadius: 12, marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Dues Collected</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue)' }}>GHS {fin.duesPaid.toLocaleString()}</div>
+        </div>
+        <svg fill="none" stroke="var(--blue)" viewBox="0 0 24 24" strokeWidth={1.5} style={{ width: 32, height: 32, opacity: 0.5 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+      </div>
+
+      {/* Projects summary */}
+      {fin.projects.length > 0 ? (
+        <>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Projects Progress</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+                GHS {fin.projectRaisedTotal.toLocaleString()} / GHS {fin.projectTargetTotal.toLocaleString()}
+              </span>
+            </div>
+            <div className="progress" style={{ height: 10 }}>
+              <div className="progress-bar" style={{ width: `${projectProgress}%` }} />
+            </div>
+          </div>
+
+          {/* Individual projects */}
+          {fin.projects.map((p, i) => {
+            const pct = p.target > 0 ? Math.min(100, (p.raised / p.target) * 100) : 0;
+            return (
+              <div key={i} style={{ padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{p.title}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: p.status === 'COMPLETED' ? '#ECFDF5' : '#EFF6FF', color: p.status === 'COMPLETED' ? '#16A34A' : 'var(--blue)' }}>{p.status}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                  <span>Target: GHS {p.target.toLocaleString()}</span>
+                  <span>Achieved: GHS {p.raised.toLocaleString()}</span>
+                </div>
+                <div className="progress" style={{ height: 6 }}>
+                  <div className="progress-bar" style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--green)' : 'var(--blue-bright)' }} />
+                </div>
+              </div>
+            );
+          })}
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', padding: '12px 0' }}>
+          No year group projects yet.
         </div>
       )}
     </div>
@@ -421,6 +487,11 @@ export default function YearGroupDetailPage() {
           {/* Activity chart - only on feed tab */}
           {canView && tab === 'feed' && (
             <ActivityChart stats={stats} loading={statsLoading} />
+          )}
+
+          {/* Financial stats - only on feed tab */}
+          {canView && tab === 'feed' && stats?.finances && (
+            <FinancialStats stats={stats} />
           )}
 
           {group.isRestricted && tab === 'feed' && (

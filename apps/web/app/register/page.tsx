@@ -59,6 +59,7 @@ function RegisterForm() {
     if (!form.fullName.trim()) return 'Full name is required.';
     if (!form.email.trim()) return 'Email is required.';
     if (!form.gender) return 'Please select whether you are male or female.';
+    if (!form.nickname.trim()) return 'Please enter your nickname (this is how Mamaa AI and others will refer to you).';
     if (form.password.length < 10) return 'Password must be at least 10 characters.';
     return '';
   };
@@ -98,7 +99,7 @@ function RegisterForm() {
         phone: form.phone ? `${phoneDial} ${form.phone}` : undefined,
         password: form.password,
         fullName: form.fullName,
-        nickname: form.nickname || undefined,
+        nickname: form.nickname.trim(),
         gender: form.gender || undefined,
         graduationYear: parseInt(form.graduationYear, 10),
         house: form.house || undefined,
@@ -198,6 +199,14 @@ function RegisterForm() {
                   Female
                 </button>
               </div>
+            </div>
+            <div className="form-group">
+              <label>Nickname (required)</label>
+              <div className="input-wrap">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22, color: 'var(--blue)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <input type="text" value={form.nickname} onChange={e => set('nickname', e.target.value)} placeholder="e.g. SNY Obeng, Kofi, etc." />
+              </div>
+              <div className="hint">This is how Mamaa AI and other alumni will refer to you.</div>
             </div>
             <div className="form-group">
               <label>Phone Number</label>

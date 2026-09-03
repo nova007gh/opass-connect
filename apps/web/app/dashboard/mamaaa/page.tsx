@@ -19,7 +19,7 @@ const quickActions = [
 export default function MamaaaPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: `Akwaaba${user?.profile?.fullName ? ', ' + user.profile.fullName.split(' ')[0] : ''}! I am Mr. Atsu Clements, affectionately known as Mamaa AI — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?` },
+    { role: 'assistant', content: `Akwaaba${user?.profile?.nickname ? ', ' + (user.profile.gender === 'FEMALE' ? 'Obaa Panin' : 'Opanin') + ' ' + user.profile.nickname : user?.profile?.fullName ? ', ' + (user.profile.gender === 'FEMALE' ? 'Obaa Panin' : 'Opanin') + ' ' + user.profile.fullName.split(' ')[0] : ''}! I am Mr. Atsu Clements, affectionately known as Mamaa AI — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?` },
   ]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | undefined>();

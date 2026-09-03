@@ -59,7 +59,7 @@ const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites' | 'aiLogs'>('overview');
+  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [pending, setPending] = useState<PendingMember[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -67,18 +67,9 @@ export default function AdminPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [groupInvites, setGroupInvites] = useState<any[]>([]);
-  const [aiConversations, setAiConversations] = useState<any[]>([]);
-  const [aiMessages, setAiMessages] = useState<any[] | null>(null);
-  const [aiMessagesLoading, setAiMessagesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState('');
-
-  const openAiConversation = async (id: string) => {
-    setAiMessagesLoading(true);
-    setAiMessages([]);
-    try { setAiMessages(await apiGet<any[]>(`/ai/conversations/${id}`)); } catch { setAiMessages([]); } finally { setAiMessagesLoading(false); }
-  };
 
   const loadAll = () => {
     Promise.all([
@@ -89,8 +80,7 @@ export default function AdminPage() {
       apiGet<ActivityItem[]>('/admin/activity').catch(() => []),
       apiGet<any[]>('/tickets').catch(() => []),
       apiGet<any[]>('/admin/year-group-invites').catch(() => []),
-      apiGet<any[]>('/ai/conversations').catch(() => []),
-    ]).then(([s, p, q, a, act, t, gi, ai]) => {
+    ]).then(([s, p, q, a, act, t, gi]) => {
       setStats(s);
       setPending(p);
       setQuotes(q);
@@ -98,7 +88,6 @@ export default function AdminPage() {
       setActivity(act);
       setTickets(t);
       setGroupInvites(gi);
-      setAiConversations(ai);
       setLoading(false);
     });
   };
@@ -262,9 +251,6 @@ export default function AdminPage() {
                 <button className={`btn btn-sm ${tab === 'groupInvites' ? '' : 'btn-outline'}`} onClick={() => setTab('groupInvites')}>
                   Group Requests {groupInvites.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{groupInvites.length}</span>}
                 </button>
-                <button className={`btn btn-sm ${tab === 'aiLogs' ? '' : 'btn-outline'}`} onClick={() => setTab('aiLogs')}>
-                  Mamaa AI Logs
-                </button>
               </div>
               {tab === 'overview' && renderOverview()}
               {tab === 'members' && (
@@ -403,44 +389,6 @@ export default function AdminPage() {
                         </div>
                       </div>
                     ))
-                  )}
-                </div>
-              )}
-              {tab === 'aiLogs' && (
-                <div className="card">
-                  <h3>Mamaa AI Conversation Logs</h3>
-                  {aiConversations.length === 0 ? (
-                    <div className="empty-state"><p>No AI conversations yet.</p></div>
-                  ) : (
-                    aiConversations.map((c: any) => (
-                      <div key={c.id} className="list-item" style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => openAiConversation(c.id)}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <strong style={{ display: 'block', fontSize: 14 }}>{c.user?.profile?.fullName || c.user?.email || 'Anonymous'}</strong>
-                          <div className="text-muted text-sm">{c._count?.messages ?? 0} messages · {new Date(c.createdAt).toLocaleDateString('en-US', { dateStyle: 'medium' })}</div>
-                        </div>
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, color: 'var(--muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                      </div>
-                    ))
-                  )}
-                  {aiMessages !== null && (
-                    <div className="card" style={{ marginTop: 16, background: 'var(--bg)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <h4 style={{ margin: 0 }}>Conversation Transcript</h4>
-                        <button className="btn btn-sm" style={{ background: 'var(--muted)' }} onClick={() => setAiMessages(null)}>Close</button>
-                      </div>
-                      {aiMessagesLoading ? (
-                        <div className="loading-center"><span className="spinner" /></div>
-                      ) : aiMessages.length === 0 ? (
-                        <p className="text-muted text-sm">No messages found.</p>
-                      ) : (
-                        aiMessages.map((m: any) => (
-                          <div key={m.id} style={{ marginBottom: 10, padding: 10, borderRadius: 10, background: m.role === 'user' ? 'var(--blue-50)' : 'var(--white)' }}>
-                            <div className="text-muted text-sm" style={{ fontWeight: 700, marginBottom: 2 }}>{m.role === 'user' ? 'Member' : 'Mamaa AI'}</div>
-                            <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.content}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
                   )}
                 </div>
               )}

@@ -129,6 +129,20 @@ export default function AdminPage() {
     try {
       await apiPost(`/admin/quotes/${id}/approve`);
       setQuotes(prev => prev.map(q => q.id === id ? { ...q, status: 'SENT' } : q));
+    } catch (err: any) {
+      alert('Failed to approve quote: ' + (err.message || 'Unknown error'));
+    } finally {
+      setAction(null);
+    }
+  };
+  const rejectQuote = async (id: string) => {
+    if (!confirm('Are you sure you want to reject this quote?')) return;
+    setAction('reject-' + id);
+    try {
+      await apiPost(`/admin/quotes/${id}/reject`);
+      setQuotes(prev => prev.map(q => q.id === id ? { ...q, status: 'REJECTED' } : q));
+    } catch (err: any) {
+      alert('Failed to reject quote: ' + (err.message || 'Unknown error'));
     } finally {
       setAction(null);
     }
@@ -314,13 +328,23 @@ export default function AdminPage() {
                         <div>
                           <strong style={{ display: 'block' }}>{q.quoteNumber}</strong>
                           <div className="text-muted text-sm">{q.intake?.clientName ?? '—'} · {q.intake?.requestType ?? '—'} · {q.currency} {Number(q.total ?? 0).toLocaleString()}</div>
+                          {q.intake?.clientEmail && <div className="text-muted text-sm">📧 {q.intake.clientEmail}</div>}
                         </div>
-                        {q.status === 'DRAFT' || q.status === 'SENT' ? (
-                          <button className="btn btn-sm" onClick={() => approveQuote(q.id)} disabled={action === q.id}>
-                            {action === q.id ? <span className="spinner" /> : 'Approve'}
-                          </button>
+                        {q.status === 'DRAFT' ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-sm" onClick={() => approveQuote(q.id)} disabled={action === q.id}>
+                              {action === q.id ? <span className="spinner" /> : 'Approve & Send'}
+                            </button>
+                            <button className="btn btn-sm btn-danger" onClick={() => rejectQuote(q.id)} disabled={action === 'reject-' + q.id}>
+                              {action === 'reject-' + q.id ? <span className="spinner" /> : 'Reject'}
+                            </button>
+                          </div>
+                        ) : q.status === 'SENT' ? (
+                          <span className="badge badge-green">✓ Approved & Sent</span>
+                        ) : q.status === 'REJECTED' ? (
+                          <span className="badge" style={{ background: '#fee', color: '#c33' }}>✗ Rejected</span>
                         ) : (
-                          <span className="badge badge-green">{q.status}</span>
+                          <span className="badge">{q.status}</span>
                         )}
                       </div>
                     ))

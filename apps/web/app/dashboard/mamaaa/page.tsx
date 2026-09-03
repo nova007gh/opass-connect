@@ -18,14 +18,35 @@ const quickActions = [
 
 export default function MamaaaPage() {
   const { user } = useAuth();
+  const buildGreeting = () => {
+    const title = user?.profile?.gender === 'FEMALE' ? 'Obaa Panin' : 'Opanin';
+    const name = user?.profile?.nickname || user?.profile?.fullName?.split(' ')[0] || '';
+    const namePart = name ? `, ${title} ${name}` : '';
+    return `Akwaaba${namePart}! I am Mr. Atsu Clements, affectionately known as Mamaa AI — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?`;
+  };
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: `Akwaaba${user?.profile?.nickname ? ', ' + (user.profile.gender === 'FEMALE' ? 'Obaa Panin' : 'Opanin') + ' ' + user.profile.nickname : user?.profile?.fullName ? ', ' + (user.profile.gender === 'FEMALE' ? 'Obaa Panin' : 'Opanin') + ' ' + user.profile.fullName.split(' ')[0] : ''}! I am Mr. Atsu Clements, affectionately known as Mamaa AI — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?` },
+    { role: 'assistant', content: 'Akwaaba! I am Mr. Atsu Clements, affectionately known as Mamaa AI — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?' },
   ]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'chat' | 'quote'>('chat');
   const messagesEnd = useRef<HTMLDivElement>(null);
+  const greetingSet = useRef(false);
+
+  // Update greeting once user profile loads (only if no user messages sent yet)
+  useEffect(() => {
+    if (user && !greetingSet.current) {
+      greetingSet.current = true;
+      setMessages(prev => {
+        // Only replace if the first message is still the placeholder greeting (no user messages yet)
+        if (prev.length === 1 && prev[0].role === 'assistant') {
+          return [{ role: 'assistant', content: buildGreeting() }];
+        }
+        return prev;
+      });
+    }
+  }, [user]);
 
   // Quote form
   const [quoteForm, setQuoteForm] = useState({

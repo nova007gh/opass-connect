@@ -9,4 +9,4 @@ RUN pnpm install --no-frozen-lockfile
 COPY . .
 RUN pnpm --filter @opass/db prisma:generate && pnpm --filter @opass/shared build && pnpm --filter @opass/db build && pnpm --filter @opass/api build
 EXPOSE 4000
-CMD ["sh", "-c", "pnpm --filter @opass/api prisma:migrate && pnpm --filter @opass/api start"]
+CMD ["sh", "-c", "pnpm --filter @opass/api prisma:push --accept-data-loss && pnpm --filter @opass/api start"]

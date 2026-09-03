@@ -1336,6 +1336,18 @@ label.switch span > span { transition: transform 0.2s; }
 [data-theme="dark"] .chat-date-sep { background: var(--blue-50); color: var(--muted); }
 [data-theme="dark"] .chat-reply-quote { background: var(--blue-50); border-left-color: var(--blue-bright); }
 
+/* ===== Chat container responsive height ===== */
+.chat-container {
+  height: calc(100dvh - 300px);
+  min-height: 300px;
+}
+@media (min-width: 769px) {
+  .chat-container {
+    height: calc(100vh - 240px);
+    min-height: 400px;
+  }
+}
+
 /* ===== Chat reply button on hover (desktop) ===== */
 .chat-msg-row:hover .chat-reply-btn { opacity: 1 !important; }
 @media (max-width: 768px) { .chat-reply-btn { display: none !important; } }

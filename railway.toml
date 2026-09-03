@@ -4,7 +4,7 @@ buildCommand = "pnpm --filter @opass/api... build"
 
 [deploy]
 startCommand = "pnpm --filter @opass/api start"
-preDeployCommand = "pnpm --filter @opass/api prisma:migrate"
+preDeployCommand = "pnpm --filter @opass/api prisma:push --accept-data-loss"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

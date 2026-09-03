@@ -17,16 +17,27 @@ function getRoomService(): RoomServiceClient | null {
   if (!roomService) roomService = new RoomServiceClient(env.LIVEKIT_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
   return roomService;
 }
+// Short-lived cache so many clients polling the same room's active-call
+// status within the same few seconds share one LiveKit API round trip
+// instead of each triggering their own.
+const roomActiveCache = new Map<string, { active: boolean; expiresAt: number }>();
+const ROOM_ACTIVE_CACHE_MS = 3000;
+
 // Returns true if the given LiveKit room currently has any connected participants.
 async function isRoomActive(roomKey: string): Promise<boolean> {
+  const cached = roomActiveCache.get(roomKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.active;
   const svc = getRoomService();
   if (!svc) return false;
+  let active = false;
   try {
     const participants = await svc.listParticipants(roomKey);
-    return participants.length > 0;
+    active = participants.length > 0;
   } catch {
-    return false;
+    active = false;
   }
+  roomActiveCache.set(roomKey, { active, expiresAt: Date.now() + ROOM_ACTIVE_CACHE_MS });
+  return active;
 }
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);

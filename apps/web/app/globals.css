@@ -43,7 +43,7 @@ body {
   text-size-adjust: 100%;
 }
 @media (min-width: 769px) {
-  body { overscroll-behavior-y: auto; }
+  body { overscroll-behavior-y: auto; -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 }
 
 /* Allow text selection in input/textarea/contenteditable */

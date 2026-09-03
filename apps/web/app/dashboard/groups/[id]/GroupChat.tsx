@@ -120,6 +120,8 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   const [liveMemberTotal, setLiveMemberTotal] = useState(0);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [sharingLocation, setSharingLocation] = useState(false);
+  const [lightsOut, setLightsOut] = useState(false);
+  const [showMamaEmoji, setShowMamaEmoji] = useState(false);
   const { startCall: startCallCtx, activeCall: activeCallCtx, endCall: endCallCtx } = useCall();
 
   const messagesEnd = useRef<HTMLDivElement>(null);
@@ -250,6 +252,21 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       if (isNearBottom) el.scrollTop = el.scrollHeight;
     }
   }, [messages]);
+
+  // ===== Lights Out detection =====
+  // Ghana boarding school lights out is typically 9:30 PM - 5:30 AM
+  useEffect(() => {
+    const checkLightsOut = () => {
+      const hour = new Date().getHours();
+      // 21:30 - 05:30 is lights out time
+      const isLate = hour >= 21 || hour < 6;
+      setLightsOut(isLate);
+      setShowMamaEmoji(true);
+    };
+    checkLightsOut();
+    const interval = setInterval(checkLightsOut, 60000); // check every minute
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!loading && messagesContainer.current) {
@@ -656,13 +673,33 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       </div>
 
       {/* Messages area — WhatsApp-style wallpaper */}
-      <div ref={messagesContainer} style={{
+      <div ref={messagesContainer} className={lightsOut ? 'chat-lights-out' : ''} style={{
         flex: 1, overflowY: 'auto', padding: '8px 8px',
-        background: 'var(--chat-bg, #E5DDD5)',
-        backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.03) 1px, transparent 1px), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.03) 1px, transparent 1px)',
-        backgroundSize: '24px 24px',
+        background: lightsOut ? undefined : 'var(--chat-bg, #E5DDD5)',
+        backgroundImage: lightsOut ? 'none' : 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.03) 1px, transparent 1px), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.03) 1px, transparent 1px)',
+        backgroundSize: lightsOut ? undefined : '24px 24px',
         borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)',
+        position: 'relative',
+        transition: 'background 1.5s ease',
       }}>
+        {/* Lights Out banner */}
+        {lightsOut && (
+          <div className="lights-out-banner" style={{
+            position: 'sticky', top: 0, left: 0, right: 0, zIndex: 20,
+            padding: '8px 14px', borderRadius: '0 0 10px 10px',
+            fontSize: 12, fontWeight: 700, textAlign: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            marginBottom: 4,
+          }}>
+            <span style={{ fontSize: 18 }}>😴🌙</span>
+            <span>LIGHTS OUT! Chat has switched to night mode. Text is blue for easier reading in the dark. Mamaa AI is watching over the chat. 🎓</span>
+          </div>
+        )}
+
+        {/* Roaming Mama emoji */}
+        {showMamaEmoji && (
+          <div className="mama-emoji-roaming" style={{ top: '20%', left: '15%' }}>🎓</div>
+        )}
         {messages.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', color: 'var(--muted)' }}>
             <div style={{ fontSize: 48, marginBottom: 8 }}>💬</div>
@@ -690,6 +727,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
 
                 return (
                   <div key={m.id}
+                    className="chat-msg-row"
                     style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: isLastInGroup ? 8 : 1, gap: 6, alignItems: 'flex-end', position: 'relative', touchAction: 'pan-y' }}
                     onTouchStart={(e) => {
                       const touch = e.touches[0];
@@ -703,15 +741,29 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                       const startY = parseFloat(el.dataset.swipeStartY || '0');
                       const dx = e.touches[0].clientX - startX;
                       const dy = e.touches[0].clientY - startY;
-                      // Only swipe if horizontal movement dominates and is to the right
                       if (Math.abs(dx) > Math.abs(dy) * 1.5 && dx > 20 && el.dataset.swiped === '0') {
                         el.dataset.swiped = '1';
                         setReplyTo(m);
-                        // Haptic feedback
                         if (navigator.vibrate) navigator.vibrate(10);
                       }
                     }}
                   >
+                    {/* Reply button on hover (desktop) */}
+                    <button
+                      className="chat-reply-btn"
+                      onClick={() => { setReplyTo(m); playPop(); }}
+                      style={{
+                        position: 'absolute', [isMe ? 'right' : 'left']: -28, top: '50%', transform: 'translateY(-50%)',
+                        background: 'var(--white)', border: '1px solid var(--border)', borderRadius: '50%',
+                        width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', opacity: 0, transition: 'opacity 0.2s', padding: 0, zIndex: 5,
+                      }}
+                      title="Reply"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                      </svg>
+                    </button>
                     {/* Avatar (show only for first message in group, not me) */}
                     {!isMe && (
                       <div style={{ width: 30, flexShrink: 0, visibility: isFirstInGroup ? 'visible' : 'hidden' }}>
@@ -761,7 +813,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         </div>
                       ) : (
                         /* Regular message bubble — WhatsApp style with tail */
-                        <div style={{
+                        <div className={isMe ? 'chat-bubble-me' : 'chat-bubble-other'} style={{
                           background: isMe ? 'var(--blue)' : 'var(--white)',
                           color: isMe ? 'white' : 'var(--black)',
                           borderRadius: isMe
@@ -778,7 +830,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         }}>
                           {/* Sender name (only for first message in group, not me) */}
                           {!isMe && isFirstInGroup && (
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)', marginBottom: 2 }}>{senderName}</div>
+                            <div className="sender-name" style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)', marginBottom: 2 }}>{senderName}</div>
                           )}
                           {/* Voice note */}
                           {m.audioUrl && (

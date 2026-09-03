@@ -615,9 +615,26 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,audioUrl:true,imageUrl:true,videoUrl:true,fileUrl:true,fileName:true,locationLat:true,locationLng:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
   app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().max(4000),replyToId:z.string().optional(),audioUrl:z.string().optional(),imageUrl:z.string().optional(),videoUrl:z.string().optional(),fileUrl:z.string().optional(),fileName:z.string().optional(),locationLat:z.number().optional(),locationLng:z.number().optional()}).parse(req.body);const hasMedia=b.audioUrl||b.imageUrl||b.videoUrl||b.fileUrl||(b.locationLat!==undefined&&b.locationLng!==undefined);if(!b.body.trim()&&!hasMedia)return{error:'Message cannot be empty'}as any;const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body||'',...(b.replyToId?{replyToId:b.replyToId}:{}),...(b.audioUrl?{audioUrl:b.audioUrl}:{}),...(b.imageUrl?{imageUrl:b.imageUrl}:{}),...(b.videoUrl?{videoUrl:b.videoUrl}:{}),...(b.fileUrl?{fileUrl:b.fileUrl}:{}),...(b.fileName?{fileName:b.fileName}:{}),...(b.locationLat!==undefined?{locationLat:b.locationLat}:{}),...(b.locationLng!==undefined?{locationLng:b.locationLng}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;const preview=b.audioUrl?'🎤 Voice note':b.imageUrl?'📷 Photo':b.videoUrl?'🎥 Video':b.fileUrl?`📎 ${b.fileName||'File'}`:(b.locationLat!==undefined?'📍 Location':b.body.slice(0,100));if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}else{notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}}
-  // ===== Mamaa AI @mention detection in group chat =====
+  // ===== Mamaa AI auto-join + @mention detection in group chat =====
   const MAMAAA_BOT_ID=process.env.MAMAAA_BOT_ID||'mamaaa-ai-bot';
-  if(b.body&&/@?mamaa+ai?\b/i.test(b.body)&&req.user.sub!==MAMAAA_BOT_ID){try{const{generateAiResponse}=await import('./ai-engine.js');const aiRole=(['ADMIN','SUPER_ADMIN'].includes(req.user.role)?'admin':'member') as 'admin'|'member';const recentMsgs=await prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:10,include:{user:{select:{profile:{select:{fullName:true}}}}}});const history=recentMsgs.reverse().map(m=>({role:(m.userId===MAMAAA_BOT_ID?'assistant':'user') as 'user'|'assistant',content:`${m.user?.profile?.fullName||'Someone'}: ${m.body}`}));const aiContent=await generateAiResponse(req.user.sub,b.body.replace(/@?mamaa+ai?\b/i,'').trim(),history,aiRole);await prisma.message.create({data:{roomId:req.params.id,userId:MAMAAA_BOT_ID,body:`🤖 ${aiContent}`}});}catch{}}
+  if(b.body&&req.user.sub!==MAMAAA_BOT_ID){
+    const isMentioned=/@?mamaa+ai?\b/i.test(b.body);
+    // Auto-join: respond to direct questions, @mamaa mentions, or when someone says "mamaa"
+    const isQuestion=/\?$/.test(b.body.trim())&&b.body.length>5;
+    const saysMamaa=/mamaa/i.test(b.body);
+    const shouldRespond=isMentioned||saysMamaa||(isQuestion&&Math.random()<0.3);
+    if(shouldRespond){
+      try{
+        const{generateAiResponse}=await import('./ai-engine.js');
+        const aiRole=(['ADMIN','SUPER_ADMIN'].includes(req.user.role)?'admin':'member') as 'admin'|'member';
+        const recentMsgs=await prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:10,include:{user:{select:{profile:{select:{fullName:true}}}}}});
+        const history=recentMsgs.reverse().map(m=>({role:(m.userId===MAMAAA_BOT_ID?'assistant':'user') as 'user'|'assistant',content:`${m.user?.profile?.fullName||'Someone'}: ${m.body}`}));
+        const cleanMsg=b.body.replace(/@?mamaa+ai?\b/i,'').trim();
+        const aiContent=await generateAiResponse(req.user.sub,cleanMsg||b.body,history,aiRole);
+        await prisma.message.create({data:{roomId:req.params.id,userId:MAMAAA_BOT_ID,body:`🤖 ${aiContent}`}});
+      }catch{}
+    }
+  }
   return msg;});
   // Edit a chat message (within 10 minutes of sending)
   app.patch('/chat/rooms/:id/messages/:msgId',{preHandler:[app.authenticate]},async(req:any,reply)=>{

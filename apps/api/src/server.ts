@@ -36,3 +36,42 @@ registerAuthRoutes(app);registerCoreRoutes(app);registerAiRoutes(app);registerLi
 app.setErrorHandler((err,req,reply)=>{req.log.error(err);if((err as any).name==='ZodError')return reply.code(400).send({error:'Invalid request',details:(err as any).issues});return reply.code((err as any).statusCode??500).send({error:'Request failed'});});
 const port = parseInt(process.env.PORT || String(env.API_PORT), 10);
 await app.listen({port, host:'0.0.0.0'});
+
+// ===== Mamaa AI Lights Out announcement scheduler =====
+// Every 30 minutes, check if it's lights out time (9:30 PM - 5:30 AM Ghana time)
+// If so, post a lights out announcement in all active chat rooms (once per hour)
+let lastLightsOutAnnouncement = 0;
+const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
+
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const hour = now.getHours();
+    const isLightsOut = hour >= 21 || hour < 6;
+    if (!isLightsOut) return;
+    // Only announce once per hour
+    if (Date.now() - lastLightsOutAnnouncement < 3600000) return;
+    lastLightsOutAnnouncement = Date.now();
+
+    const { prisma } = await import('@opass/db');
+    const rooms = await prisma.chatRoom.findMany({ select: { id: true, name: true } });
+    const messages = [
+      '😴 LIGHTS OUT! Everyone to bed! Shhh... 🌙🤫 Mamaa AI is watching over the chat. Text has turned blue for night reading.',
+      '🌙 It\'s late, OPASS! Lights out time. The chat has switched to night mode with blue text for easier reading in the dark. Sleep well! 🎓',
+      '😴 Lights out, students! Mamaa AI here — I\'ll keep an eye on things while you rest. See you at morning bell! 🔔',
+    ];
+    const msg = messages[Math.floor(Math.random() * messages.length)];
+    for (const room of rooms) {
+      // Check if already announced in this room recently
+      const recent = await prisma.message.findFirst({
+        where: { roomId: room.id, userId: MAMAAA_BOT_ID, createdAt: { gte: new Date(Date.now() - 3600000) } },
+      });
+      if (!recent) {
+        await prisma.message.create({ data: { roomId: room.id, userId: MAMAAA_BOT_ID, body: `🤖 ${msg}` } });
+      }
+    }
+    console.log('[mamaa] Lights out announcement sent to', rooms.length, 'rooms');
+  } catch (e) {
+    // Silent fail — don't crash the server
+  }
+}, 1800000); // Check every 30 minutes

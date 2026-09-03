@@ -1336,6 +1336,63 @@ label.switch span > span { transition: transform 0.2s; }
 [data-theme="dark"] .chat-date-sep { background: var(--blue-50); color: var(--muted); }
 [data-theme="dark"] .chat-reply-quote { background: var(--blue-50); border-left-color: var(--blue-bright); }
 
+/* ===== Chat reply button on hover (desktop) ===== */
+.chat-msg-row:hover .chat-reply-btn { opacity: 1 !important; }
+@media (max-width: 768px) { .chat-reply-btn { display: none !important; } }
+
+/* ===== Lights Out chat theme ===== */
+.chat-lights-out {
+  background: linear-gradient(180deg, #0a0e1a 0%, #0d1320 100%) !important;
+  transition: background 1.5s ease;
+}
+.chat-lights-out .chat-bubble-other {
+  background: #1a2332 !important;
+  border-color: #2a3a52 !important;
+  color: #4d9fff !important;
+}
+.chat-lights-out .chat-bubble-other .sender-name { color: #4d9fff !important; }
+.chat-lights-out .chat-bubble-me {
+  background: #0d3a6e !important;
+  color: #8ec5ff !important;
+}
+.chat-lights-out .chat-date-sep {
+  background: rgba(77, 159, 255, 0.15) !important;
+  color: #4d9fff !important;
+}
+.chat-lights-out .chat-reply-quote {
+  background: rgba(77, 159, 255, 0.1) !important;
+  border-left-color: #4d9fff !important;
+  color: #6ba8ff !important;
+}
+.chat-lights-out .lights-out-banner {
+  background: linear-gradient(135deg, #0d1b3e 0%, #1a2a5e 100%) !important;
+  color: #4d9fff !important;
+  border: 1px solid rgba(77, 159, 255, 0.3);
+}
+
+/* ===== Roaming Mama emoji animation ===== */
+@keyframes mama-roam {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  20%  { transform: translate(40px, -30px) rotate(15deg) scale(1.1); }
+  40%  { transform: translate(80px, 10px) rotate(-10deg) scale(0.95); }
+  60%  { transform: translate(20px, 40px) rotate(20deg) scale(1.05); }
+  80%  { transform: translate(-30px, -20px) rotate(-5deg) scale(1); }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes mama-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+.mama-emoji-roaming {
+  position: absolute;
+  font-size: 32px;
+  pointer-events: none;
+  z-index: 10;
+  animation: mama-roam 8s ease-in-out infinite, mama-float 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 8px rgba(0, 81, 255, 0.3));
+  opacity: 0.7;
+}
+
 /* ===== Year Group Cards with House Colors + Neon ===== */
 .yg-card {
   position: relative;

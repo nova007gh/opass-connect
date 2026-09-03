@@ -19,7 +19,7 @@ const quickActions = [
 export default function MamaaaPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: `Akwaaba${user?.profile?.fullName ? ', ' + user.profile.fullName.split(' ')[0] : ''}! I am Mr. Atsu Clements, affectionately known as Mamaaa — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?` },
+    { role: 'assistant', content: `Akwaaba${user?.profile?.fullName ? ', ' + user.profile.fullName.split(' ')[0] : ''}! I am Mr. Atsu Clements, affectionately known as Mamaa AI — your OPASS CONNECT AI assistant. I know everything about our platform — events, elections, projects, year groups, and more. I also love a good math problem! How can I help you today?` },
   ]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | undefined>();
@@ -98,7 +98,7 @@ export default function MamaaaPage() {
         </Link>
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 18, flexShrink: 0, boxShadow: '0 2px 8px rgba(11,45,107,0.3)' }}>M</div>
         <div>
-          <h1 style={{ fontSize: 18, margin: 0 }}>Mr. Atsu (Mamaaa)</h1>
+          <h1 style={{ fontSize: 18, margin: 0 }}>Mr. Atsu (Mamaa AI)</h1>
           <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} /> Online
           </div>
@@ -174,7 +174,7 @@ export default function MamaaaPage() {
               className="input"
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Type your message to Mamaaa..."
+              placeholder="Type your message to Mamaa AI..."
               onKeyDown={e => e.key === 'Enter' && send()}
               disabled={loading}
               style={{ flex: 1, marginBottom: 0 }}
@@ -190,7 +190,7 @@ export default function MamaaaPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{ padding: 20, borderBottom: '1px solid var(--border)', background: 'var(--blue-50)' }}>
                 <h3 style={{ margin: 0, color: 'var(--blue)' }}>Quote Estimate</h3>
-                <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 14 }}>Tell us what you need and Mamaaa will generate an estimate.</p>
+                <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 14 }}>Tell us what you need and Mamaa AI will generate an estimate.</p>
               </div>
               <form onSubmit={submitQuote} style={{ padding: 20 }}>
                 {quoteError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{quoteError}</div>}

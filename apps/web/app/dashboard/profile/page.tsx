@@ -244,7 +244,7 @@ export default function ProfilePage() {
                   Female
                 </button>
               </div>
-              <div className="hint">Mamaaa AI will address you as {form.gender === 'FEMALE' ? '"Obaa Panin"' : '"Opanin"'} based on this.</div>
+              <div className="hint">Mamaa AI will address you as {form.gender === 'FEMALE' ? '"Obaa Panin"' : '"Opanin"'} based on this.</div>
             </div>
             <div className="form-row">
               <div className="form-group">

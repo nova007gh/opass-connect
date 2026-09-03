@@ -263,7 +263,7 @@ export default function AdminPage() {
                   Group Requests {groupInvites.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{groupInvites.length}</span>}
                 </button>
                 <button className={`btn btn-sm ${tab === 'aiLogs' ? '' : 'btn-outline'}`} onClick={() => setTab('aiLogs')}>
-                  Mamaaa AI Logs
+                  Mamaa AI Logs
                 </button>
               </div>
               {tab === 'overview' && renderOverview()}
@@ -408,7 +408,7 @@ export default function AdminPage() {
               )}
               {tab === 'aiLogs' && (
                 <div className="card">
-                  <h3>Mamaaa AI Conversation Logs</h3>
+                  <h3>Mamaa AI Conversation Logs</h3>
                   {aiConversations.length === 0 ? (
                     <div className="empty-state"><p>No AI conversations yet.</p></div>
                   ) : (
@@ -435,7 +435,7 @@ export default function AdminPage() {
                       ) : (
                         aiMessages.map((m: any) => (
                           <div key={m.id} style={{ marginBottom: 10, padding: 10, borderRadius: 10, background: m.role === 'user' ? 'var(--blue-50)' : 'var(--white)' }}>
-                            <div className="text-muted text-sm" style={{ fontWeight: 700, marginBottom: 2 }}>{m.role === 'user' ? 'Member' : 'Mamaaa AI'}</div>
+                            <div className="text-muted text-sm" style={{ fontWeight: 700, marginBottom: 2 }}>{m.role === 'user' ? 'Member' : 'Mamaa AI'}</div>
                             <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.content}</div>
                           </div>
                         ))

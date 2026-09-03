@@ -26,7 +26,7 @@ const slides = [
     accent: 'linear-gradient(135deg, #10B981 0%, #F59E0B 100%)',
   },
   {
-    title: 'Mamaaa AI Assistant',
+    title: 'Mamaa AI Assistant',
     desc: 'Get instant help from our AI assistant. Ask questions, get updates, and stay informed 24/7.',
     icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z',
     accent: 'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)',

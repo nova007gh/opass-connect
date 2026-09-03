@@ -22,7 +22,7 @@ export async function getUserHonorific(userId?: string): Promise<string> {
 
 /**
  * Gather comprehensive site context for the AI.
- * This gives Mamaaa AI the ability to "scrape" all data, actions, and inputs
+ * This gives Mamaa AI the ability to "scrape" all data, actions, and inputs
  * happening across the app and respond intelligently.
  */
 export async function getSiteContext(userId?: string): Promise<string> {

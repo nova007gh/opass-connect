@@ -21,7 +21,7 @@ const allItems = [
   { href: '/dashboard/payments', label: 'Payments', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z' },
   { href: '/dashboard/elections', label: 'Elections', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
   { href: '/dashboard/business', label: 'Business', icon: 'M21 13.255A48.108 48.108 0 0112 21c-2.272 0-4.459-.334-6.512-.955M21 13.255c.18 1.078.272 2.183.272 3.295 0 2.272-.334 4.459-.955 6.512M3 13.255A48.093 48.093 0 016.74 3.379M3 13.255c-.18 1.078-.272 2.183-.272 3.295 0 2.272.334 4.459.955 6.512' },
-  { href: '/dashboard/mamaaa', label: 'Mamaaa AI', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z' },
+  { href: '/dashboard/mamaaa', label: 'Mamaa AI', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z' },
   { href: '/dashboard/admin', label: 'Admin', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z' },
   { href: '/dashboard/support', label: 'Support', icon: 'M18.364 12.364l5.657 5.657m-6.364-6.364a3 3 0 11-4.243-4.243 3 3 0 014.243 4.243zm-1.414-7.071a8 8 0 100 16 8 8 0 000-16z' },
 ];

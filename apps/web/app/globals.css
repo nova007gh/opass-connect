@@ -764,6 +764,11 @@ label.switch span > span { transition: transform 0.2s; }
 @media (min-width: 769px) {
   .dash-content { padding: 24px 32px; max-width: 1000px; margin: 0 auto; padding-bottom: 32px; overflow: visible; }
 }
+/* When app-screen/app-scroll is rendered inside dash-content, dash-content is
+   already the scroll container — disable the nested overflow so touch scroll
+   events bubble up to dash-content instead of getting trapped. */
+.dash-content .app-screen { min-height: 0; }
+.dash-content .app-scroll { overflow: visible; padding-bottom: 0; }
 
 /* ===== Generic screen header ===== */
 .screen-header {

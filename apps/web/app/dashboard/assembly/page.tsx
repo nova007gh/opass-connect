@@ -236,11 +236,11 @@ export default function AssemblyPage() {
       ) : tab === 'messages' ? (
         <div className="app-scroll">
           <div className="app-pad">
-            {/* Mamaaa AI shortcut */}
+            {/* Mamaa AI shortcut */}
             <Link href="/dashboard/chat/mamaaa-ai-bot" className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, textDecoration: 'none', background: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)', color: 'white', border: 0 }}>
               <div style={{ fontSize: 36, flexShrink: 0 }}>🎓</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>Mamaaa AI</div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>Mamaa AI</div>
                 <div style={{ fontSize: 12, opacity: 0.85 }}>Ask me anything about OPASS</div>
               </div>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22C55E', flexShrink: 0 }} />
@@ -249,7 +249,7 @@ export default function AssemblyPage() {
             {loading ? <div className="loading-center"><span className="spinner" /></div> : dmConversations.length === 0 ? (
               <div className="empty-state">
                 <h3>No messages yet</h3>
-                <p>Start a conversation from the <Link href="/dashboard/alumni" style={{ color: 'var(--blue)', fontWeight: 700 }}>Alumni Directory</Link> or chat with <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ color: 'var(--blue)', fontWeight: 700 }}>Mamaaa AI</Link>.</p>
+                <p>Start a conversation from the <Link href="/dashboard/alumni" style={{ color: 'var(--blue)', fontWeight: 700 }}>Alumni Directory</Link> or chat with <Link href="/dashboard/chat/mamaaa-ai-bot" style={{ color: 'var(--blue)', fontWeight: 700 }}>Mamaa AI</Link>.</p>
               </div>
             ) : (
               <div className="feed">

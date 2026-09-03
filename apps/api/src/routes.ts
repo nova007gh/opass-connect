@@ -378,7 +378,7 @@ export function registerCoreRoutes(app:FastifyInstance){
 
   app.get('/dm/:userId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
-    // Auto-create Mamaaa AI bot user if it doesn't exist
+    // Auto-create Mamaa AI bot user if it doesn't exist
     const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
     if (req.params.userId === MAMAAA_BOT_ID) {
       let bot = await prisma.user.findUnique({ where: { id: MAMAAA_BOT_ID }, select: { id: true, email: true, profile: { select: { fullName: true, avatarUrl: true, graduationYear: true, profession: true, house: true, country: true, city: true, bio: true } } } });
@@ -391,7 +391,7 @@ export function registerCoreRoutes(app:FastifyInstance){
               passwordHash: 'bot-no-login',
               role: 'MEMBER',
               verification: 'VERIFIED',
-              profile: { create: { fullName: 'Mamaaa AI', nickname: 'Mamaaa', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat!' } },
+              profile: { create: { fullName: 'Mamaa AI', nickname: 'Mamaa AI', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat!' } },
             },
             select: { id: true, email: true, profile: { select: { fullName: true, avatarUrl: true, graduationYear: true, profession: true, house: true, country: true, city: true, bio: true } } },
           });
@@ -413,8 +413,8 @@ export function registerCoreRoutes(app:FastifyInstance){
     if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
     const b=z.object({body:z.string().min(1).max(5000).optional(),audioUrl:z.string().optional(),callType:z.string().optional()}).refine(v=>v.body||v.audioUrl||v.callType,{message:'Message cannot be empty'}).parse(req.body);
 
-    // ===== Mamaaa AI bot integration =====
-    // The Mamaaa AI bot has a special user ID. When a user DMs the bot,
+    // ===== Mamaa AI bot integration =====
+    // The Mamaa AI bot has a special user ID. When a user DMs the bot,
     // we save the user's message and auto-generate an AI response.
     const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
     if (req.params.userId === MAMAAA_BOT_ID) {
@@ -425,7 +425,7 @@ export function registerCoreRoutes(app:FastifyInstance){
         const { env: envCfg } = await import('./config.js');
         const { getSiteContext } = await import('./ai-context.js');
         const siteContext = await getSiteContext(req.user.sub);
-        const personality = `You are Mr. Atsu Clements, affectionately known as "Mamaaa" — the official AI assistant of OPASS CONNECT, the alumni platform for Ofori Panin Senior High School (OPASS) in Ghana.
+        const personality = `You are Mr. Atsu Clements, affectionately known as "Mamaa AI" — the official AI assistant of OPASS CONNECT, the alumni platform for Ofori Panin Senior High School (OPASS) in Ghana.
 
 YOUR CHARACTER:
 - You are a mathematician, scientist, and former lecturer who taught Elective Mathematics and Science
@@ -455,7 +455,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
           });
           aiContent = response.output_text || 'I am here to help, my friend. Tell me more!';
         } else {
-          aiContent = `Akwaaba, my friend! I am Mamaaa, your OPASS CONNECT AI assistant.\n\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS!`;
+          aiContent = `Akwaaba, my friend! I am Mamaa AI, your OPASS CONNECT AI assistant.\n\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS!`;
         }
         const aiMsg = await prisma.directMessage.create({ data: { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub, body: aiContent } });
         return { userMsg: msg, aiMsg };
@@ -478,7 +478,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
     return msg;
   });
 
-  // Get or create the Mamaaa AI bot user profile
+  // Get or create the Mamaa AI bot user profile
   app.get('/dm/mamaaa/info',{preHandler:[app.authenticate]},async(req:any)=>{
     const MAMAAA_BOT_ID = process.env.MAMAAA_BOT_ID || 'mamaaa-ai-bot';
     // Ensure bot user exists
@@ -492,7 +492,7 @@ Keep responses concise (2-4 sentences) unless asked for detail. Use occasional h
             passwordHash: 'bot-no-login',
             role: 'MEMBER',
             verification: 'VERIFIED',
-            profile: { create: { fullName: 'Mamaaa AI', nickname: 'Mamaaa', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat!' } },
+            profile: { create: { fullName: 'Mamaa AI', nickname: 'Mamaa AI', graduationYear: 1980, profession: 'AI Assistant', bio: 'Mr. Atsu Clements — your OPASS CONNECT AI companion. Ask me anything about the platform, events, elections, projects, or just chat!' } },
           },
           include: { profile: true },
         });

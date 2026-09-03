@@ -103,7 +103,7 @@ export default function DirectChatPage() {
   const load = useCallback(async () => {
     try {
       if (isMamaaa) {
-        // Fetch Mamaaa bot info
+        // Fetch Mamaa AI bot info
         const botInfo = await apiGet<DMUser>('/dm/mamaaa/info');
         setPeer(botInfo);
         // Fetch DM history with bot
@@ -171,7 +171,7 @@ export default function DirectChatPage() {
     setSending(true);
     try {
       if (isMamaaa) {
-        // For Mamaaa AI: save user message locally, then call the API which returns both messages
+        // For Mamaa AI: save user message locally, then call the API which returns both messages
         const tempUserMsg: DMMessage = {
           id: `temp-${Date.now()}`,
           senderId: user?.id || '',
@@ -324,7 +324,7 @@ export default function DirectChatPage() {
             {isMamaaa ? (
               <>
                 <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
-                <h3>Akwaaba! I am Mamaaa AI</h3>
+                <h3>Akwaaba! I am Mamaa AI</h3>
                 <p>I am Mr. Atsu Clements, your OPASS CONNECT AI assistant. I know everything about the platform — events, elections, projects, year groups, and more. I also love a good math problem! Ask me anything.</p>
               </>
             ) : (
@@ -479,7 +479,7 @@ export default function DirectChatPage() {
           className="input"
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={isMamaaa ? 'Ask Mamaaa anything...' : (recording ? 'Recording voice note…' : 'Type a message...')}
+          placeholder={isMamaaa ? 'Ask Mamaa AI anything...' : (recording ? 'Recording voice note…' : 'Type a message...')}
           onKeyDown={e => e.key === 'Enter' && sendMessage()}
           disabled={sending || recording || uploadingVoice || aiTyping}
           style={{ flex: 1, marginBottom: 0 }}

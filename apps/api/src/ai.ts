@@ -1,11 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import OpenAI from 'openai';
 import { z } from 'zod';
-import { env } from './config.js';
 import { calculateQuote, missingQuoteQuestions } from './quote-engine.js';
 import { prisma } from '@opass/db';
 import { notifyAllUsers } from './notifications.js';
-import { getSiteContext, getUserHonorific, getPersonalityPrompt, type AiRole } from './ai-context.js';
+import { generateAiResponse } from './ai-engine.js';
 
 // Security threat detection — role-aware.
 // Admins can legitimately ask about user data, so we relax user-data
@@ -43,7 +41,7 @@ export function registerAiRoutes(app: FastifyInstance){
     await prisma.aIMessage.create({data:{conversationId:convId,role:'user',content:body.message}});
 
     // Determine role: admins get expanded AI capabilities
-    const aiRole: AiRole = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role) ? 'admin' : 'member';
+    const aiRole: 'admin' | 'member' = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role) ? 'admin' : 'member';
 
     // Security threat detection (stricter for members — admins can ask about user data)
     if (detectThreat(body.message, aiRole)) {
@@ -53,27 +51,10 @@ export function registerAiRoutes(app: FastifyInstance){
       return {conversationId:convId, message:threatMsg};
     }
 
-    let content:string;
-    if(env.OPENAI_API_KEY){
-      try {
-        const client=new OpenAI({apiKey:env.OPENAI_API_KEY});
-        const history=await prisma.aIMessage.findMany({where:{conversationId:convId},orderBy:{createdAt:'asc'},take:20});
-        const siteContext = await getSiteContext(req.user.sub, aiRole);
-        const personality = getPersonalityPrompt(aiRole);
-        const systemContent = `${personality}\n\n${siteContext}`;
-        const response=await client.responses.create({model:env.OPENAI_MODEL,input:[{role:'system',content:systemContent},...history.map(m=>({role:m.role as 'user'|'assistant',content:m.content}))]});
-        content=response.output_text || 'Please tell me a little more so I can help, my friend.';
-      } catch {
-        const siteContext = await getSiteContext(req.user.sub, aiRole);
-        const title = await getUserHonorific(req.user.sub);
-        content = `I'm having trouble connecting right now, ${title}. Here's what's happening on OPASS CONNECT:\n${siteContext}\n\nPlease try again in a moment.`;
-      }
-    } else {
-      // Fallback: provide helpful responses using site data
-      const siteContext = await getSiteContext(req.user.sub, aiRole);
-      const title = await getUserHonorific(req.user.sub);
-      content = `Akwaaba, ${title}! I am Mr. Atsu, your Mamaa AI assistant. I'd love to help you with that.\n\nHere's what's happening on OPASS CONNECT right now:\n${siteContext}\n\nFeel free to ask me about any of these, or tell me about your time at OPASS, ${title}! What year did you graduate?`;
-    }
+    // Use in-house AI engine (no external API needed)
+    const history = await prisma.aIMessage.findMany({where:{conversationId:convId},orderBy:{createdAt:'asc'},take:20});
+    const content = await generateAiResponse(req.user.sub, body.message, history.map(m => ({role: m.role as 'user'|'assistant', content: m.content})), aiRole);
+
     await prisma.aIMessage.create({data:{conversationId:convId,role:'assistant',content}});
     return {conversationId:convId,message:content};
   });

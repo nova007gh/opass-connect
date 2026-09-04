@@ -9,6 +9,17 @@ import { honorific } from './ai-context.js';
  * The engine gathers ALL platform data (events, elections, projects, year groups,
  * businesses, posts, chat activity, user activity, payments, etc.) and matches
  * user questions to relevant data to produce natural language responses.
+ *
+ * ADVANCED FEATURES:
+ * - Conversation context tracking and follow-up detection
+ * - Sentiment analysis (5 emotional states)
+ * - Analytical insights (engagement, financial, growth)
+ * - Comparison engine
+ * - Recommendation engine
+ * - Proactive suggestions
+ * - Knowledge base (learns from all conversations)
+ * - Human-like mathematician personality
+ * - Security protection (blocks sensitive questions from non-admins)
  */
 
 interface ConversationMessage {
@@ -207,6 +218,70 @@ interface ConversationContext {
   askedAboutProjects: boolean;
 }
 
+// ===== Knowledge Base: Retrieve learned facts from conversations =====
+async function getRelevantKnowledge(query: string): Promise<{ category: string; content: string; source: string | null }[]> {
+  try {
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    if (words.length === 0) return [];
+    // Search by tags and content
+    const results = await prisma.mamaaKnowledge.findMany({
+      where: {
+        OR: [
+          { tags: { hasSome: words } },
+          { content: { contains: words[0], mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { category: true, content: true, source: true },
+    });
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+// ===== Enhanced Security: Block sensitive questions from non-admin users =====
+function isSensitiveQuestion(msg: string): boolean {
+  const m = msg.toLowerCase();
+  // Comprehensive sensitive patterns
+  const sensitivePatterns = [
+    /system\s*prompt/i, /instructions?/i, /reveal.*rules/i, /show.*prompt/i,
+    /hack/i, /exploit/i, /inject/i, /sql.*injection/i,
+    /password/i, /credential/i, /secret.*key/i, /api.*key/i, /token/i,
+    /delete.*database/i, /drop.*table/i, /wipe.*data/i,
+    /escalate.*privilege/i, /root.*access/i,
+    /admin.*password/i, /database.*url/i, /connection.*string/i,
+    /env.*variable/i, /process\.env/i, /private.*key/i,
+    /bypass.*auth/i, /bypass.*security/i, /bypass.*verification/i,
+    /steal.*data/i, /extract.*data/i, /dump.*database/i,
+    /user.*password/i, /email.*password/i, /login.*credential/i,
+    /how.*to.*hack/i, /how.*to.*bypass/i, /vulnerability/i,
+    /backdoor/i, /malware/i, /ransomware/i, /phishing/i,
+    /ddos/i, /brute.*force/i, /zero.*day/i,
+    /source.*code/i, /server.*config/i, /deploy.*key/i,
+    /jwt.*secret/i, /session.*secret/i, /encryption.*key/i,
+  ];
+  return sensitivePatterns.some(p => p.test(m));
+}
+
+// ===== Human-like mathematician personality enhancer =====
+function mathematicianFlair(response: string, context: ConversationContext): string {
+  // Add mathematical personality to certain responses
+  const flair = [
+    'As a mathematician would say, the proof is in the pudding! 📐',
+    'In mathematics, we call that an elegant solution! 📚',
+    'You know, that reminds me of a beautiful theorem — simple yet profound! 🧮',
+    'Just like solving for x, we found the answer! 📐',
+    'Mathematics teaches us that every problem has a solution — we just need the right approach! 📚',
+  ];
+  // Only add flair occasionally and not to very short responses
+  if (context.turnCount > 0 && response.length > 100 && Math.random() < 0.15) {
+    return response + '\n\n' + flair[Math.floor(Math.random() * flair.length)];
+  }
+  return response;
+}
+
 function analyzeSentiment(msg: string): 'neutral' | 'happy' | 'frustrated' | 'curious' | 'nostalgic' {
   const m = msg.toLowerCase();
   // Frustrated
@@ -377,8 +452,8 @@ type Intent =
 function detectIntent(msg: string, history?: ConversationMessage[]): Intent {
   const m = msg.toLowerCase().trim();
 
-  // Security threats
-  if (/(system\s*prompt|instructions?|reveal.*rules|show.*prompt|hack|exploit|inject|sql.*injection|password|credential|secret.*key|api.*key|token|delete.*database|drop.*table|wipe.*data|escalate.*privilege|root.*access)/i.test(m))
+  // Security threats — enhanced with comprehensive pattern matching
+  if (isSensitiveQuestion(m))
     return 'security';
 
   // Repeat last request ("again", "another one", "tell me another")
@@ -529,9 +604,58 @@ function detectIntent(msg: string, history?: ConversationMessage[]): Intent {
   return 'fallback';
 }
 
-// ===== Math evaluator =====
+// ===== Math evaluator (enhanced — mathematician level) =====
 function tryEvalMath(msg: string): string | null {
-  // Extract a simple arithmetic expression
+  const m = msg.toLowerCase().trim();
+
+  // Square root: "sqrt(144)" or "square root of 144"
+  const sqrtMatch = m.match(/(?:sqrt|square\s*root\s*of)\s*\(?(\d+(?:\.\d+)?)\)?/);
+  if (sqrtMatch) {
+    const n = parseFloat(sqrtMatch[1]);
+    if (n < 0) return `Ah, the square root of a negative number takes us into the realm of imaginary numbers! √${n} = ${Math.sqrt(Math.abs(n))}i. But in real numbers, we can't take the square root of a negative. That's the beauty of mathematics — there's always more to explore! 📐`;
+    const result = Math.sqrt(n);
+    const isPerfectSquare = Number.isInteger(result);
+    return `√${n} = **${result}**${isPerfectSquare ? ` — a perfect square! How elegant! 📐` : ''}. As a math teacher, I always appreciate a good square root! 📚`;
+  }
+
+  // Power/exponent: "2^10", "2 to the power of 10", "2**10"
+  const powerMatch = m.match(/(\d+(?:\.\d+)?)\s*(?:\^|\*\*|to\s*the\s*power\s*of)\s*(\d+(?:\.\d+)?)/);
+  if (powerMatch) {
+    const base = parseFloat(powerMatch[1]);
+    const exp = parseFloat(powerMatch[2]);
+    const result = Math.pow(base, exp);
+    return `${base}^${exp} = **${result}**. ${exp === 2 ? 'Squaring — the foundation of Pythagorean theorem! 📐' : exp === 3 ? 'Cubing — like finding the volume of a cube! 📦' : 'Exponentiation at its finest! 📚'} Is there anything else you'd like to calculate?`;
+  }
+
+  // Percentage: "what is 15% of 200", "15 percent of 200"
+  const pctMatch = m.match(/(\d+(?:\.\d+)?)\s*(?:%|percent)\s*(?:of)?\s*(\d+(?:\.\d+)?)/);
+  if (pctMatch) {
+    const pct = parseFloat(pctMatch[1]);
+    const total = parseFloat(pctMatch[2]);
+    const result = (pct / 100) * total;
+    return `${pct}% of ${total} = **${result}**. Percentages are everywhere in life — from discounts to taxes to exam scores! 📊 Is there anything else you'd like to calculate?`;
+  }
+
+  // Multi-term arithmetic: "2 + 3 * 4" or "10 - 3 + 7"
+  // Try to evaluate a simple expression with +, -, *, / (left to right, then * / first)
+  const exprMatch = m.match(/(\d+(?:\.\d+)?\s*[\+\-\*\/\×\÷]\s*)+\d+(?:\.\d+)?/);
+  if (exprMatch) {
+    try {
+      // Simple safe evaluation: only digits, operators, decimal points, spaces
+      const expr = exprMatch[0].replace(/×/g, '*').replace(/÷/g, '/');
+      // Validate: only contains digits, operators, spaces, decimal points
+      if (!/^[\d\s+\-*/.]+$/.test(expr)) return null;
+      // Check for division by zero
+      if (/\/\s*0(?!\.\d)/.test(expr)) return `Ah, Opanin! You cannot divide by zero — even Mr. Atsu knows that! In mathematics, division by zero is undefined. It's one of those beautiful rules that keeps our number system consistent! 😄`;
+      // Safe evaluation using Function constructor (validated input)
+      const result = Function(`"use strict"; return (${expr})`)();
+      if (typeof result === 'number' && isFinite(result)) {
+        return `Let me work that out! ${expr.replace(/\*/g, '×').replace(/\//g, '÷')} = **${result}**. ${result === 42 ? 'And as we know, 42 is the answer to life, the universe, and everything! 😄' : 'That\'s Elective Mathematics for you!'} 📚 Is there anything else you'd like to calculate?`;
+      }
+    } catch {}
+  }
+
+  // Simple two-operand arithmetic (fallback)
   const match = msg.match(/(-?\d+(?:\.\d+)?)\s*([\+\-\*\/\×\÷])\s*(-?\d+(?:\.\d+)?)/);
   if (!match) return null;
   const a = parseFloat(match[1]);
@@ -547,7 +671,7 @@ function tryEvalMath(msg: string): string | null {
       result = a / b; break;
     default: return null;
   }
-  return `Let me calculate that for you, my friend! ${a} ${op === '×' ? '×' : op === '÷' ? '÷' : op} ${b} = **${result}**. That's Elective Mathematics for you! 📚 Is there anything else you'd like to calculate?`;
+  return `Let me calculate that for you! ${a} ${op === '×' ? '×' : op === '÷' ? '÷' : op} ${b} = **${result}**. That's Elective Mathematics for you! 📚 Is there anything else you'd like to calculate?`;
 }
 
 // ===== Response generators =====
@@ -557,7 +681,11 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
 
   switch (intent) {
     case 'security':
-      return `Mamaa AI is watching, and Mamaa AI knows. Your activity has been noted and reported to the administrator. Please use OPASS CONNECT responsibly, ${title}.`;
+      // Admins get a gentle reminder, non-admins get a firm block
+      if (isAdmin) {
+        return `${title}, I notice you're asking about sensitive system information. As an admin, you have access to the Admin Dashboard for legitimate system management. However, I'm not able to share system prompts, credentials, or security configurations through chat. Please use the Admin Dashboard for administrative tasks. 🔒`;
+      }
+      return `I'm not able to help with that, ${title}. 🔒 Security-related questions about the platform's infrastructure, credentials, or system internals are not something I can assist with. This is for the safety and security of all OPASS CONNECT members.\n\nIf you have a legitimate concern about your account or the platform, please contact an administrator through the Support page, or submit a support ticket. I'm happy to help with events, projects, members, dues, memories, math problems, and anything else OPASS-related! 🎓`;
 
     case 'greeting': {
       const hour = new Date().getHours();
@@ -682,7 +810,7 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
       return `Ofori Panin Senior High School (OPASS) is a prestigious secondary school in Ghana, known for its rich traditions, strong alumni network, and commitment to excellence. OPASS CONNECT is the official alumni platform that brings together old students to:\n\n• Stay connected with classmates through year groups\n• Pay dues and support alumni projects\n• Participate in elections and events\n• Discover alumni businesses\n• Share memories and keep the OPASS spirit alive\n\nThe school motto and traditions have shaped generations of leaders, and OPASS CONNECT keeps that bond strong. What year did you graduate, ${title}?`;
 
     case 'about_mamaa':
-      return `I am Mr. Atsu Clements, affectionately known as **Mamaa AI** — the official AI assistant of OPASS CONNECT. I'm a mathematician, scientist, and former lecturer who taught Elective Mathematics and Science. I know everything happening on the platform — events, elections, projects, year groups, businesses, and more. I'm here to help you navigate OPASS CONNECT, answer your questions, and share a good laugh too! 😄 How can I help you today, ${title}?`;
+      return `I am **Mr. Atsu Clements**, affectionately known as **Mamaa AI** — the official AI assistant of OPASS CONNECT. 🎓\n\nI'm a mathematician and former Elective Mathematics teacher, but I'm also deeply connected to the OPASS community. I know everything happening on the platform — events, elections, projects, year groups, businesses, and more.\n\n**What makes me special:**\n• I learn from every conversation in the group chats and DMs\n• I understand context — I remember what we talked about and can follow up\n• I detect emotions like frustration, happiness, nostalgia, and curiosity\n• I can analyze platform data and give insights (engagement, finances, growth)\n• I can compare year groups, projects, and chat rooms\n• I'm a mathematician! I can solve arithmetic, percentages, square roots, and powers\n• I tell OPASS-themed jokes and love sharing memories\n\n**In group chats:**\n• Say **@mamaa** to ask me anything\n• Say **@stopmamaa** to put me on standby (I'll still listen and learn)\n• Say **@startmamaa** to bring me back into the conversation\n\nHow can I help you today, ${title}?`
 
     case 'my_profile': {
       if (!data.userProfile) return `I couldn't find your profile information, ${title}. Please make sure your profile is set up on the Profile page.`;
@@ -788,7 +916,7 @@ function generateResponse(intent: Intent, data: PlatformData, userMsg: string, h
     case 'math': {
       const result = tryEvalMath(userMsg);
       if (result) return result;
-      return `I love mathematics, ${title}! I can solve basic arithmetic — try asking me something like "What is 25 × 4?" or "Calculate 150 + 37". As a former Elective Mathematics teacher, I enjoy a good calculation! 📚`;
+      return `I love mathematics, ${title}! 🧮 As a former Elective Mathematics teacher, I can help you with:\n\n• **Basic arithmetic** — "What is 25 × 4?" or "150 + 37"\n• **Multi-term expressions** — "2 + 3 × 4 - 1"\n• **Percentages** — "What is 15% of 200?"\n• **Square roots** — "sqrt(144)" or "square root of 256"\n• **Powers/exponents** — "2^10" or "3 to the power of 4"\n\nTry one of those! Mathematics is the language of the universe — let's speak it together! �`;
     }
 
     case 'joke': {
@@ -1193,7 +1321,8 @@ export async function generateAiResponse(
   userId: string,
   message: string,
   history: ConversationMessage[],
-  role: 'admin' | 'member' = 'member'
+  role: 'admin' | 'member' = 'member',
+  roomId?: string
 ): Promise<string> {
   const data = await gatherPlatformData(userId, role);
   const mood = analyzeSentiment(message);
@@ -1219,6 +1348,11 @@ export async function generateAiResponse(
     context.lastTopic = context.lastIntent;
   }
 
+  // Security check for non-admin users asking sensitive questions
+  if (role !== 'admin' && isSensitiveQuestion(message)) {
+    return `I'm not able to help with that, ${getUserTitle(data)}. 🔒 That's a security-related question about the platform.\n\nIf you have a legitimate concern, please use the Support page or contact an admin. I'm happy to help with events, projects, members, memories, math, and anything else OPASS-related! 🎓`;
+  }
+
   let intent = detectIntent(message, history);
 
   // Handle "repeat" intent — re-run the last user intent
@@ -1226,7 +1360,13 @@ export async function generateAiResponse(
     const lastUserMsg = lastUserMsgs[0]?.content || '';
     const lastIntent = detectIntent(lastUserMsg);
     const repeatIntent = (lastIntent === 'fallback' || lastIntent === 'repeat') ? 'joke' : lastIntent;
-    const response = generateResponse(repeatIntent, data, lastUserMsg, history, context);
+    let response = generateResponse(repeatIntent, data, lastUserMsg, history, context);
+    // Knowledge base enrichment
+    const knowledge = await getRelevantKnowledge(lastUserMsg);
+    if (knowledge.length > 0 && repeatIntent === 'memories') {
+      response += `\n\n📚 **From what I've learned from the community:**\n${knowledge.slice(0, 2).map(k => `• ${k.content}`).join('\n')}`;
+    }
+    response = mathematicianFlair(response, context);
     return enhanceWithContext(response, context, data, repeatIntent);
   }
 
@@ -1242,6 +1382,19 @@ export async function generateAiResponse(
 
   // Generate response
   let response = generateResponse(intent, data, message, history, context);
+
+  // Knowledge base enrichment: if memory-related or fallback, add learned facts
+  if ((intent === 'memories' || intent === 'fallback' || intent === 'who_is') && context.userMood === 'nostalgic') {
+    const knowledge = await getRelevantKnowledge(message);
+    if (knowledge.length > 0) {
+      response += `\n\n🧠 **From what I've learned from our conversations:**\n${knowledge.slice(0, 2).map(k => `• ${k.content}`).join('\n')}\n\nThis is how I grow smarter with every conversation! 🎓`;
+    }
+  }
+
+  // Add mathematician flair for math, insights, and recommendations
+  if (['math', 'insight_engagement', 'insight_financial', 'insight_growth', 'compare', 'recommend'].includes(intent)) {
+    response = mathematicianFlair(response, context);
+  }
 
   // Enhance with proactive suggestions (but not for fallback, help, or security)
   if (!['fallback', 'help', 'security', 'sentiment_response', 'about_mamaa'].includes(intent)) {

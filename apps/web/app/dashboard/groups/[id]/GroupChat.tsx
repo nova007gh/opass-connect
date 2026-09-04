@@ -1057,7 +1057,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
         {/* Mamaa AI hint */}
         {!isRestricted && (
           <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: '2px 0 4px' }}>
-            💡 Type <strong style={{ color: 'var(--blue)' }}>@mamaa</strong> to ask Mamaa AI anything in this chat
+            💡 Type <strong style={{ color: 'var(--blue)' }}>@mamaa</strong> to ask anything · <strong style={{ color: 'var(--blue)' }}>@stopmamaa</strong> to put Mamaa on standby · <strong style={{ color: 'var(--blue)' }}>@startmamaa</strong> to bring Mamaa back
           </div>
         )}
         {/* Attach menu popup */}

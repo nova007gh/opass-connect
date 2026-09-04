@@ -508,3 +508,32 @@ model Notification {
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
   @@index([userId, read, createdAt])
 }
+
+// ===== Mamaa AI Knowledge Base =====
+// Stores learned facts, conversation summaries, and knowledge from users
+model MamaaKnowledge {
+  id String @id @default(cuid())
+  category String  // "fact", "memory", "member_info", "conversation_summary", "joke", "event_info"
+  content String
+  source String?  // who said it or where it came from
+  roomId String?  // which chat room it was learned from
+  tags String[]  // searchable tags
+  confidence Float @default(0.5)  // 0-1 confidence level
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([category, createdAt])
+  @@index([tags])
+}
+
+// Tracks Mamaa AI's state in each chat room (active/standby, etc.)
+model MamaaRoomState {
+  id String @id @default(cuid())
+  roomId String @unique
+  mode String @default("ACTIVE")  // "ACTIVE" or "STANDBY"
+  lastActiveAt DateTime @default(now())
+  messageCountSinceActive Int @default(0)  // messages counted while on standby
+  totalAutoResponses Int @default(0)  // total auto-responses made
+  totalJokes Int @default(0)  // total jokes told
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -450,7 +450,7 @@ export function registerCoreRoutes(app:FastifyInstance){
         });
         const history = recentMsgs.reverse().map(m => ({ role: (m.senderId === MAMAAA_BOT_ID ? 'assistant' : 'user') as 'user' | 'assistant', content: m.body }));
         const aiContent = await generateAiResponse(req.user.sub, b.body || '', history, aiRole);
-        const aiMsg = await prisma.directMessage.create({ data: { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub, body: aiContent } });
+        const aiMsg = await prisma.directMessage.create({ data: { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub, body: `🤖 ${aiContent}` } });
         return { userMsg: msg, aiMsg };
       } catch (err: any) {
         const fallback = await prisma.directMessage.create({ data: { senderId: MAMAAA_BOT_ID, recipientId: req.user.sub, body: 'I am having trouble right now, my friend. Please try again in a moment.' } });
@@ -615,18 +615,101 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.post('/chat/rooms/:id/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{try{const{buffer,mimetype}=await readFileFromRequest(req);const imageUrl=await processAndStoreImage(buffer,mimetype,req.params.id,'chatrooms',200,200);await prisma.chatRoom.update({where:{id:req.params.id},data:{imageUrl}});return{imageUrl};}catch(err:any){return reply.code(400).send({error:err.message});}});
   app.get('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const q=z.object({cursor:z.string().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).parse(req.query);return prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:q.limit,...(q.cursor?{skip:1,cursor:{id:q.cursor}}:{}) ,include:{user:{select:{id:true,profile:{select:{fullName:true,avatarUrl:true}}}},replyTo:{select:{id:true,body:true,userId:true,audioUrl:true,imageUrl:true,videoUrl:true,fileUrl:true,fileName:true,locationLat:true,locationLng:true,user:{select:{profile:{select:{fullName:true}}}}}}}})});
   app.post('/chat/rooms/:id/messages',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({body:z.string().max(4000),replyToId:z.string().optional(),audioUrl:z.string().optional(),imageUrl:z.string().optional(),videoUrl:z.string().optional(),fileUrl:z.string().optional(),fileName:z.string().optional(),locationLat:z.number().optional(),locationLng:z.number().optional()}).parse(req.body);const hasMedia=b.audioUrl||b.imageUrl||b.videoUrl||b.fileUrl||(b.locationLat!==undefined&&b.locationLng!==undefined);if(!b.body.trim()&&!hasMedia)return{error:'Message cannot be empty'}as any;const msg=await prisma.message.create({data:{roomId:req.params.id,userId:req.user.sub,body:b.body||'',...(b.replyToId?{replyToId:b.replyToId}:{}),...(b.audioUrl?{audioUrl:b.audioUrl}:{}),...(b.imageUrl?{imageUrl:b.imageUrl}:{}),...(b.videoUrl?{videoUrl:b.videoUrl}:{}),...(b.fileUrl?{fileUrl:b.fileUrl}:{}),...(b.fileName?{fileName:b.fileName}:{}),...(b.locationLat!==undefined?{locationLat:b.locationLat}:{}),...(b.locationLng!==undefined?{locationLng:b.locationLng}:{})},include:{user:{select:{profile:{select:{fullName:true}}}}}});const room=await prisma.chatRoom.findUnique({where:{id:req.params.id},include:{yearGroup:true}});if(room){const senderName=msg.user?.profile?.fullName||'A member';const link=room.yearGroupId?`/dashboard/groups/${room.yearGroupId}?tab=chat`:`/dashboard/assembly`;const preview=b.audioUrl?'🎤 Voice note':b.imageUrl?'📷 Photo':b.videoUrl?'🎥 Video':b.fileUrl?`📎 ${b.fileName||'File'}`:(b.locationLat!==undefined?'📍 Location':b.body.slice(0,100));if(room.yearGroupId){notifyYearGroup(room.yearGroupId,'CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}else{notifyAllUsers('CHAT',`New message in ${room.name}`,`${senderName}: ${preview}`,link,req.user.sub).catch(()=>{});}}
-  // ===== Mamaa AI auto-join + @mention detection in group chat =====
+  // ===== Mamaa AI: auto-join, @mention, @stopmamaa, @startmamaa, knowledge base =====
   const MAMAAA_BOT_ID=process.env.MAMAAA_BOT_ID||'mamaaa-ai-bot';
   if(b.body&&req.user.sub!==MAMAAA_BOT_ID){
-    // Fixed regex: matches @mamaa, @mamaaa, mamaa, mamaaa (with or without @)
     const mamaaPattern=/@?mamaa+\b/i;
     const isMentioned=mamaaPattern.test(b.body);
     const isQuestion=/\?$/.test(b.body.trim())&&b.body.length>5;
     const saysMamaa=/mamaa/i.test(b.body);
-    const shouldRespond=isMentioned||saysMamaa||(isQuestion&&Math.random()<0.3);
+    const isStopCommand=/@?stop\s*mamaa+/i.test(b.body);
+    const isStartCommand=/@?start\s*mamaa+/i.test(b.body);
+
+    // ===== Learn from every message (knowledge base) =====
+    try {
+      // Extract useful info from the message and store in knowledge base
+      const senderName=msg.user?.profile?.fullName||'Unknown';
+      const tags:string[]=[];
+      let category='conversation';
+      let content=b.body;
+      // Detect facts, memories, member info
+      if (/(remember|back.*then|used.*to|at.*opass|school.*days|dorm|dining|prep|assembly)/i.test(b.body)) {
+        category='memory'; tags.push('opass','memory','school-life');
+      } else if (/(i.*am|my.*name|i.*live|i.*work|i.*from|my.*profession|my.*house|i.*graduated)/i.test(b.body)) {
+        category='member_info'; tags.push('member',senderName.toLowerCase());
+      } else if (/(joke|funny|laugh)/i.test(b.body)) {
+        category='joke'; tags.push('joke','humor');
+      } else if (/(event|meeting|reunion|gather)/i.test(b.body)) {
+        category='event_info'; tags.push('event');
+      } else if (b.body.includes('?')) {
+        category='question'; tags.push('question');
+      }
+      // Only store text messages (not media) and meaningful content
+      if (b.body.trim().length > 10 && !b.audioUrl && !b.imageUrl && !b.videoUrl) {
+        await prisma.mamaaKnowledge.create({
+          data: { category, content: `${senderName}: ${content.slice(0, 500)}`, source: senderName, roomId: req.params.id, tags }
+        }).catch(()=>{});
+      }
+    } catch {}
+
+    // ===== Handle @stopmamaa command =====
+    if (isStopCommand) {
+      try {
+        await prisma.mamaaRoomState.upsert({
+          where: { roomId: req.params.id },
+          update: { mode: 'STANDBY', updatedAt: new Date() },
+          create: { roomId: req.params.id, mode: 'STANDBY' },
+        });
+        await prisma.message.create({ data: { roomId: req.params.id, userId: MAMAAA_BOT_ID, body: '🤖 Alright, I\'m going on standby. I\'ll still be reading and learning from your conversations, but I won\'t respond unless you call me with @mamaa. Just say @startmamaa when you want me back! 👋🎓' } });
+      } catch(e:any) { console.error('[mamaa] stop command error:', e?.message); }
+      return msg;
+    }
+
+    // ===== Handle @startmamaa command =====
+    if (isStartCommand) {
+      try {
+        await prisma.mamaaRoomState.upsert({
+          where: { roomId: req.params.id },
+          update: { mode: 'ACTIVE', lastActiveAt: new Date(), updatedAt: new Date() },
+          create: { roomId: req.params.id, mode: 'ACTIVE' },
+        });
+        await prisma.message.create({ data: { roomId: req.params.id, userId: MAMAAA_BOT_ID, body: '🤖 I\'m back! Akwaaba! 🎓 I\'ve been listening and learning. What would you like to talk about?' } });
+      } catch(e:any) { console.error('[mamaa] start command error:', e?.message); }
+      return msg;
+    }
+
+    // ===== Check room state (ACTIVE or STANDBY) =====
+    let roomState: any = { mode: 'ACTIVE' };
+    try {
+      roomState = await prisma.mamaaRoomState.upsert({
+        where: { roomId: req.params.id },
+        update: {},
+        create: { roomId: req.params.id, mode: 'ACTIVE' },
+      });
+      // Increment message count since active (for standby tracking)
+      if (roomState.mode === 'STANDBY') {
+        await prisma.mamaaRoomState.update({ where: { roomId: req.params.id }, data: { messageCountSinceActive: { increment: 1 } } });
+      }
+    } catch {}
+
+    // ===== Decide whether to respond =====
+    const isStandby = roomState.mode === 'STANDBY';
+    // In standby: only respond to explicit @mamaa mentions
+    // In active: respond to @mamaa, "mamaa", questions, and sometimes proactively
+    let shouldRespond = false;
+    if (isStandby) {
+      shouldRespond = isMentioned; // Only explicit @mamaa in standby
+    } else {
+      // Active mode: respond to mentions, "mamaa", questions (30%), and proactively (10%)
+      const isGreeting = /^(hi|hello|hey|akwaaba|good morning|good evening)\b/i.test(b.body.trim());
+      const isJokeable = /(lol|haha|😂|😄|🤣|funny|nice|cool|great|awesome)/i.test(b.body);
+      const proactiveChance = Math.random();
+      shouldRespond = isMentioned || saysMamaa || (isQuestion && proactiveChance < 0.3) || (isGreeting && proactiveChance < 0.4) || (isJokeable && proactiveChance < 0.15) || (proactiveChance < 0.08);
+    }
+
     if(shouldRespond){
       try{
-        // Ensure bot user exists before creating message
+        // Ensure bot user exists
         const botExists=await prisma.user.findUnique({where:{id:MAMAAA_BOT_ID},select:{id:true}}).catch(()=>null);
         if(!botExists){
           await prisma.user.upsert({
@@ -639,9 +722,20 @@ export function registerCoreRoutes(app:FastifyInstance){
         const aiRole=(['ADMIN','SUPER_ADMIN'].includes(req.user.role)?'admin':'member') as 'admin'|'member';
         const recentMsgs=await prisma.message.findMany({where:{roomId:req.params.id},orderBy:{createdAt:'desc'},take:10,include:{user:{select:{profile:{select:{fullName:true}}}}}});
         const history=recentMsgs.reverse().map(m=>({role:(m.userId===MAMAAA_BOT_ID?'assistant':'user') as 'user'|'assistant',content:`${m.user?.profile?.fullName||'Someone'}: ${m.body}`}));
-        const cleanMsg=b.body.replace(mamaaPattern,'').trim();
-        const aiContent=await generateAiResponse(req.user.sub,cleanMsg||b.body,history,aiRole);
+        const cleanMsg=b.body.replace(mamaaPattern,'').replace(/@?stop\s*mamaa+/i,'').replace(/@?start\s*mamaa+/i,'').trim();
+
+        // If in standby and explicitly mentioned, switch back to active
+        if (isStandby && isMentioned) {
+          await prisma.mamaaRoomState.update({ where: { roomId: req.params.id }, data: { mode: 'ACTIVE', lastActiveAt: new Date() } });
+        }
+
+        const aiContent=await generateAiResponse(req.user.sub,cleanMsg||b.body,history,aiRole,req.params.id);
         await prisma.message.create({data:{roomId:req.params.id,userId:MAMAAA_BOT_ID,body:`🤖 ${aiContent}`}});
+
+        // Update room state stats
+        try {
+          await prisma.mamaaRoomState.update({ where: { roomId: req.params.id }, data: { totalAutoResponses: { increment: 1 }, lastActiveAt: new Date() } });
+        } catch {}
       }catch(e:any){
         console.error('[mamaa] Failed to respond in chat:',e?.message||e);
       }

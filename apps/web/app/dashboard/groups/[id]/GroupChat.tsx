@@ -602,7 +602,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   });
 
   return (
-    <div className="chat-container" style={{ display: 'flex', flexDirection: 'column', paddingBottom: 'calc(var(--safe-bottom, 0px) + 8px)' }}>
+    <div className="chat-container" style={{ display: 'flex', flexDirection: 'column', paddingBottom: 'calc(var(--safe-bottom, 0px) + 8px)', position: 'relative' }}>
       {error && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13, padding: '6px 12px' }}>{error}<button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 0, cursor: 'pointer' }}>×</button></div>}
       {callError && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13 }}>{callError}</div>}
 

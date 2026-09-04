@@ -284,7 +284,7 @@ export default function DirectChatPage() {
   let lastDateKey = '';
 
   return (
-    <div className={`app-screen fade-in ${shaking ? 'shake-screen' : ''}`} style={{ background: 'var(--bg)', height: '100%' }}>
+    <div className={`app-screen chat-page fade-in ${shaking ? 'shake-screen' : ''}`} style={{ background: 'var(--bg)' }}>
       <div className="screen-header" style={{ flexShrink: 0, gap: 8, padding: '0 12px' }}>
         <button onClick={() => router.back()} className="back" style={{ flexShrink: 0 }}>
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -315,7 +315,7 @@ export default function DirectChatPage() {
         )}
       </div>
 
-      <div className="app-scroll" style={{ flex: 1, padding: '12px 12px 4px', minHeight: 0 }}>
+      <div className="app-scroll chat-page-scroll" style={{ flex: 1, padding: '12px 12px 4px', minHeight: 0, overflowY: 'auto' }}>
         {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
         {callError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{callError}</div>}
 
@@ -440,7 +440,7 @@ export default function DirectChatPage() {
         <div ref={messagesEnd} />
       </div>
 
-      <div style={{ position: 'relative', padding: '10px 12px calc(12px + var(--tabbar-h) + var(--safe-bottom))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+      <div className="chat-input-bar" style={{ position: 'relative', padding: '10px 12px calc(12px + var(--tabbar-h) + var(--safe-bottom))', borderTop: '1px solid var(--border)', background: 'var(--white)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
         {showEmojiPicker && (
           <EmojiPicker
             onPick={(emoji) => setInput(prev => prev + emoji)}

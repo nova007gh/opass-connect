@@ -427,7 +427,7 @@ export default function YearGroupDetailPage() {
   const canView = group.isMember || group.canManage;
 
   return (
-    <div className="app-screen fade-in chat-page" style={{ background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div className="app-screen fade-in chat-page" style={{ background: 'var(--bg)' }}>
       <div className="screen-header">
         <button onClick={() => router.push('/dashboard/groups')} className="back">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -437,8 +437,8 @@ export default function YearGroupDetailPage() {
           <button className="btn btn-sm" onClick={openMembers}>Manage</button>
         )}
       </div>
-      <div className="app-scroll chat-page-scroll" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div className="app-pad chat-page-pad" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="app-scroll chat-page-scroll">
+        <div className="app-pad chat-page-pad">
           {error && <div className="alert alert-error">{error}</div>}
           {success && <div className="alert alert-success">{success}</div>}
 

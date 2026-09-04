@@ -1378,6 +1378,42 @@ label.switch span > span { transition: transform 0.2s; }
   }
 }
 
+/* ===== Group chat page flex layout ===== */
+.chat-page {
+  height: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.chat-page-scroll,
+.chat-page-pad {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.chat-page-scroll {
+  overflow: hidden;
+}
+.chat-page-scroll:has(.chat-container) {
+  overflow: hidden;
+}
+.chat-page-pad > .chat-container,
+.chat-page-pad > div > .chat-container,
+.chat-page-scroll > .chat-container,
+.chat-page-scroll > div > .chat-container {
+  height: auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+}
+
 /* Mobile-specific: chat should fill screen below top nav */
 @media (max-width: 768px) {
   .chat-screen, .chat-container {
@@ -1390,6 +1426,18 @@ label.switch span > span { transition: transform 0.2s; }
     box-shadow: none;
     margin: 0;
     max-width: 100%;
+  }
+}
+
+/* Desktop: embedded chat card with rounded corners */
+@media (min-width: 769px) {
+  .chat-page-pad > .chat-container,
+  .chat-page-pad > div > .chat-container,
+  .chat-page-scroll > .chat-container,
+  .chat-page-scroll > div > .chat-container {
+    border-radius: 12px !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: var(--shadow) !important;
   }
 }
 

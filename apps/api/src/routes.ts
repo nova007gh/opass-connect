@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { prisma } from '@opass/db';
 import { requireRoles } from './auth.js';
@@ -652,7 +653,7 @@ export function registerCoreRoutes(app:FastifyInstance){
       }
     } catch {}
 
-    // ===== Handle @stopmamaa command =====
+    // ===== Handle @stopmamaa command (silent — no chat confirmation) =====
     if (isStopCommand) {
       try {
         await prisma.mamaaRoomState.upsert({
@@ -660,12 +661,11 @@ export function registerCoreRoutes(app:FastifyInstance){
           update: { mode: 'STANDBY', updatedAt: new Date() },
           create: { roomId: req.params.id, mode: 'STANDBY' },
         });
-        await prisma.message.create({ data: { roomId: req.params.id, userId: MAMAAA_BOT_ID, body: '🤖 Alright, I\'m going on standby. I\'ll still be reading and learning from your conversations, but I won\'t respond unless you call me with @mamaa. Just say @startmamaa when you want me back! 👋🎓' } });
       } catch(e:any) { console.error('[mamaa] stop command error:', e?.message); }
       return msg;
     }
 
-    // ===== Handle @startmamaa command =====
+    // ===== Handle @startmamaa command (silent — no chat confirmation) =====
     if (isStartCommand) {
       try {
         await prisma.mamaaRoomState.upsert({
@@ -673,38 +673,33 @@ export function registerCoreRoutes(app:FastifyInstance){
           update: { mode: 'ACTIVE', lastActiveAt: new Date(), updatedAt: new Date() },
           create: { roomId: req.params.id, mode: 'ACTIVE' },
         });
-        await prisma.message.create({ data: { roomId: req.params.id, userId: MAMAAA_BOT_ID, body: '🤖 I\'m back! Akwaaba! 🎓 I\'ve been listening and learning. What would you like to talk about?' } });
       } catch(e:any) { console.error('[mamaa] start command error:', e?.message); }
       return msg;
     }
 
-    // ===== Check room state (ACTIVE or STANDBY) =====
-    let roomState: any = { mode: 'ACTIVE' };
+    // ===== Check room state (default STANDBY — Mamaa is silent unless called) =====
+    let roomState: any = { mode: 'STANDBY' };
     try {
       roomState = await prisma.mamaaRoomState.upsert({
         where: { roomId: req.params.id },
         update: {},
-        create: { roomId: req.params.id, mode: 'ACTIVE' },
+        create: { roomId: req.params.id, mode: 'STANDBY' },
       });
-      // Increment message count since active (for standby tracking)
       if (roomState.mode === 'STANDBY') {
         await prisma.mamaaRoomState.update({ where: { roomId: req.params.id }, data: { messageCountSinceActive: { increment: 1 } } });
       }
     } catch {}
 
     // ===== Decide whether to respond =====
+    // Mamaa is silent by default. Only responds to explicit @mamaa mentions.
+    // Knowledge base recording continues silently regardless of mode.
     const isStandby = roomState.mode === 'STANDBY';
-    // In standby: only respond to explicit @mamaa mentions
-    // In active: respond to @mamaa, "mamaa", questions, and sometimes proactively
     let shouldRespond = false;
     if (isStandby) {
       shouldRespond = isMentioned; // Only explicit @mamaa in standby
     } else {
-      // Active mode: respond to mentions, "mamaa", questions (30%), and proactively (10%)
-      const isGreeting = /^(hi|hello|hey|akwaaba|good morning|good evening)\b/i.test(b.body.trim());
-      const isJokeable = /(lol|haha|😂|😄|🤣|funny|nice|cool|great|awesome)/i.test(b.body);
-      const proactiveChance = Math.random();
-      shouldRespond = isMentioned || saysMamaa || (isQuestion && proactiveChance < 0.3) || (isGreeting && proactiveChance < 0.4) || (isJokeable && proactiveChance < 0.15) || (proactiveChance < 0.08);
+      // Active mode (admin-enabled): respond to @mamaa and "mamaa" mentions only
+      shouldRespond = isMentioned || saysMamaa;
     }
 
     if(shouldRespond){
@@ -899,6 +894,160 @@ export function registerCoreRoutes(app:FastifyInstance){
   app.get('/admin/activity',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>{const [users,payments]=await Promise.all([prisma.user.findMany({orderBy:{createdAt:'desc'},take:5,select:{id:true,email:true,createdAt:true,profile:{select:{fullName:true}}}}),prisma.payment.findMany({where:{status:'PAID'},orderBy:{updatedAt:'desc'},take:5,select:{id:true,purpose:true,amount:true,currency:true,updatedAt:true,user:{select:{profile:{select:{fullName:true}}}}}})]);const events=[...users.map(u=>({id:'u-'+u.id,type:'user' as const,label:`${u.profile?.fullName||u.email} registered`,at:u.createdAt})),...payments.map(p=>({id:'p-'+p.id,type:'payment' as const,label:`${p.user.profile?.fullName||'Someone'} paid ${p.currency} ${Number(p.amount).toLocaleString()} for ${p.purpose}`,at:p.updatedAt}))];events.sort((a,b)=>new Date(b.at).getTime()-new Date(a.at).getTime());return events.slice(0,8);});
   app.get('/admin/users',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{const q=z.object({search:z.string().optional()}).parse(req.query);return prisma.user.findMany({where:q.search?{OR:[{email:{contains:q.search,mode:'insensitive'}},{profile:{fullName:{contains:q.search,mode:'insensitive'}}}]}:undefined,orderBy:{createdAt:'desc'},take:100,select:{id:true,email:true,role:true,verification:true,createdAt:true,profile:{select:{fullName:true,graduationYear:true,avatarUrl:true}}}});});
   app.get('/admin/year-group-invites',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{const q=z.object({status:z.string().optional()}).parse(req.query);const invites=await prisma.yearGroupInvite.findMany({where:q.status?{status:q.status as any}:{status:'PENDING'},orderBy:{createdAt:'desc'},include:{yearGroup:{select:{year:true,name:true}},invitedUser:{select:{email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true}}}},invitedBy:{select:{email:true,profile:{select:{fullName:true}}}}}});return invites.map(({token,...i})=>({...i,awaitingRegistration:!i.invitedUserId}));});
+
+  // ===== Admin Team Management (admins + executives with roles & permissions) =====
+  const ADMIN_PERMISSIONS = [
+    'can_verify_members',
+    'can_manage_ads',
+    'can_manage_quotes',
+    'can_manage_events',
+    'can_manage_projects',
+    'can_manage_elections',
+    'can_manage_groups',
+    'can_view_mamaa_archive',
+    'can_manage_admins',
+    'can_manage_executives',
+    'can_view_revenue',
+    'can_manage_tickets',
+  ] as const;
+
+  // List all admins & executives
+  app.get('/admin/team',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{
+    const q=z.object({search:z.string().optional()}).parse(req.query);
+    return prisma.user.findMany({
+      where:{
+        AND:[
+          {role:{in:['EXECUTIVE','ADMIN','SUPER_ADMIN','MODERATOR','YEAR_ADMIN']}},
+          q.search?{OR:[{email:{contains:q.search,mode:'insensitive'}},{profile:{fullName:{contains:q.search,mode:'insensitive'}}}]}:{},
+        ],
+      },
+      orderBy:{role:'desc'},
+      select:{id:true,email:true,role:true,permissions:true,verification:true,createdAt:true,profile:{select:{fullName:true,graduationYear:true,avatarUrl:true,profession:true,house:true}}},
+    });
+  });
+
+  // List all members (for promoting to admin/executive)
+  app.get('/admin/members',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{
+    const q=z.object({search:z.string().optional()}).parse(req.query);
+    return prisma.user.findMany({
+      where:{
+        AND:[
+          {role:'MEMBER'},
+          {verification:'VERIFIED'},
+          q.search?{OR:[{email:{contains:q.search,mode:'insensitive'}},{profile:{fullName:{contains:q.search,mode:'insensitive'}}}]}:{},
+        ],
+      },
+      orderBy:{createdAt:'desc'},
+      take:100,
+      select:{id:true,email:true,role:true,permissions:true,verification:true,createdAt:true,profile:{select:{fullName:true,graduationYear:true,avatarUrl:true,profession:true}}},
+    });
+  });
+
+  // Get available permissions
+  app.get('/admin/permissions',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>ADMIN_PERMISSIONS);
+
+  // Update a user's role and permissions
+  app.patch('/admin/team/:userId',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply:any)=>{
+    const b=z.object({
+      role:z.enum(['MEMBER','YEAR_ADMIN','MODERATOR','EXECUTIVE','ADMIN']),
+      permissions:z.array(z.string()).optional(),
+    }).parse(req.body);
+    // Only SUPER_ADMIN can promote to ADMIN or demote an ADMIN
+    const target=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true,role:true}});
+    if(!target) return reply.code(404).send({error:'User not found'});
+    if(req.user.role!=='SUPER_ADMIN' && (b.role==='ADMIN' || target.role==='ADMIN' || target.role==='SUPER_ADMIN')){
+      return reply.code(403).send({error:'Only super admins can promote/demote admins'});
+    }
+    if(target.role==='SUPER_ADMIN') return reply.code(403).send({error:'Cannot modify a super admin'});
+    const updated=await prisma.user.update({
+      where:{id:req.params.userId},
+      data:{role:b.role,permissions:b.permissions??[]},
+      select:{id:true,email:true,role:true,permissions:true,profile:{select:{fullName:true}}},
+    });
+    notifyUser(req.params.userId,'SYSTEM','Your role has been updated',`Your account role has been updated to ${b.role}.`,'/dashboard',true).catch(()=>{});
+    return updated;
+  });
+
+  // Create a new admin/executive account (invites via email)
+  app.post('/admin/team',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply:any)=>{
+    const b=z.object({
+      email:z.string().email(),
+      fullName:z.string().min(2),
+      role:z.enum(['YEAR_ADMIN','MODERATOR','EXECUTIVE','ADMIN']),
+      permissions:z.array(z.string()).optional(),
+      graduationYear:z.number().int().min(1955).max(new Date().getFullYear()).optional(),
+      house:z.string().optional(),
+    }).parse(req.body);
+    if(req.user.role!=='SUPER_ADMIN' && b.role==='ADMIN'){
+      return reply.code(403).send({error:'Only super admins can create admin accounts'});
+    }
+    const existing=await prisma.user.findUnique({where:{email:b.email.toLowerCase()}});
+    if(existing) return reply.code(409).send({error:'A user with this email already exists. Use the team edit feature instead.'});
+    // Generate a random temporary password
+    const tempPassword=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+'A1!';
+    const passwordHash=await bcrypt.hash(tempPassword,12);
+    const user=await prisma.user.create({
+      data:{
+        email:b.email.toLowerCase(),
+        passwordHash,
+        role:b.role,
+        permissions:b.permissions??[],
+        verification:'VERIFIED',
+        profile:{
+          create:{
+            fullName:b.fullName,
+            graduationYear:b.graduationYear??new Date().getFullYear(),
+            house:b.house,
+          },
+        },
+      },
+      select:{id:true,email:true,role:true,permissions:true,profile:{select:{fullName:true}}},
+    });
+    // Send credentials email
+    const{sendEmail}=await import('./email.js');
+    sendEmail(b.email,'Your OPASS CONNECT Admin Account',`You've been added as ${b.role}`,`<p>Hi ${b.fullName},</p><p>You have been added to OPASS CONNECT as a <strong>${b.role}</strong>.</p><p><strong>Email:</strong> ${b.email}</p><p><strong>Temporary password:</strong> ${tempPassword}</p><p>Please log in at <a href="https://opass-connect.vercel.app/login">opass-connect.vercel.app</a> and change your password immediately.</p>`).catch(()=>{});
+    return reply.code(201).send(user);
+  });
+
+  // Remove admin/executive role (demote to MEMBER)
+  app.post('/admin/team/:userId/demote',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply:any)=>{
+    const target=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true,role:true}});
+    if(!target) return reply.code(404).send({error:'User not found'});
+    if(target.role==='SUPER_ADMIN') return reply.code(403).send({error:'Cannot demote a super admin'});
+    if(req.user.role!=='SUPER_ADMIN' && target.role==='ADMIN'){
+      return reply.code(403).send({error:'Only super admins can demote admins'});
+    }
+    const updated=await prisma.user.update({
+      where:{id:req.params.userId},
+      data:{role:'MEMBER',permissions:[]},
+      select:{id:true,email:true,role:true,profile:{select:{fullName:true}}},
+    });
+    notifyUser(req.params.userId,'SYSTEM','Your admin access has been removed','Your admin role has been removed. You are now a regular member.','/dashboard',true).catch(()=>{});
+    return updated;
+  });
+
+  // ===== Mamaa AI Archive (admin-only view of recorded conversations) =====
+  app.get('/admin/mamaa/archive',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{
+    const q=z.object({roomId:z.string().optional(),category:z.string().optional(),limit:z.coerce.number().int().min(1).max(200).default(50)}).parse(req.query);
+    return prisma.mamaaKnowledge.findMany({
+      where:{
+        AND:[
+          q.roomId?{roomId:q.roomId}:{},
+          q.category?{category:q.category as any}:{},
+        ],
+      },
+      orderBy:{createdAt:'desc'},
+      take:q.limit,
+    });
+  });
+
+  app.get('/admin/mamaa/stats',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async()=>{
+    const [total,byCategory]=await Promise.all([
+      prisma.mamaaKnowledge.count(),
+      prisma.mamaaKnowledge.groupBy({by:['category'],_count:{_all:true}}),
+    ]);
+    return {total,byCategory};
+  });
 
   // ===== Support Tickets =====
   app.get('/tickets',{preHandler:[app.authenticate]},async(req:any)=>{if(['ADMIN','SUPER_ADMIN'].includes(req.user.role)){return prisma.supportTicket.findMany({orderBy:{createdAt:'desc'},take:100,include:{user:{select:{email:true,profile:{select:{fullName:true,avatarUrl:true}}}}}});}return prisma.supportTicket.findMany({where:{userId:req.user.sub},orderBy:{createdAt:'desc'},take:50});});

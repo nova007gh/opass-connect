@@ -11,6 +11,7 @@ enum UserRole {
   MEMBER
   YEAR_ADMIN
   MODERATOR
+  EXECUTIVE
   ADMIN
   SUPER_ADMIN
 }
@@ -99,6 +100,7 @@ model User {
   phone String? @unique
   passwordHash String
   role UserRole @default(MEMBER)
+  permissions String[] @default([])
   verification VerificationStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

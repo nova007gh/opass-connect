@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { apiGet, setToken, clearToken, getToken } from './api';
 
-export type UserRole = 'MEMBER' | 'YEAR_ADMIN' | 'MODERATOR' | 'ADMIN' | 'SUPER_ADMIN';
+export type UserRole = 'MEMBER' | 'YEAR_ADMIN' | 'MODERATOR' | 'EXECUTIVE' | 'ADMIN' | 'SUPER_ADMIN';
 export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export interface AlumniProfile {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost } from '../../../lib/api';
+import { apiGet, apiPost, apiPatch } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
 interface Stats {
@@ -46,6 +46,19 @@ interface ActivityItem {
   label: string;
   at: string;
 }
+interface TeamMember {
+  id: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  verification: string;
+  createdAt: string;
+  profile?: { fullName: string; graduationYear: number; avatarUrl?: string | null; profession?: string | null; house?: string | null } | null;
+}
+interface MamaaStats {
+  total: number;
+  byCategory: { category: string; _count: { _all: number } }[];
+}
 
 const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
   'Total users': { icon: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 100-8 4 4 0 000 8z', color: 'var(--blue)', bg: 'var(--blue-50)' },
@@ -59,7 +72,7 @@ const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites'>('overview');
+  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites' | 'team' | 'mamaa'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [pending, setPending] = useState<PendingMember[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -67,9 +80,18 @@ export default function AdminPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [groupInvites, setGroupInvites] = useState<any[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [availablePerms, setAvailablePerms] = useState<string[]>([]);
+  const [mamaaStats, setMamaaStats] = useState<MamaaStats | null>(null);
+  const [mamaaArchive, setMamaaArchive] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState('');
+  const [teamError, setTeamError] = useState('');
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [memberSearch, setMemberSearch] = useState('');
 
   const loadAll = () => {
     Promise.all([
@@ -89,6 +111,30 @@ export default function AdminPage() {
       setTickets(t);
       setGroupInvites(gi);
       setLoading(false);
+    });
+  };
+
+  const loadTeam = () => {
+    Promise.all([
+      apiGet<TeamMember[]>('/admin/team').catch(() => []),
+      apiGet<string[]>('/admin/permissions').catch(() => []),
+    ]).then(([t, p]) => {
+      setTeam(t);
+      setAvailablePerms(p);
+    });
+  };
+
+  const loadMembers = (search?: string) => {
+    apiGet<TeamMember[]>(`/admin/members${search ? `?search=${encodeURIComponent(search)}` : ''}`).catch(() => []).then(setMembers);
+  };
+
+  const loadMamaaArchive = () => {
+    Promise.all([
+      apiGet<MamaaStats>('/admin/mamaa/stats').catch(() => null),
+      apiGet<any[]>('/admin/mamaa/archive?limit=100').catch(() => []),
+    ]).then(([s, a]) => {
+      setMamaaStats(s);
+      setMamaaArchive(a);
     });
   };
 
@@ -178,6 +224,71 @@ export default function AdminPage() {
     return `${Math.round(hrs / 24)}d ago`;
   };
 
+  const roleLabels: Record<string, string> = {
+    'SUPER_ADMIN': 'Super Admin',
+    'ADMIN': 'Admin',
+    'EXECUTIVE': 'Executive',
+    'MODERATOR': 'Moderator',
+    'YEAR_ADMIN': 'Year Admin',
+    'MEMBER': 'Member',
+  };
+  const roleColors: Record<string, string> = {
+    'SUPER_ADMIN': '#7C3AED',
+    'ADMIN': '#2563EB',
+    'EXECUTIVE': '#059669',
+    'MODERATOR': '#D97706',
+    'YEAR_ADMIN': '#0891B2',
+    'MEMBER': '#6B7280',
+  };
+
+  const saveTeamMember = async (data: { role: string; permissions: string[] }) => {
+    if (!editingMember) return;
+    setTeamError('');
+    setAction('save-' + editingMember.id);
+    try {
+      await apiPatch(`/admin/team/${editingMember.id}`, data);
+      setEditingMember(null);
+      loadTeam();
+    } catch (err: any) {
+      setTeamError(err.message || 'Failed to update team member');
+    } finally { setAction(null); }
+  };
+
+  const demoteMember = async (id: string) => {
+    if (!confirm('Remove this person\'s admin/executive role? They will become a regular member.')) return;
+    setAction('demote-' + id);
+    try {
+      await apiPost(`/admin/team/${id}/demote`);
+      loadTeam();
+    } catch (err: any) {
+      alert(err.message || 'Failed to demote member');
+    } finally { setAction(null); }
+  };
+
+  const createTeamMember = async (data: { email: string; fullName: string; role: string; permissions: string[]; graduationYear?: number; house?: string }) => {
+    setTeamError('');
+    setAction('create');
+    try {
+      await apiPost('/admin/team', data);
+      setShowTeamModal(false);
+      loadTeam();
+    } catch (err: any) {
+      setTeamError(err.message || 'Failed to create team member');
+    } finally { setAction(null); }
+  };
+
+  const promoteMember = async (userId: string, role: string) => {
+    setTeamError('');
+    setAction('promote-' + userId);
+    try {
+      await apiPatch(`/admin/team/${userId}`, { role, permissions: [] });
+      loadTeam();
+      loadMembers(memberSearch);
+    } catch (err: any) {
+      setTeamError(err.message || 'Failed to promote member');
+    } finally { setAction(null); }
+  };
+
   const statCards = stats ? [
     { label: 'Total users', value: stats.users },
     { label: 'Verified', value: stats.verified },
@@ -253,6 +364,9 @@ export default function AdminPage() {
                 <button className={`btn btn-sm ${tab === 'members' ? '' : 'btn-outline'}`} onClick={() => setTab('members')}>
                   Members {pending.length > 0 && <span className="badge badge-amber" style={{ marginLeft: 6 }}>{pending.length}</span>}
                 </button>
+                <button className={`btn btn-sm ${tab === 'team' ? '' : 'btn-outline'}`} onClick={() => { setTab('team'); loadTeam(); }}>
+                  Team
+                </button>
                 <button className={`btn btn-sm ${tab === 'ads' ? '' : 'btn-outline'}`} onClick={() => setTab('ads')}>
                   Ad Approvals {ads.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{ads.length}</span>}
                 </button>
@@ -264,6 +378,9 @@ export default function AdminPage() {
                 </button>
                 <button className={`btn btn-sm ${tab === 'groupInvites' ? '' : 'btn-outline'}`} onClick={() => setTab('groupInvites')}>
                   Group Requests {groupInvites.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{groupInvites.length}</span>}
+                </button>
+                <button className={`btn btn-sm ${tab === 'mamaa' ? '' : 'btn-outline'}`} onClick={() => { setTab('mamaa'); loadMamaaArchive(); }}>
+                  Mamaa AI
                 </button>
               </div>
               {tab === 'overview' && renderOverview()}
@@ -416,10 +533,270 @@ export default function AdminPage() {
                   )}
                 </div>
               )}
+              {tab === 'team' && (
+                <TeamTab
+                  team={team}
+                  members={members}
+                  availablePerms={availablePerms}
+                  action={action}
+                  teamError={teamError}
+                  memberSearch={memberSearch}
+                  setMemberSearch={(v: string) => { setMemberSearch(v); loadMembers(v); }}
+                  onLoadMembers={() => loadMembers(memberSearch)}
+                  onEdit={setEditingMember}
+                  onDemote={demoteMember}
+                  onSave={saveTeamMember}
+                  onCreate={createTeamMember}
+                  onPromote={promoteMember}
+                  showTeamModal={showTeamModal}
+                  setShowTeamModal={setShowTeamModal}
+                  editingMember={editingMember}
+                  setEditingMember={setEditingMember}
+                  roleLabels={roleLabels}
+                  roleColors={roleColors}
+                />
+              )}
+              {tab === 'mamaa' && (
+                <div>
+                  <div className="card" style={{ marginBottom: 16 }}>
+                    <h3>Mamaa AI — Silent Mode</h3>
+                    <p className="text-muted text-sm" style={{ marginBottom: 12 }}>
+                      Mamaa AI is now <strong>silent by default</strong> in all chats. It only responds when explicitly called with <code>@mamaa</code>.
+                      It continues to <strong>listen, learn, and archive</strong> all conversations for admin review.
+                    </p>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+                      <div style={{ flex: 1, minWidth: 120, padding: 12, borderRadius: 12, background: 'var(--blue-50)', textAlign: 'center' }}>
+                        <strong style={{ display: 'block', fontSize: 24, color: 'var(--blue)' }}>{mamaaStats?.total ?? '—'}</strong>
+                        <small className="text-muted">Total archived messages</small>
+                      </div>
+                      {mamaaStats?.byCategory?.map((c) => (
+                        <div key={c.category} style={{ flex: 1, minWidth: 120, padding: 12, borderRadius: 12, background: 'var(--bg)', textAlign: 'center' }}>
+                          <strong style={{ display: 'block', fontSize: 24, color: 'var(--blue)' }}>{c._count._all}</strong>
+                          <small className="text-muted">{c.category.replace(/_/g, ' ')}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="card">
+                    <h3>Conversation Archive</h3>
+                    <p className="text-muted text-sm" style={{ marginBottom: 12 }}>Recent messages Mamaa AI has recorded from chats.</p>
+                    {mamaaArchive.length === 0 ? (
+                      <div className="empty-state"><p>No archived conversations yet.</p></div>
+                    ) : (
+                      <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+                        {mamaaArchive.map((item, i) => (
+                          <div key={item.id} style={{ padding: '10px 0', borderBottom: i < mamaaArchive.length - 1 ? '1px solid var(--border)' : 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <span className="badge" style={{ background: 'var(--blue-50)', color: 'var(--blue)', fontSize: 10 }}>{item.category.replace(/_/g, ' ')}</span>
+                              <span className="text-muted text-sm">{new Date(item.createdAt).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </div>
+                            <div style={{ fontSize: 13 }}>{item.content}</div>
+                            {item.source && <div className="text-muted text-sm" style={{ marginTop: 2 }}>— {item.source}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="card" style={{ marginTop: 16 }}>
+                    <h3>Mamaa AI Commands (Admin Only)</h3>
+                    <p className="text-muted text-sm" style={{ marginBottom: 8 }}>These commands work in any chat but are not shown to regular members.</p>
+                    <ul style={{ paddingLeft: 20, fontSize: 14, lineHeight: 1.8 }}>
+                      <li><code>@mamaa</code> — Ask Mamaa AI a question (works for everyone)</li>
+                      <li><code>@stopmamaa</code> — Put Mamaa on standby (silent, no confirmation)</li>
+                      <li><code>@startmamaa</code> — Bring Mamaa back to active mode (silent, no confirmation)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ===== Team Management Component =====
+function TeamTab({
+  team, members, availablePerms, action, teamError, memberSearch,
+  setMemberSearch, onLoadMembers, onEdit, onDemote, onSave, onCreate, onPromote,
+  showTeamModal, setShowTeamModal, editingMember, setEditingMember, roleLabels, roleColors,
+}: any) {
+  const [newMember, setNewMember] = useState({ email: '', fullName: '', role: 'EXECUTIVE', permissions: [] as string[], graduationYear: new Date().getFullYear(), house: '' });
+  const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [editRole, setEditRole] = useState('EXECUTIVE');
+  const [showPromoteSearch, setShowPromoteSearch] = useState(false);
+
+  useEffect(() => {
+    if (editingMember) {
+      setEditPerms(editingMember.permissions || []);
+      setEditRole(editingMember.role);
+    }
+  }, [editingMember]);
+
+  const togglePerm = (perm: string, list: string[], setter: (v: string[]) => void) => {
+    setter(list.includes(perm) ? list.filter((p: string) => p !== perm) : [...list, perm]);
+  };
+
+  return (
+    <div>
+      {teamError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{teamError}</div>}
+
+      {/* Current team */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>Admins & Executives ({team.length})</h3>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm" onClick={() => { setShowPromoteSearch(!showPromoteSearch); if (!showPromoteSearch) onLoadMembers(); }}>
+              {showPromoteSearch ? 'Close' : 'Promote Member'}
+            </button>
+            <button className="btn btn-sm btn-success" onClick={() => setShowTeamModal(true)}>+ Add New</button>
+          </div>
+        </div>
+
+        {team.length === 0 ? (
+          <div className="empty-state"><p>No admins or executives yet.</p></div>
+        ) : (
+          team.map((m: TeamMember) => (
+            <div key={m.id} className="list-item" style={{ flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <strong>{m.profile?.fullName || m.email}</strong>
+                  <span className="badge" style={{ background: (roleColors[m.role] || '#6B7280') + '22', color: roleColors[m.role] || '#6B7280', fontSize: 11 }}>
+                    {roleLabels[m.role] || m.role}
+                  </span>
+                </div>
+                <div className="text-muted text-sm">{m.email}</div>
+                {m.permissions && m.permissions.length > 0 && (
+                  <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {m.permissions.map((p) => (
+                      <span key={p} className="badge badge-blue" style={{ fontSize: 10 }}>{p.replace(/can_/g, '').replace(/_/g, ' ')}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button className="btn btn-sm" onClick={() => onEdit(m)} disabled={m.role === 'SUPER_ADMIN'}>
+                  Edit
+                </button>
+                {m.role !== 'SUPER_ADMIN' && (
+                  <button className="btn btn-sm btn-danger" onClick={() => onDemote(m.id)} disabled={action === 'demote-' + m.id}>
+                    {action === 'demote-' + m.id ? <span className="spinner" /> : 'Demote'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Promote existing member */}
+      {showPromoteSearch && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Promote a Member</h3>
+          <input
+            className="input"
+            placeholder="Search by name or email..."
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            style={{ marginBottom: 12 }}
+          />
+          {members.length === 0 ? (
+            <div className="empty-state"><p>{memberSearch ? 'No members found.' : 'Start typing to search members.'}</p></div>
+          ) : (
+            members.slice(0, 10).map((m: TeamMember) => (
+              <div key={m.id} className="list-item" style={{ flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{m.profile?.fullName || m.email}</strong>
+                  <div className="text-muted text-sm">{m.email} · Class of {m.profile?.graduationYear || '—'}</div>
+                </div>
+                <select
+                  className="input"
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: 13 }}
+                  defaultValue=""
+                  onChange={(e) => { if (e.target.value) onPromote(m.id, e.target.value); }}
+                >
+                  <option value="" disabled>Promote to...</option>
+                  <option value="EXECUTIVE">Executive</option>
+                  <option value="MODERATOR">Moderator</option>
+                  <option value="YEAR_ADMIN">Year Admin</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Edit member modal */}
+      {editingMember && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setEditingMember(null)}>
+          <div className="card" style={{ maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Edit: {editingMember.profile?.fullName || editingMember.email}</h3>
+            <label className="text-muted text-sm">Role</label>
+            <select className="input" style={{ marginBottom: 12 }} value={editRole} onChange={(e) => setEditRole(e.target.value)} disabled={editingMember.role === 'SUPER_ADMIN'}>
+              <option value="MEMBER">Member</option>
+              <option value="YEAR_ADMIN">Year Admin</option>
+              <option value="MODERATOR">Moderator</option>
+              <option value="EXECUTIVE">Executive</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+            <label className="text-muted text-sm">Permissions</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 250, overflowY: 'auto', padding: 8, border: '1px solid var(--border)', borderRadius: 8 }}>
+              {availablePerms.map((perm: string) => (
+                <label key={perm} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editPerms.includes(perm)} onChange={() => togglePerm(perm, editPerms, setEditPerms)} />
+                  {perm.replace(/can_/g, '').replace(/_/g, ' ')}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-sm btn-outline" onClick={() => setEditingMember(null)}>Cancel</button>
+              <button className="btn btn-sm" onClick={() => onSave({ role: editRole, permissions: editPerms })} disabled={action === 'save-' + editingMember.id}>
+                {action === 'save-' + editingMember.id ? <span className="spinner" /> : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create new team member modal */}
+      {showTeamModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setShowTeamModal(false)}>
+          <div className="card" style={{ maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Add New Admin / Executive</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>An account will be created and login credentials sent via email.</p>
+            <input className="input" placeholder="Full name" value={newMember.fullName} onChange={(e) => setNewMember({ ...newMember, fullName: e.target.value })} style={{ marginBottom: 8 }} />
+            <input className="input" placeholder="Email address" type="email" value={newMember.email} onChange={(e) => setNewMember({ ...newMember, email: e.target.value })} style={{ marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input className="input" placeholder="Graduation year" type="number" value={newMember.graduationYear} onChange={(e) => setNewMember({ ...newMember, graduationYear: parseInt(e.target.value) || new Date().getFullYear() })} style={{ flex: 1 }} />
+              <input className="input" placeholder="House (optional)" value={newMember.house} onChange={(e) => setNewMember({ ...newMember, house: e.target.value })} style={{ flex: 1 }} />
+            </div>
+            <label className="text-muted text-sm">Role</label>
+            <select className="input" style={{ marginBottom: 12 }} value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}>
+              <option value="EXECUTIVE">Executive</option>
+              <option value="MODERATOR">Moderator</option>
+              <option value="YEAR_ADMIN">Year Admin</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+            <label className="text-muted text-sm">Permissions</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 200, overflowY: 'auto', padding: 8, border: '1px solid var(--border)', borderRadius: 8 }}>
+              {availablePerms.map((perm: string) => (
+                <label key={perm} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={newMember.permissions.includes(perm)} onChange={() => togglePerm(perm, newMember.permissions, (v) => setNewMember({ ...newMember, permissions: v }))} />
+                  {perm.replace(/can_/g, '').replace(/_/g, ' ')}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-sm btn-outline" onClick={() => setShowTeamModal(false)}>Cancel</button>
+              <button className="btn btn-sm btn-success" onClick={() => onCreate(newMember)} disabled={action === 'create' || !newMember.email || !newMember.fullName}>
+                {action === 'create' ? <span className="spinner" /> : 'Create & Send Invite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

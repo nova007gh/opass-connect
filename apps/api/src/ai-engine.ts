@@ -1341,7 +1341,8 @@ export async function generateAiResponse(
   message: string,
   history: ConversationMessage[],
   role: 'admin' | 'member' = 'member',
-  roomId?: string
+  roomId?: string,
+  opts?: { skipSuggestions?: boolean }
 ): Promise<string> {
   const data = await gatherPlatformData(userId, role);
   const mood = analyzeSentiment(message);
@@ -1429,8 +1430,8 @@ export async function generateAiResponse(
     response = mathematicianFlair(response, context);
   }
 
-  // Enhance with proactive suggestions (but not for fallback, help, or security)
-  if (!['fallback', 'help', 'security', 'sentiment_response', 'about_mamaa'].includes(intent)) {
+  // Enhance with proactive suggestions (but not for fallback, help, or security, or if disabled)
+  if (!opts?.skipSuggestions && !['fallback', 'help', 'security', 'sentiment_response', 'about_mamaa'].includes(intent)) {
     response = enhanceWithContext(response, context, data, intent, message);
   }
 

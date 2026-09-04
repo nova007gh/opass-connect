@@ -216,6 +216,8 @@ interface ConversationContext {
   mentionedMembers: string[];
   askedAboutEvents: boolean;
   askedAboutProjects: boolean;
+  lastSuggested: string[];  // track last suggestions to avoid repeating
+  lastResponseAt: number;  // timestamp of last AI response
 }
 
 // ===== Knowledge Base: Retrieve learned facts from conversations =====
@@ -377,8 +379,18 @@ function generateInsight(data: PlatformData, topic: string): string | null {
   return null;
 }
 
-// Generate proactive suggestions based on context and data
-function generateSuggestions(data: PlatformData, context: ConversationContext, intent: Intent): string[] {
+// Short user messages that are acknowledgments — should not get proactive suggestions
+function isShortAcknowledgment(msg: string): boolean {
+  const m = msg.toLowerCase().trim();
+  return /^(ok|okay|yes|no|nice|cool|great|awesome|thanks|thank you|got it|alright|yep|yeah|nope|lol|haha|😂|👍|🙏|👏|wow|omg|amazing|perfect)$/i.test(m) || m.length < 5;
+}
+
+// Generate proactive suggestions based on context and data (non-repeating)
+function generateSuggestions(data: PlatformData, context: ConversationContext, intent: Intent, userMsg: string): string[] {
+  // Don't suggest on short acknowledgments or fallback
+  if (isShortAcknowledgment(userMsg) || intent === 'fallback' || intent === 'sentiment_response') {
+    return [];
+  }
   const suggestions: string[] = [];
   // After events, suggest looking at specific event
   if (intent === 'events' && data.events.length > 0) {
@@ -389,17 +401,17 @@ function generateSuggestions(data: PlatformData, context: ConversationContext, i
     const active = data.projects.filter(p => p.status === 'ACTIVE' || p.status === 'IN_PROGRESS');
     if (active.length > 0) suggestions.push(`You can contribute to "${active[0].title}" on the Projects page.`);
   }
-  // If user has unread notifications, suggest checking them
-  if (data.userNotifications.length > 0 && intent !== 'notifications') {
+  // If user has unread notifications, suggest checking them (only once per session, not on every response)
+  if (data.userNotifications.length > 0 && intent !== 'notifications' && !context.lastSuggested.includes('notifications')) {
     suggestions.push(`You have ${data.userNotifications.length} unread notification${data.userNotifications.length > 1 ? 's' : ''} — would you like to see them?`);
   }
-  // If user hasn't paid dues, suggest it
-  if (data.userDues.length === 0 && intent !== 'dues' && intent !== 'pay_dues') {
+  // If user hasn't paid dues, suggest it (only once per session)
+  if (data.userDues.length === 0 && intent !== 'dues' && intent !== 'pay_dues' && !context.lastSuggested.includes('dues')) {
     suggestions.push(`You haven't made any payments yet — would you like to know how to pay your dues?`);
   }
-  // If there are active elections, suggest voting
+  // If there are active elections, suggest voting (only once per session)
   const openElections = data.elections.filter(e => e.status === 'OPEN');
-  if (openElections.length > 0 && intent !== 'elections') {
+  if (openElections.length > 0 && intent !== 'elections' && !context.lastSuggested.includes('elections')) {
     suggestions.push(`There ${openElections.length > 1 ? 'are' : 'is'} ${openElections.length} active election${openElections.length > 1 ? 's' : ''} — have you voted?`);
   }
   // If nostalgic, suggest sharing memories
@@ -407,16 +419,19 @@ function generateSuggestions(data: PlatformData, context: ConversationContext, i
     suggestions.push(`Would you like to share a favorite OPASS memory?`);
   }
   // If frustrated, offer help
-  if (context.userMood === 'frustrated') {
+  if (context.userMood === 'frustrated' && !context.lastSuggested.includes('help')) {
     suggestions.push(`Is there something specific you need help with? I'm here to make things easier.`);
   }
   return suggestions.slice(0, 2); // Max 2 suggestions to avoid being overwhelming
 }
 
 // Context-aware response enhancer
-function enhanceWithContext(response: string, context: ConversationContext, data: PlatformData, intent: Intent): string {
-  const suggestions = generateSuggestions(data, context, intent);
+function enhanceWithContext(response: string, context: ConversationContext, data: PlatformData, intent: Intent, userMsg: string): string {
+  const suggestions = generateSuggestions(data, context, intent, userMsg);
   if (suggestions.length > 0) {
+    context.lastSuggested.push(...suggestions);
+    // Keep only last 10 suggestions to avoid infinite growth
+    context.lastSuggested = context.lastSuggested.slice(-10);
     return response + '\n\n💡 ' + suggestions.join(' ');
   }
   return response;
@@ -424,13 +439,17 @@ function enhanceWithContext(response: string, context: ConversationContext, data
 
 // Detect follow-up questions (referring to previous topic)
 function isFollowUp(msg: string, context: ConversationContext): boolean {
-  const m = msg.toLowerCase();
+  const m = msg.toLowerCase().trim();
   // Pronouns that refer to previous topic
   if (/\b(it|that|this|them|they|he|she|his|her|more|details|info)\b/i.test(m) && context.lastTopic) {
     return true;
   }
   // "tell me more", "what else", "anything else"
   if (/\b(tell me more|what else|anything else|more info|elaborate|go on|continue)\b/i.test(m)) {
+    return true;
+  }
+  // Short acknowledgments should continue previous topic if context exists
+  if (isShortAcknowledgment(msg) && context.lastTopic && context.lastTopic !== 'greeting') {
     return true;
   }
   return false;
@@ -1328,20 +1347,24 @@ export async function generateAiResponse(
   const mood = analyzeSentiment(message);
   const entities = extractEntities(message, data);
 
+  // Determine last topic from history
+  const lastUserMsgs = [...history].reverse().filter(m => m.role === 'user');
+  const lastAssistantMsgs = [...history].reverse().filter(m => m.role === 'assistant');
+
   // Build conversation context from history
   const context: ConversationContext = {
     lastTopic: null,
     lastEntity: null,
     lastIntent: null,
-    turnCount: history.filter(m => m.role === 'user').length,
+    turnCount: lastUserMsgs.length,
     userMood: mood,
     mentionedMembers: entities.memberName ? [entities.memberName] : [],
     askedAboutEvents: history.some(m => m.content.toLowerCase().match(/event|calendar|happening/)),
     askedAboutProjects: history.some(m => m.content.toLowerCase().match(/project|fundrais|donate/)),
+    lastSuggested: [],
+    lastResponseAt: Date.now(),
   };
 
-  // Determine last topic from history
-  const lastUserMsgs = [...history].reverse().filter(m => m.role === 'user');
   if (lastUserMsgs.length > 0) {
     const lastUserMsg = lastUserMsgs[0].content;
     context.lastIntent = detectIntent(lastUserMsg);
@@ -1355,6 +1378,16 @@ export async function generateAiResponse(
 
   let intent = detectIntent(message, history);
 
+  // If the previous assistant response just asked a question, and user gives short answer,
+  // continue the conversation naturally instead of triggering a new intent (e.g. math)
+  if (intent === 'math' && context.lastTopic === 'memories') {
+    // User said something like "maths" while discussing school memories — continue memory conversation
+    intent = 'memories';
+  }
+  if (context.lastTopic === 'memories' && isShortAcknowledgment(message)) {
+    intent = 'memories';
+  }
+
   // Handle "repeat" intent — re-run the last user intent
   if (intent === 'repeat') {
     const lastUserMsg = lastUserMsgs[0]?.content || '';
@@ -1367,10 +1400,10 @@ export async function generateAiResponse(
       response += `\n\n📚 **From what I've learned from the community:**\n${knowledge.slice(0, 2).map(k => `• ${k.content}`).join('\n')}`;
     }
     response = mathematicianFlair(response, context);
-    return enhanceWithContext(response, context, data, repeatIntent);
+    return enhanceWithContext(response, context, data, repeatIntent, message);
   }
 
-  // Handle follow-up: if user says "tell me more", "what about it", etc.
+  // Handle follow-up: if user says "tell me more", "what about it", "ok", "nice", etc.
   if (isFollowUp(message, context) && context.lastTopic && intent === 'fallback') {
     intent = 'follow_up';
   }
@@ -1398,7 +1431,7 @@ export async function generateAiResponse(
 
   // Enhance with proactive suggestions (but not for fallback, help, or security)
   if (!['fallback', 'help', 'security', 'sentiment_response', 'about_mamaa'].includes(intent)) {
-    response = enhanceWithContext(response, context, data, intent);
+    response = enhanceWithContext(response, context, data, intent, message);
   }
 
   return response;

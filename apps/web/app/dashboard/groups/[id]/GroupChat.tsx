@@ -602,7 +602,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
   });
 
   return (
-    <div className="chat-container" style={{ display: 'flex', flexDirection: 'column', paddingBottom: 'calc(var(--safe-bottom, 0px) + 8px)', position: 'relative' }}>
+    <div className="chat-container" style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
       {error && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13, padding: '6px 12px' }}>{error}<button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 0, cursor: 'pointer' }}>×</button></div>}
       {callError && <div className="alert alert-error" style={{ marginBottom: 8, fontSize: 13 }}>{callError}</div>}
 
@@ -1056,7 +1056,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
       <div style={{ padding: '8px 10px', borderRadius: '0 0 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--white)', position: 'relative' }}>
         {/* Mamaa AI hint */}
         {!isRestricted && (
-          <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: '2px 0 4px' }}>
+          <div className="mamaa-hint" style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: '2px 0 4px', lineHeight: 1.3 }}>
             💡 Type <strong style={{ color: 'var(--blue)' }}>@mamaa</strong> to ask anything · <strong style={{ color: 'var(--blue)' }}>@stopmamaa</strong> to put Mamaa on standby · <strong style={{ color: 'var(--blue)' }}>@startmamaa</strong> to bring Mamaa back
           </div>
         )}

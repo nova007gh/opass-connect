@@ -443,7 +443,7 @@ export default function YearGroupDetailPage() {
           {success && <div className="alert alert-success">{success}</div>}
 
           {/* Group header card */}
-          <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="card group-header-card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--blue)', color: 'white', fontSize: 18, fontWeight: 800, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               {group.imageUrl ? <img src={group.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : group.year.toString().slice(-2)}
             </div>
@@ -456,7 +456,7 @@ export default function YearGroupDetailPage() {
 
           {/* Tab switcher */}
           {canView && (
-            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+            <div className="group-tab-switcher" style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
               <button
                 onClick={() => setTab('feed')}
                 style={{

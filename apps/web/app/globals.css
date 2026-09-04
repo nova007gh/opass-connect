@@ -1398,6 +1398,35 @@ label.switch span > span { transition: transform 0.2s; }
 .chat-page-scroll:has(.chat-container) {
   overflow: hidden;
 }
+
+/* Remove padding around chat so it fills the mobile screen */
+.chat-page-pad:has(.chat-container),
+.chat-page-pad:has(> .chat-container),
+.chat-page-pad:has(.chat-page-chat-wrapper) {
+  padding: 0 !important;
+}
+/* Compact/hide group info card and tab switcher when chat tab is active on mobile */
+@media (max-width: 768px) {
+  .chat-page-pad:has(.chat-container) > .group-header-card {
+    margin-bottom: 0 !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-top: 0 !important;
+    padding: 12px 14px !important;
+  }
+  .chat-page-pad:has(.chat-container) > .group-tab-switcher {
+    margin-bottom: 0 !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .chat-page-pad:has(.chat-container) > .group-tab-switcher button {
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+  }
+}
 .chat-page-pad > .chat-container,
 .chat-page-pad > div > .chat-container,
 .chat-page-scroll > .chat-container,
@@ -1426,6 +1455,10 @@ label.switch span > span { transition: transform 0.2s; }
     box-shadow: none;
     margin: 0;
     max-width: 100%;
+  }
+  .mamaa-hint {
+    font-size: 9px !important;
+    padding: 1px 0 3px !important;
   }
 }
 

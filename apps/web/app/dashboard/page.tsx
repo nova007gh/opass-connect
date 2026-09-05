@@ -44,7 +44,7 @@ const menuItems = [
   { label: 'My Profile', href: '/dashboard/profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'linear-gradient(135deg, #0B2D6B 0%, #0051FF 100%)' },
   { label: 'Year Groups', href: '/dashboard/groups', icon: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 100-8 4 4 0 000 8z', color: 'linear-gradient(135deg, #0051FF 0%, #10B981 100%)' },
   { label: 'Events', href: '/dashboard/events', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'linear-gradient(135deg, #10B981 0%, #F59E0B 100%)' },
-  { label: 'OPASS Connect', href: '/dashboard/assembly', icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z', live: true, color: 'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)' },
+  { label: 'Chatroom', href: '/dashboard/assembly', icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z', live: true, color: 'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)' },
   { label: 'Support Projects', href: '/dashboard/projects', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z', color: 'linear-gradient(135deg, #EF4444 0%, #8B5CF6 100%)' },
   { label: 'Dues & Payments', href: '/dashboard/payments', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z', color: 'linear-gradient(135deg, #8B5CF6 0%, #0B2D6B 100%)' },
   { label: 'Elections', href: '/dashboard/elections', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', color: 'linear-gradient(135deg, #0B2D6B 0%, #2563EB 100%)' },
@@ -230,7 +230,7 @@ export default function DashboardHome() {
           {/* All Chats — conversation history */}
           <div className="section-header fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ margin: 0, fontSize: 17, color: 'var(--blue)', fontWeight: 800 }}>All Chats</h3>
-            <Link href="/dashboard/assembly" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>Connect →</Link>
+            <Link href="/dashboard/chat" style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 700 }}>View all →</Link>
           </div>
           {loading ? (
             <div className="card skeleton-card" style={{ marginBottom: 16, padding: 16 }}>
@@ -263,7 +263,7 @@ export default function DashboardHome() {
                 );
               })}
               {conversations.length > 5 && (
-                <Link href="/dashboard/assembly" style={{ display: 'block', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--blue)', padding: '10px 0' }}>
+                <Link href="/dashboard/chat" style={{ display: 'block', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--blue)', padding: '10px 0' }}>
                   View all {conversations.length} conversations →
                 </Link>
               )}

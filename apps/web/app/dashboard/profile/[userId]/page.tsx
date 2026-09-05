@@ -104,51 +104,54 @@ export default function UserProfilePage() {
 
   return (
     <div className="app-screen" style={{ background: 'var(--bg)' }}>
-      {/* Cover photo */}
-      <div style={{
-        position: 'relative',
-        height: 180,
-        background: p?.coverUrl
-          ? `url(${p.coverUrl}) center/cover`
-          : hc.baseGradient,
-        flexShrink: 0,
-      }}>
-        {/* Back button overlay */}
-        <button
-          onClick={() => router.back()}
-          style={{
-            position: 'absolute', top: 12, left: 12,
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'rgba(0,0,0,0.4)', border: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', zIndex: 5, color: 'white',
-          }}
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+      {/* Sticky back button - always visible */}
+      <button
+        onClick={() => router.back()}
+        style={{
+          position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: 12,
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'rgba(0,0,0,0.4)', border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', zIndex: 100, color: 'white',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
 
-        {/* House badge on cover */}
-        {p?.house && (
-          <div style={{
-            position: 'absolute', top: 12, right: 12,
-            padding: '4px 12px', borderRadius: 20,
-            background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)',
-            color: 'white', fontSize: 12, fontWeight: 700,
-            border: `1px solid ${hc.neon}88`,
-            boxShadow: `0 0 8px ${hc.neon}44`,
-          }}>
-            {p.house}
-          </div>
-        )}
-      </div>
+      <div className="app-scroll" style={{ paddingTop: 0 }}>
+        {/* Cover photo */}
+        <div style={{
+          position: 'relative',
+          height: 180,
+          background: p?.coverUrl
+            ? `url(${p.coverUrl}) center/cover`
+            : hc.baseGradient,
+        }}>
+          {/* House badge on cover */}
+          {p?.house && (
+            <div style={{
+              position: 'absolute', top: 12, right: 12,
+              padding: '4px 12px', borderRadius: 20,
+              background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)',
+              color: 'white', fontSize: 12, fontWeight: 700,
+              border: `1px solid ${hc.neon}88`,
+              boxShadow: `0 0 8px ${hc.neon}44`,
+            }}>
+              {p.house}
+            </div>
+          )}
+        </div>
 
-      <div className="app-scroll" style={{ marginTop: -50 }}>
         {/* Avatar + name section */}
         <div style={{
           textAlign: 'center',
           padding: '0 16px 20px',
+          marginTop: -55,
+          position: 'relative',
+          zIndex: 2,
         }}>
           {/* Avatar with neon ring and role badge */}
           <div style={{

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiGet } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
-import { AvatarWithBadge, hasRoleBadge } from '../../../components/RoleBadge';
+import { AvatarWithBadge, RoleBadge, hasRoleBadge } from '../../../components/RoleBadge';
 import ConnectGlyph from '../../../components/ConnectGlyph';
 
 interface DMConversation {
@@ -187,26 +187,47 @@ export default function ChatPage() {
               ) : (
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                   {searchResults.map((a, i) => (
-                    <Link
+                    <div
                       key={a.userId}
-                      href={`/dashboard/chat/${a.userId}`}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '12px 14px', textDecoration: 'none',
                         borderBottom: i < searchResults.length - 1 ? '1px solid var(--border)' : 0,
+                        cursor: 'pointer',
                       }}
+                      onClick={() => router.push(`/dashboard/profile/${a.userId}`)}
                     >
                       <AvatarWithBadge src={a.avatarUrl} name={a.fullName} size={42} role={a.role} house={a.house} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--black)' }}>{a.fullName}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--black)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {a.fullName}
+                          {hasRoleBadge(a.role) && <RoleBadge role={a.role} house={a.house} size="sm" />}
+                        </div>
                         <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                           {a.graduationYear ? `Class of ${a.graduationYear}` : ''}{a.profession ? ` · ${a.profession}` : ''}
                         </div>
                       </div>
-                      <svg fill="none" stroke="var(--blue)" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 18, height: 18, flexShrink: 0 }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
-                      </svg>
-                    </Link>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/profile/${a.userId}`); }}
+                          style={{ width: 34, height: 34, borderRadius: '50%', border: 0, background: 'var(--blue-50)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          title="View profile"
+                        >
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16 }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/chat/${a.userId}`); }}
+                          style={{ width: 34, height: 34, borderRadius: '50%', border: 0, background: 'var(--blue-50)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          title="Chat"
+                        >
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 16, height: 16 }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

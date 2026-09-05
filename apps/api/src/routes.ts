@@ -397,6 +397,18 @@ export function registerCoreRoutes(app:FastifyInstance){
     return users.map(u=>({user:u,lastMessage:partners.get(u.id)?.lastMessage||'',lastAt:partners.get(u.id)?.lastAt||new Date()})).sort((a,b)=>b.lastAt.getTime()-a.lastAt.getTime());
   });
 
+  // ===== Public user profile (for viewing other users' profiles) =====
+  app.get('/users/:userId/profile',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    const u=await prisma.user.findUnique({where:{id:req.params.userId},select:{
+      id:true,email:true,role:true,verification:true,createdAt:true,
+      profile:{select:{fullName:true,nickname:true,gender:true,graduationYear:true,house:true,positionHeld:true,country:true,city:true,profession:true,bio:true,avatarUrl:true,coverUrl:true,searchable:true}},
+      memberships:{select:{id:true,isLeader:true,title:true,yearGroup:{select:{id:true,year:true,name:true,imageUrl:true}}}},
+      _count:{select:{messages:true}}
+    }});
+    if(!u)return reply.code(404).send({error:'User not found'});
+    return u;
+  });
+
   app.get('/dm/:userId',{preHandler:[app.authenticate]},async(req:any,reply)=>{
     if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
     // Auto-create Mamaa AI bot user if it doesn't exist

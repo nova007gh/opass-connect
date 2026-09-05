@@ -8,6 +8,7 @@ import { playSchoolBell, playBuzzSound } from '../../../../lib/sound';
 import CallModal from '../../../../components/CallModal';
 import { useCall } from '../../../../components/CallProvider';
 import Avatar from '../../../../components/Avatar';
+import { AvatarWithBadge, RoleBadge, hasRoleBadge } from '../../../../components/RoleBadge';
 import EmojiPicker from '../../../../components/EmojiPicker';
 
 const MAMAAA_BOT_ID = 'mamaaa-ai-bot';
@@ -15,6 +16,7 @@ const MAMAAA_BOT_ID = 'mamaaa-ai-bot';
 interface DMUser {
   id: string;
   email: string;
+  role?: string;
   profile?: {
     fullName?: string | null;
     avatarUrl?: string | null;
@@ -290,13 +292,16 @@ export default function DirectChatPage() {
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <Avatar src={peer.profile?.avatarUrl} name={displayName} size={34} />
+          <AvatarWithBadge src={peer.profile?.avatarUrl} name={displayName} size={34} role={peer.role} house={peer.profile?.house} />
           {isMamaaa && (
             <div style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', background: '#22C55E', border: '2px solid var(--white)' }} />
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{displayName}</h1>
+          <h1 style={{ fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {displayName}
+            {hasRoleBadge(peer.role) && <RoleBadge role={peer.role} house={peer.profile?.house} size="sm" />}
+          </h1>
           {isMamaaa ? (
             <div style={{ fontSize: 11, color: '#22C55E', fontWeight: 600 }}>AI Assistant · Online</div>
           ) : peer.profile?.graduationYear ? (

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPost, apiUpload } from '../../../lib/api';
 import Avatar from '../../../components/Avatar';
+import { AvatarWithBadge } from '../../../components/RoleBadge';
 import EmojiPicker from '../../../components/EmojiPicker';
 
 function isEmojiOnly(text: string): boolean {
@@ -18,7 +19,7 @@ function stickerContent(text: string): string { return text?.replace(/^🎴:/, '
 
 interface Meeting { id: string; title: string; description?: string | null; mode: string; status: string; startsAt: string; capacity: number; roomKey: string; yearGroup?: { year: number; name: string } | null; }
 interface ChatRoom { id: string; name: string; isAssemblyHall: boolean; imageUrl?: string | null; yearGroup?: { year: number; name: string } | null; _count: { messages: number }; }
-interface Message { id: string; body: string; createdAt: string; user: { profile: { fullName: string; avatarUrl?: string | null } | null }; }
+interface Message { id: string; body: string; createdAt: string; user: { id: string; role?: string; profile: { fullName: string; avatarUrl?: string | null; house?: string | null } | null }; }
 
 const modeBadge: Record<string, string> = { INTERACTIVE: 'badge-blue', WEBINAR: 'badge-amber', BROADCAST: 'badge-dark' };
 
@@ -155,7 +156,7 @@ export default function ChatroomPage() {
             <div className="empty-state"><p>No messages yet. Start the conversation!</p></div>
           ) : messages.map(m => (
             <div key={m.id} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              <Avatar src={m.user?.profile?.avatarUrl} name={m.user?.profile?.fullName} size={36} />
+              <AvatarWithBadge src={m.user?.profile?.avatarUrl} name={m.user?.profile?.fullName} size={36} role={m.user?.role} house={m.user?.profile?.house} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
                   <span style={{ fontSize: 13, color: 'var(--blue)', fontWeight: 700 }}>{m.user?.profile?.fullName || 'Alumnus'}</span>

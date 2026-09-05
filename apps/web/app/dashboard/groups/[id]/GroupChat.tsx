@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiPatch, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import Avatar from '../../../../components/Avatar';
+import { AvatarWithBadge, RoleBadge, hasRoleBadge } from '../../../../components/RoleBadge';
 import EmojiPicker from '../../../../components/EmojiPicker';
 import CallModal from '../../../../components/CallModal';
 import { useCall } from '../../../../components/CallProvider';
@@ -27,14 +28,14 @@ interface ChatMessage {
   editedAt?: string | null;
   createdAt: string;
   replyTo?: { id: string; body: string; userId: string; audioUrl?: string | null; imageUrl?: string | null; videoUrl?: string | null; fileUrl?: string | null; fileName?: string | null; locationLat?: number | null; locationLng?: number | null; user: { profile?: { fullName?: string | null } | null } } | null;
-  user: { id: string; profile?: { fullName?: string | null; avatarUrl?: string | null } | null };
+  user: { id: string; role?: string; profile?: { fullName?: string | null; avatarUrl?: string | null; house?: string | null } | null };
 }
 
 interface ChatRoom { id: string; name: string; yearGroupId?: string | null; }
 
 interface Member {
   id: string; userId: string; banned: boolean; restricted: boolean; isLeader: boolean;
-  user: { id: string; email: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null } | null };
+  user: { id: string; email: string; role?: string; profile?: { fullName?: string | null; avatarUrl?: string | null; graduationYear?: number | null; house?: string | null } | null };
 }
 
 interface LiveMember {
@@ -767,7 +768,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                     {/* Avatar (show only for first message in group, not me) */}
                     {!isMe && (
                       <div style={{ width: 30, flexShrink: 0, visibility: isFirstInGroup ? 'visible' : 'hidden' }}>
-                        {isFirstInGroup && <Avatar src={m.user?.profile?.avatarUrl} name={senderName} size={30} />}
+                        {isFirstInGroup && <AvatarWithBadge src={m.user?.profile?.avatarUrl} name={senderName} size={30} role={m.user?.role} house={m.user?.profile?.house} />}
                       </div>
                     )}
 
@@ -830,7 +831,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                         }}>
                           {/* Sender name (only for first message in group, not me) */}
                           {!isMe && isFirstInGroup && (
-                            <div className="sender-name" style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)', marginBottom: 2 }}>{senderName}</div>
+                            <div className="sender-name" style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>{senderName}{hasRoleBadge(m.user?.role) && <RoleBadge role={m.user?.role} house={m.user?.profile?.house} size="sm" />}</div>
                           )}
                           {/* Voice note */}
                           {m.audioUrl && (
@@ -1246,7 +1247,7 @@ export default function GroupChat({ groupId, groupName, groupYear, canManage, is
                  const name = m.user.profile?.fullName || m.user.email;
                  return (
                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-                     <Avatar src={m.user.profile?.avatarUrl} name={name} size={40} />
+                     <AvatarWithBadge src={m.user.profile?.avatarUrl} name={name} size={40} role={m.user.role} house={m.user.profile?.house} />
                      <div style={{ flex: 1, minWidth: 0 }}>
                        <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                          {name}

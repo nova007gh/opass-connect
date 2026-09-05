@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiPatch, apiUpload } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
+import { RoleBadge, hasRoleBadge } from '../../../components/RoleBadge';
 
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
@@ -190,7 +191,10 @@ export default function ProfilePage() {
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onFileChange} style={{ display: 'none' }} />
           </div>
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <h2 style={{ color: 'white', textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>{p?.fullName || 'Unnamed'}</h2>
+            <h2 style={{ color: 'white', textShadow: '0 2px 8px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+              {p?.fullName || 'Unnamed'}
+              {hasRoleBadge(user.role) && <RoleBadge role={user.role} house={p?.house} size="md" />}
+            </h2>
             {p?.nickname && <div style={{ opacity: 0.9, fontSize: 14, marginTop: 2 }}>@{p.nickname}</div>}
             <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>{user.email}</div>
             <div className="badges" style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>

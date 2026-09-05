@@ -6,17 +6,20 @@ import { useRouter } from 'next/navigation';
 import { apiGet } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
+import { AvatarWithBadge, hasRoleBadge } from '../../../components/RoleBadge';
 import ConnectGlyph from '../../../components/ConnectGlyph';
 
 interface DMConversation {
   user: {
     id: string;
     email: string;
+    role?: string;
     profile: {
       fullName: string;
       avatarUrl?: string | null;
       graduationYear?: number | null;
       profession?: string | null;
+      house?: string | null;
     } | null;
   };
   lastMessage: string;
@@ -33,6 +36,7 @@ interface AlumniResult {
   avatarUrl?: string | null;
   country?: string | null;
   city?: string | null;
+  role?: string;
 }
 
 function timeAgo(date: string) {
@@ -192,7 +196,7 @@ export default function ChatPage() {
                         borderBottom: i < searchResults.length - 1 ? '1px solid var(--border)' : 0,
                       }}
                     >
-                      <Avatar src={a.avatarUrl} name={a.fullName} size={42} />
+                      <AvatarWithBadge src={a.avatarUrl} name={a.fullName} size={42} role={a.role} house={a.house} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--black)' }}>{a.fullName}</div>
                         <div style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -264,7 +268,7 @@ export default function ChatPage() {
                           borderBottom: i < conversations.length - 1 ? '1px solid var(--border)' : 0,
                         }}
                       >
-                        <Avatar src={c.user.profile?.avatarUrl} name={name} size={44} />
+                        <AvatarWithBadge src={c.user.profile?.avatarUrl} name={name} size={44} role={c.user.role} house={c.user.profile?.house} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--black)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {name}

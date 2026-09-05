@@ -6,6 +6,7 @@ import { apiGet, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { playBuzzSound } from '../../../lib/sound';
 import Avatar from '../../../components/Avatar';
+import { AvatarWithBadge, RoleBadge, hasRoleBadge } from '../../../components/RoleBadge';
 
 interface Alumni {
   userId: string;
@@ -18,6 +19,7 @@ interface Alumni {
   profession?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
+  role?: string;
 }
 
 export default function AlumniPage() {
@@ -142,9 +144,9 @@ export default function AlumniPage() {
                       style={{ cursor: isMe ? 'default' : 'pointer' }}
                     >
                       <div className="feed-card-header">
-                        <Avatar src={a.avatarUrl} name={a.fullName} size={48} />
+                        <AvatarWithBadge src={a.avatarUrl} name={a.fullName} size={48} role={a.role} house={a.house} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="name">{a.fullName}</div>
+                          <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>{a.fullName}{hasRoleBadge(a.role) && <RoleBadge role={a.role} house={a.house} size="sm" />}</div>
                           <div className="time">Class of {a.graduationYear}{a.house ? ` · ${a.house}` : ''}</div>
                         </div>
                         {isMe ? (
@@ -189,7 +191,7 @@ export default function AlumniPage() {
 
             <div style={{ textAlign: 'center' }}>
               <div style={{ margin: '0 auto 14px', boxShadow: '0 8px 24px rgba(37,99,235,0.25)' }}>
-                <Avatar src={profile.avatarUrl} name={profile.fullName} size={96} />
+                <AvatarWithBadge src={profile.avatarUrl} name={profile.fullName} size={96} role={profile.role} house={profile.house} />
               </div>
               <h2 style={{ margin: '0 0 4px', fontSize: 20 }}>{profile.fullName}</h2>
               {profile.nickname && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 4 }}>@{profile.nickname}</div>}

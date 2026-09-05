@@ -7,6 +7,7 @@ import { apiGet } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import ConnectGlyph from '../../components/ConnectGlyph';
 import Avatar from '../../components/Avatar';
+import { AvatarWithBadge } from '../../components/RoleBadge';
 import { getYearGroupColor } from '../../lib/houseColors';
 import InstallPrompt from '../../components/InstallPrompt';
 
@@ -35,7 +36,7 @@ interface ActivityResponse {
 }
 
 interface DMConversation {
-  user: { id: string; email: string; profile: { fullName: string; avatarUrl?: string | null; graduationYear?: number | null; profession?: string | null } | null };
+  user: { id: string; email: string; role?: string; profile: { fullName: string; avatarUrl?: string | null; graduationYear?: number | null; profession?: string | null; house?: string | null } | null };
   lastMessage: string;
   lastAt: string;
 }
@@ -251,7 +252,7 @@ export default function DashboardHome() {
                 const preview = isStickerMsg ? '🎨 Sticker' : isCallMsg ? c.lastMessage : (c.lastMessage?.slice(0, 45) || 'No messages');
                 return (
                   <Link key={c.user.id} href={`/dashboard/chat/${c.user.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', textDecoration: 'none', borderBottom: i < Math.min(4, conversations.length - 1) ? '1px solid var(--border)' : 0 }}>
-                    <Avatar src={c.user.profile?.avatarUrl} name={name} size={42} />
+                    <AvatarWithBadge src={c.user.profile?.avatarUrl} name={name} size={42} role={c.user.role} house={c.user.profile?.house} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--black)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

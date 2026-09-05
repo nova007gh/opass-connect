@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
 import ConnectGlyph from '../../../components/ConnectGlyph';
 import Avatar from '../../../components/Avatar';
+import { RoleBadge, hasRoleBadge } from '../../../components/RoleBadge';
 import InstallPrompt, { InstallButton } from '../../../components/InstallPrompt';
 
 const menuGroups = [
@@ -68,7 +69,7 @@ export default function MenuPage() {
           <Link href="/dashboard/profile" className="card menu-profile-card">
             <Avatar src={user?.profile?.avatarUrl} name={user?.profile?.fullName || user?.email} size={60} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>{user?.profile?.fullName || 'Member'}</h3>
+              <h3 style={{ margin: '0 0 4px', fontSize: 18, display: 'flex', alignItems: 'center', gap: 6 }}>{user?.profile?.fullName || 'Member'}{hasRoleBadge(user?.role) && <RoleBadge role={user?.role} house={user?.profile?.house} size="sm" />}</h3>
               <p style={{ margin: '0 0 6px', fontSize: 13, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email}</p>
               <span className="menu-role-badge" style={{ background: isAdmin ? 'var(--blue-50)' : 'var(--bg)' }}>
                 {user?.verification === 'VERIFIED' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green, #22C55E)', display: 'inline-block' }} />}

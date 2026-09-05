@@ -50,9 +50,10 @@ export const DEFAULT_HOUSE_COLOR: HouseColor = {
 
 export function getHouseColor(house?: string | null): HouseColor {
   if (!house) return DEFAULT_HOUSE_COLOR;
+  const houseStr = String(house);
   // Try exact match first, then partial match
-  if (HOUSE_COLORS[house]) return HOUSE_COLORS[house];
-  const lower = house.toLowerCase();
+  if (HOUSE_COLORS[houseStr]) return HOUSE_COLORS[houseStr];
+  const lower = houseStr.toLowerCase();
   for (const [key, val] of Object.entries(HOUSE_COLORS)) {
     if (key.toLowerCase().includes(lower) || lower.includes(key.toLowerCase().replace(' house', ''))) {
       return val;

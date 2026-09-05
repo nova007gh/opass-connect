@@ -36,7 +36,7 @@ const ROLE_ICONS: Record<string, string> = {
  */
 export function hasRoleBadge(role?: string | null): boolean {
   if (!role) return false;
-  const r = role.toUpperCase();
+  const r = String(role).toUpperCase();
   return r !== 'MEMBER';
 }
 

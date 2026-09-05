@@ -8,7 +8,7 @@ import { useAuth } from '../../../../lib/auth';
 import { playBuzzSound } from '../../../../lib/sound';
 import Avatar from '../../../../components/Avatar';
 import { AvatarWithBadge, RoleBadge, hasRoleBadge } from '../../../../components/RoleBadge';
-import { getHouseColor } from '../../../../lib/houseColors';
+import { getHouseColor, getYearGroupColor } from '../../../../lib/houseColors';
 
 interface UserProfile {
   id: string;
@@ -330,7 +330,7 @@ export default function UserProfilePage() {
               <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, color: 'var(--blue)' }}>Year Groups</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {profile.memberships.map((m) => {
-                  const mhc = getHouseColor(m.yearGroup.year as any);
+                  const mhc = getYearGroupColor(m.yearGroup.year);
                   return (
                     <Link
                       key={m.id}

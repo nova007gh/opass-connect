@@ -12,7 +12,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "OPASS CONNECT uses the camera for profile photos and video calls.",
         "NSMicrophoneUsageDescription": "OPASS CONNECT uses the microphone for voice messages and calls.",
-        "NSPhotoLibraryUsageDescription": "OPASS CONNECT needs photo library access to upload profile pictures."
+        "NSPhotoLibraryUsageDescription": "OPASS CONNECT needs photo library access to upload profile pictures.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

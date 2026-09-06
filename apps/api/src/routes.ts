@@ -580,6 +580,47 @@ export function registerCoreRoutes(app:FastifyInstance){
     return msg;
   });
 
+  // Upload an image for a DM
+  app.post('/dm/:userId/image',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    try{
+      const{buffer,mimetype}=await readFileFromRequest(req);
+      const imageUrl=await processAndStoreImage(buffer,mimetype,`${req.user.sub}-${randomUUID()}`,'dm-images',1200,1200);
+      const msg=await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:'📷 Photo',imageUrl}});
+      const senderProfile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+      notifyUser(req.params.userId,'CHAT','New photo',`${senderProfile?.fullName||'Someone'} sent you a photo.`,'/dashboard/alumni').catch(()=>{});
+      return msg;
+    }catch(err:any){return reply.code(400).send({error:err.message});}
+  });
+
+  // Upload a file for a DM
+  app.post('/dm/:userId/file',{preHandler:[app.authenticate]},async(req:any,reply)=>{
+    if(req.params.userId===req.user.sub)return reply.code(400).send({error:'Cannot message yourself'});
+    const otherUser=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true}});
+    if(!otherUser)return reply.code(404).send({error:'User not found'});
+    try{
+      const file=await req.file();if(!file)throw new Error('No file uploaded');
+      const chunks:Buffer[]=[];for await(const chunk of file.file){chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));}
+      const buffer=Buffer.concat(chunks);if(buffer.length>25_000_000)throw new Error('File must be under 25MB');
+      const fileName=file.filename||`file-${Date.now()}`;
+      if(!CLOUDINARY_CONFIGURED)return reply.code(400).send({error:'File upload requires Cloudinary configuration'});
+      const cloudinary=await import('cloudinary');const cloud=cloudinary.v2;
+      cloud.config({cloud_name:process.env.CLOUDINARY_CLOUD_NAME,api_key:process.env.CLOUDINARY_API_KEY,api_secret:process.env.CLOUDINARY_API_SECRET});
+      const isImage=file.mimetype.startsWith('image/');
+      const resourceType=isImage?'image':'raw';
+      const fileUrl=await new Promise((resolve,reject)=>{
+        const stream=cloud.uploader.upload_stream({public_id:`dm-file-${req.user.sub}-${randomUUID()}`,folder:'opass-dm-files',resource_type:resourceType as any},(err,result)=>{if(err)reject(err);else resolve(result!.secure_url);});
+        stream.end(buffer);
+      });
+      const msg=await prisma.directMessage.create({data:{senderId:req.user.sub,recipientId:req.params.userId,body:`📎 ${fileName}`,fileUrl:fileUrl as string,fileName}});
+      const senderProfile=await prisma.alumniProfile.findUnique({where:{userId:req.user.sub},select:{fullName:true}});
+      notifyUser(req.params.userId,'CHAT','New file',`${senderProfile?.fullName||'Someone'} sent you a file: ${fileName}.`,'/dashboard/alumni').catch(()=>{});
+      return msg;
+    }catch(err:any){return reply.code(400).send({error:err.message});}
+  });
+
   app.patch('/profile',{preHandler:[app.authenticate]},async(req:any)=>{const b=z.object({fullName:z.string().min(2).optional(),nickname:z.string().optional(),gender:z.enum(['MALE','FEMALE']).optional(),graduationYear:z.number().int().min(1960).max(2030).optional(),house:z.string().optional(),className:z.string().optional(),positionHeld:z.string().optional(),country:z.string().optional(),city:z.string().optional(),profession:z.string().optional(),bio:z.string().max(1000).optional(),avatarUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),coverUrl:z.union([z.string().url(),z.string().regex(/^data:image\//)]).optional(),searchable:z.boolean().optional()}).parse(req.body);return prisma.alumniProfile.update({where:{userId:req.user.sub},data:b});});
 
   app.post('/profile/avatar',{preHandler:[app.authenticate]},async(req:any,reply)=>{
@@ -917,6 +958,12 @@ export function registerCoreRoutes(app:FastifyInstance){
     const passwordHash=await bcrypt.hash(body.newPassword,12);
     await prisma.user.update({where:{id:user.id},data:{passwordHash}});
     return{ok:true,email:user.email};
+  });
+  // Admin: clean up Mamaa AI spam messages (lights out announcements)
+  app.post('/admin/cleanup-mamaa-spam',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply)=>{
+    const result=await prisma.message.deleteMany({where:{userId:MAMAAA_BOT_ID,body:{contains:'Lights out'}}});
+    const result2=await prisma.message.deleteMany({where:{userId:MAMAAA_BOT_ID,body:{contains:'LIGHTS OUT'}}});
+    return{deleted:(result.count||0)+(result2.count||0)};
   });
   app.get('/admin/year-group-invites',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{const q=z.object({status:z.string().optional()}).parse(req.query);const invites=await prisma.yearGroupInvite.findMany({where:q.status?{status:q.status as any}:{status:'PENDING'},orderBy:{createdAt:'desc'},include:{yearGroup:{select:{year:true,name:true}},invitedUser:{select:{email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true}}}},invitedBy:{select:{email:true,profile:{select:{fullName:true}}}}}});return invites.map(({token,...i})=>({...i,awaitingRegistration:!i.invitedUserId}));});
 

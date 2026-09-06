@@ -39,6 +39,10 @@ interface DMMessage {
   recipientId: string;
   body: string;
   audioUrl?: string | null;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
   callType?: string | null;
   isBuzz?: boolean;
   createdAt: string;
@@ -102,6 +106,11 @@ export default function DirectChatPage() {
   const [callError, setCallError] = useState('');
   const [shaking, setShaking] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEnd = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -242,6 +251,54 @@ export default function DirectChatPage() {
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
     setRecording(false);
+  };
+
+  // ===== Photo upload =====
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setShowAttachMenu(false);
+    setUploadingImage(true);
+    try {
+      const msg = await apiUpload<DMMessage>(`/dm/${peerId}/image`, file);
+      seenIdsRef.current.add(msg.id);
+      setMessages(prev => [...prev, msg]);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send photo');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // ===== File upload =====
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setShowAttachMenu(false);
+    setUploadingFile(true);
+    try {
+      const msg = await apiUpload<DMMessage>(`/dm/${peerId}/file`, file);
+      seenIdsRef.current.add(msg.id);
+      setMessages(prev => [...prev, msg]);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send file');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  // ===== Buzz =====
+  const sendBuzz = async () => {
+    setShowAttachMenu(false);
+    try {
+      const msg = await apiPost<DMMessage>(`/dm/${peerId}/buzz`);
+      seenIdsRef.current.add(msg.id);
+      setMessages(prev => [...prev, msg]);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send buzz');
+    }
   };
 
   const { startCall: startCallCtx, endCall: endCallCtx, activeCall: activeCallCtx } = useCall();
@@ -410,6 +467,13 @@ export default function DirectChatPage() {
                     }}>
                       {m.audioUrl ? (
                         <audio controls src={m.audioUrl} style={{ maxWidth: 220, height: 36 }} />
+                      ) : m.imageUrl ? (
+                        <img src={m.imageUrl} alt="Photo" style={{ maxWidth: 240, borderRadius: 12, cursor: 'pointer' }} onClick={() => window.open(m.imageUrl, '_blank')} />
+                      ) : m.fileUrl ? (
+                        <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: isMe || isMamaaa ? '#fff' : 'var(--blue)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20 }}><path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l11.3-11.3a3 3 0 014.243 4.243L9.06 17.44a1.5 1.5 0 01-2.121-2.121l9.879-9.88" /></svg>
+                          {m.fileName || m.body}
+                        </a>
                       ) : isSticker(m.body) ? (
                         <div style={{ fontSize: 72, lineHeight: 1.1, textAlign: 'center' }}>{stickerContent(m.body)}</div>
                       ) : isEmojiOnly(m.body) ? (
@@ -479,6 +543,24 @@ export default function DirectChatPage() {
             onClose={() => setShowEmojiPicker(false)}
           />
         )}
+        {/* Hidden file inputs */}
+        <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} style={{ display: 'none' }} />
+        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar" onChange={handleFileUpload} style={{ display: 'none' }} />
+
+        {/* Attach menu */}
+        {showAttachMenu && !isMamaaa && (
+          <div style={{ position: 'absolute', bottom: '100%', left: 50, marginBottom: 8, background: 'var(--white)', borderRadius: 14, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid var(--border)', padding: 8, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 100, minWidth: 160 }}>
+            <button onClick={() => imageInputRef.current?.click()} disabled={uploadingImage} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 10, fontSize: 14, color: 'var(--black)', width: '100%', textAlign: 'left' }}>
+              <span style={{ fontSize: 20 }}>📷</span> Photo
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 10, fontSize: 14, color: 'var(--black)', width: '100%', textAlign: 'left' }}>
+              <span style={{ fontSize: 20 }}>📎</span> Document
+            </button>
+            <button onClick={sendBuzz} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 10, fontSize: 14, color: 'var(--black)', width: '100%', textAlign: 'left' }}>
+              <span style={{ fontSize: 20 }}>🔔</span> Buzz
+            </button>
+          </div>
+        )}
         <button
           onClick={() => setShowEmojiPicker(prev => !prev)}
           className={`emoji-btn-toggle ${showEmojiPicker ? 'active' : ''}`}
@@ -487,6 +569,18 @@ export default function DirectChatPage() {
         >
           😊
         </button>
+        {!isMamaaa && (
+          <button
+            onClick={() => setShowAttachMenu(prev => !prev)}
+            disabled={sending || recording || uploadingVoice || uploadingImage || uploadingFile || aiTyping}
+            style={{ minHeight: 48, width: 48, borderRadius: '50%', border: '1px solid var(--border)', flexShrink: 0, cursor: 'pointer', background: 'var(--white)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Attach photo, file, or buzz"
+          >
+            {uploadingImage || uploadingFile ? <span className="spinner" /> : (
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 22, height: 22 }}><path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l11.3-11.3a3 3 0 014.243 4.243L9.06 17.44a1.5 1.5 0 01-2.121-2.121l9.879-9.88" /></svg>
+            )}
+          </button>
+        )}
         <input
           className="input"
           value={input}

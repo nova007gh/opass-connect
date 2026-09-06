@@ -286,6 +286,10 @@ model DirectMessage {
   recipientId String
   body String
   audioUrl String?
+  imageUrl String?
+  videoUrl String?
+  fileUrl String?
+  fileName String?
   callType String?
   isBuzz Boolean @default(false)
   createdAt DateTime @default(now())

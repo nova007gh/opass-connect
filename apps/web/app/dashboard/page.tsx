@@ -152,7 +152,7 @@ export default function DashboardHome() {
       <div className="app-scroll">
         {/* Header */}
         <div className="home-header">
-          <div className="home-greeting">{getGreeting()}, Opie {firstName}!</div>
+          <div className="home-greeting">{getGreeting()}, Opanin {firstName}!</div>
           <div className="home-brand">
             <img src="/opass-crest.jpeg" alt="OPASS" className="home-crest" />
             <div className="home-brand-text">

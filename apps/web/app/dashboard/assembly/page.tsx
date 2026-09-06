@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { apiGet, apiPost, apiUpload } from '../../../lib/api';
 import Avatar from '../../../components/Avatar';
 import { AvatarWithBadge } from '../../../components/RoleBadge';
-import EmojiPicker from '../../../components/EmojiPicker';
+
+// Lazy-load EmojiPicker (heavy component with many emojis)
+const EmojiPicker = dynamic(() => import('../../../components/EmojiPicker'), { ssr: false });
 
 function isEmojiOnly(text: string): boolean {
   if (!text) return false;
@@ -97,7 +100,7 @@ export default function ChatroomPage() {
         const reversed = msgs.reverse();
         setMessages(prev => prev.length !== reversed.length ? reversed : prev);
       } catch {}
-    }, 3000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [activeRoom]);
 
@@ -137,9 +140,9 @@ export default function ChatroomPage() {
     finally { setUploadingRoomId(null); setRoomUploadTarget(null); if (roomFileRef.current) roomFileRef.current.value = ''; }
   };
 
-  const filteredRooms = roomSearch.trim()
+  const filteredRooms = useMemo(() => roomSearch.trim()
     ? rooms.filter(r => r.name.toLowerCase().includes(roomSearch.toLowerCase()))
-    : rooms;
+    : rooms, [roomSearch, rooms]);
 
   // ===== Active room chat view =====
   if (activeRoom) {

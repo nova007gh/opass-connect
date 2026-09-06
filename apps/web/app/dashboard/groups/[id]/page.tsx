@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPost, apiDelete, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import Avatar from '../../../../components/Avatar';
-import EmojiPicker from '../../../../components/EmojiPicker';
-import GroupChat from './GroupChat';
+
+// Lazy-load heavy components to reduce initial bundle
+const EmojiPicker = dynamic(() => import('../../../../components/EmojiPicker'), { ssr: false });
+const GroupChat = dynamic(() => import('./GroupChat'), { ssr: false });
 
 function isEmojiOnly(text: string): boolean {
   if (!text) return false;

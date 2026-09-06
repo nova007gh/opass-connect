@@ -1,16 +1,19 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, apiUpload } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import { playSchoolBell, playBuzzSound } from '../../../../lib/sound';
-import CallModal from '../../../../components/CallModal';
 import { useCall } from '../../../../components/CallProvider';
 import Avatar from '../../../../components/Avatar';
 import { AvatarWithBadge, RoleBadge, hasRoleBadge } from '../../../../components/RoleBadge';
-import EmojiPicker from '../../../../components/EmojiPicker';
+
+// Lazy-load heavy components
+const CallModal = dynamic(() => import('../../../../components/CallModal'), { ssr: false });
+const EmojiPicker = dynamic(() => import('../../../../components/EmojiPicker'), { ssr: false });
 
 const MAMAAA_BOT_ID = 'mamaaa-ai-bot';
 
@@ -160,7 +163,7 @@ export default function DirectChatPage() {
         seenIdsRef.current = new Set(data.messages.map(m => m.id));
         setMessages(prev => prev.length !== data.messages.length ? data.messages : prev);
       } catch {}
-    }, 3000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [peerId, user?.id, isMamaaa]);
 

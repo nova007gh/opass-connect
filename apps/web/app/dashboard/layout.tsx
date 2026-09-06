@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth';
@@ -146,14 +146,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, fetchUnread]);
 
-  const crumbs = useDynamicBreadcrumb(getBreadcrumb(pathname));
+  const crumbs = useDynamicBreadcrumb(useMemo(() => getBreadcrumb(pathname), [pathname]));
 
   if (loading || !user) {
     return <div className="loading-center" style={{ minHeight: '100vh' }}><span className="spinner" /></div>;
   }
 
   const isActive = (href: string) => pathname === href;
-  const menu = isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin');
+  const menu = useMemo(() => isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin'), [isAdmin]);
 
   const handleLogout = () => { logout(); router.replace('/'); };
 

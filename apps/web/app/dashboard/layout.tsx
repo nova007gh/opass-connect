@@ -147,13 +147,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user, fetchUnread]);
 
   const crumbs = useDynamicBreadcrumb(useMemo(() => getBreadcrumb(pathname), [pathname]));
+  const menu = useMemo(() => isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin'), [isAdmin]);
 
   if (loading || !user) {
     return <div className="loading-center" style={{ minHeight: '100vh' }}><span className="spinner" /></div>;
   }
 
   const isActive = (href: string) => pathname === href;
-  const menu = useMemo(() => isAdmin ? allItems : allItems.filter(i => i.href !== '/dashboard/admin'), [isAdmin]);
 
   const handleLogout = () => { logout(); router.replace('/'); };
 

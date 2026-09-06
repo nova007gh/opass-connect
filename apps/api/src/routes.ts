@@ -961,8 +961,9 @@ export function registerCoreRoutes(app:FastifyInstance){
   });
   // Admin: clean up Mamaa AI spam messages (lights out announcements)
   app.post('/admin/cleanup-mamaa-spam',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply)=>{
-    const result=await prisma.message.deleteMany({where:{userId:MAMAAA_BOT_ID,body:{contains:'Lights out'}}});
-    const result2=await prisma.message.deleteMany({where:{userId:MAMAAA_BOT_ID,body:{contains:'LIGHTS OUT'}}});
+    const botId=process.env.MAMAAA_BOT_ID||'mamaaa-ai-bot';
+    const result=await prisma.message.deleteMany({where:{userId:botId,body:{contains:'Lights out'}}});
+    const result2=await prisma.message.deleteMany({where:{userId:botId,body:{contains:'LIGHTS OUT'}}});
     return{deleted:(result.count||0)+(result2.count||0)};
   });
   app.get('/admin/year-group-invites',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{const q=z.object({status:z.string().optional()}).parse(req.query);const invites=await prisma.yearGroupInvite.findMany({where:q.status?{status:q.status as any}:{status:'PENDING'},orderBy:{createdAt:'desc'},include:{yearGroup:{select:{year:true,name:true}},invitedUser:{select:{email:true,profile:{select:{fullName:true,avatarUrl:true,graduationYear:true}}}},invitedBy:{select:{email:true,profile:{select:{fullName:true}}}}}});return invites.map(({token,...i})=>({...i,awaitingRegistration:!i.invitedUserId}));});

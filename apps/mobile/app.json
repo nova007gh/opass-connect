@@ -8,14 +8,25 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smartthinkers.opassconnect"
+      "bundleIdentifier": "com.smartthinkers.opassconnect",
+      "infoPlist": {
+        "NSCameraUsageDescription": "OPASS CONNECT uses the camera for profile photos and video calls.",
+        "NSMicrophoneUsageDescription": "OPASS CONNECT uses the microphone for voice messages and calls.",
+        "NSPhotoLibraryUsageDescription": "OPASS CONNECT needs photo library access to upload profile pictures."
+      }
     },
     "android": {
       "package": "com.smartthinkers.opassconnect",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#FFFFFF"
-      }
+        "backgroundColor": "#0B2D6B"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "INTERNET"
+      ]
     },
     "plugins": [
       "expo-router"
@@ -24,7 +35,14 @@
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    }
+      "backgroundColor": "#0B2D6B"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dbb8247c-bc6e-4f5f-8f9b-a4a5e4f03dfe"
+      }
+    },
+    "owner": "elnovaghs-team"
   }
 }

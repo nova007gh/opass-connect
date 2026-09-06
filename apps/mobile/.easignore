@@ -1,0 +1,13 @@
+# EAS Build ignore file - exclude unnecessary files from the build
+.git
+.github
+.vscode
+.idea
+*.md
+apps/api
+apps/web
+packages/db
+node_modules/.cache
+dist
+.next
+.turbo

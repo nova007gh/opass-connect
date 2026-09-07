@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost, apiPatch } from '../../../lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 
 interface Stats {
@@ -72,7 +72,7 @@ const statMeta: Record<string, { icon: string; color: string; bg: string }> = {
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites' | 'team' | 'mamaa'>('overview');
+  const [tab, setTab] = useState<'overview' | 'members' | 'ads' | 'quotes' | 'tickets' | 'groupInvites' | 'team' | 'users' | 'mamaa'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [pending, setPending] = useState<PendingMember[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -92,6 +92,10 @@ export default function AdminPage() {
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [memberSearch, setMemberSearch] = useState('');
+  const [allUsers, setAllUsers] = useState<TeamMember[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [createUserError, setCreateUserError] = useState('');
 
   const loadAll = () => {
     Promise.all([
@@ -289,6 +293,33 @@ export default function AdminPage() {
     } finally { setAction(null); }
   };
 
+  const loadAllUsers = (search?: string) => {
+    apiGet<TeamMember[]>(`/admin/users${search ? `?search=${encodeURIComponent(search)}` : ''}`).catch(() => []).then(setAllUsers);
+  };
+
+  const deleteUser = async (userId: string, name: string) => {
+    if (!confirm(`Are you sure you want to permanently delete ${name}'s account? This removes all their messages, posts, and data. This cannot be undone.`)) return;
+    setAction('delete-' + userId);
+    try {
+      await apiDelete(`/admin/users/${userId}`);
+      setAllUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete user');
+    } finally { setAction(null); }
+  };
+
+  const createUser = async (data: { email: string; fullName: string; password?: string; graduationYear?: number; house?: string; profession?: string; country?: string; city?: string; nickname?: string }) => {
+    setCreateUserError('');
+    setAction('create-user');
+    try {
+      await apiPost('/admin/users', data);
+      setShowCreateUserModal(false);
+      loadAllUsers(userSearch);
+    } catch (err: any) {
+      setCreateUserError(err.message || 'Failed to create user');
+    } finally { setAction(null); }
+  };
+
   const statCards = stats ? [
     { label: 'Total users', value: stats.users },
     { label: 'Verified', value: stats.verified },
@@ -366,6 +397,9 @@ export default function AdminPage() {
                 </button>
                 <button className={`btn btn-sm ${tab === 'team' ? '' : 'btn-outline'}`} onClick={() => { setTab('team'); loadTeam(); }}>
                   Team
+                </button>
+                <button className={`btn btn-sm ${tab === 'users' ? '' : 'btn-outline'}`} onClick={() => { setTab('users'); loadAllUsers(userSearch); }}>
+                  User Accounts
                 </button>
                 <button className={`btn btn-sm ${tab === 'ads' ? '' : 'btn-outline'}`} onClick={() => setTab('ads')}>
                   Ad Approvals {ads.length > 0 && <span className="badge badge-red" style={{ marginLeft: 6 }}>{ads.length}</span>}
@@ -552,6 +586,23 @@ export default function AdminPage() {
                   setShowTeamModal={setShowTeamModal}
                   editingMember={editingMember}
                   setEditingMember={setEditingMember}
+                  roleLabels={roleLabels}
+                  roleColors={roleColors}
+                />
+              )}
+              {tab === 'users' && (
+                <UsersTab
+                  users={allUsers}
+                  action={action}
+                  userSearch={userSearch}
+                  setUserSearch={(v: string) => { setUserSearch(v); loadAllUsers(v); }}
+                  onSearch={() => loadAllUsers(userSearch)}
+                  onDelete={deleteUser}
+                  onCreate={() => setShowCreateUserModal(true)}
+                  showCreateModal={showCreateUserModal}
+                  setShowCreateModal={setShowCreateUserModal}
+                  onCreateSubmit={createUser}
+                  createError={createUserError}
                   roleLabels={roleLabels}
                   roleColors={roleColors}
                 />
@@ -792,6 +843,115 @@ function TeamTab({
               <button className="btn btn-sm btn-outline" onClick={() => setShowTeamModal(false)}>Cancel</button>
               <button className="btn btn-sm btn-success" onClick={() => onCreate(newMember)} disabled={action === 'create' || !newMember.email || !newMember.fullName}>
                 {action === 'create' ? <span className="spinner" /> : 'Create & Send Invite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsersTab({
+  users, action, userSearch, setUserSearch, onSearch, onDelete, onCreate,
+  showCreateModal, setShowCreateModal, onCreateSubmit, createError, roleLabels, roleColors,
+}: any) {
+  const [newUser, setNewUser] = useState({
+    email: '', fullName: '', password: '', graduationYear: new Date().getFullYear(),
+    house: '', profession: '', country: '', city: '', nickname: '',
+  });
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <h3 style={{ margin: 0 }}>All User Accounts ({users.length})</h3>
+          <button className="btn btn-sm btn-success" onClick={onCreate}>+ Create User</button>
+        </div>
+        <div className="input-wrap" style={{ marginBottom: 12 }}>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ width: 20, height: 20, color: 'var(--blue)' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            className="input"
+            placeholder="Search by name or email..."
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+            style={{ marginBottom: 0 }}
+          />
+        </div>
+        {users.length === 0 ? (
+          <div className="empty-state"><p>{userSearch ? 'No users found.' : 'Start typing to search users.'}</p></div>
+        ) : (
+          users.map((u: TeamMember) => (
+            <div key={u.id} className="list-item" style={{ flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <strong>{u.profile?.fullName || u.email}</strong>
+                  <span className="badge" style={{ background: (roleColors[u.role] || '#6B7280') + '22', color: roleColors[u.role] || '#6B7280', fontSize: 11 }}>
+                    {roleLabels[u.role] || u.role}
+                  </span>
+                  {u.verification === 'VERIFIED' && (
+                    <span className="badge badge-green" style={{ fontSize: 10 }}>Verified</span>
+                  )}
+                </div>
+                <div className="text-muted text-sm">{u.email} · Class of {u.profile?.graduationYear || '—'}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {u.role !== 'SUPER_ADMIN' && (
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => onDelete(u.id, u.profile?.fullName || u.email)}
+                    disabled={action === 'delete-' + u.id}
+                  >
+                    {action === 'delete-' + u.id ? <span className="spinner" /> : 'Delete'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Create user modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setShowCreateModal(false)}>
+          <div className="card" style={{ maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Create New Member Account</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>A verified member account will be created. If no password is set, a temporary one will be emailed.</p>
+            {createError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{createError}</div>}
+            <input className="input" placeholder="Full name *" value={newUser.fullName} onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })} style={{ marginBottom: 8 }} />
+            <input className="input" placeholder="Email address *" type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} style={{ marginBottom: 8 }} />
+            <input className="input" placeholder="Password (optional, min 10 chars)" type="text" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} style={{ marginBottom: 8 }} />
+            <input className="input" placeholder="Nickname (optional)" value={newUser.nickname} onChange={(e) => setNewUser({ ...newUser, nickname: e.target.value })} style={{ marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input className="input" placeholder="Graduation year" type="number" value={newUser.graduationYear} onChange={(e) => setNewUser({ ...newUser, graduationYear: parseInt(e.target.value) || new Date().getFullYear() })} style={{ flex: 1 }} />
+              <input className="input" placeholder="House (optional)" value={newUser.house} onChange={(e) => setNewUser({ ...newUser, house: e.target.value })} style={{ flex: 1 }} />
+            </div>
+            <input className="input" placeholder="Profession (optional)" value={newUser.profession} onChange={(e) => setNewUser({ ...newUser, profession: e.target.value })} style={{ marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input className="input" placeholder="Country (optional)" value={newUser.country} onChange={(e) => setNewUser({ ...newUser, country: e.target.value })} style={{ flex: 1 }} />
+              <input className="input" placeholder="City (optional)" value={newUser.city} onChange={(e) => setNewUser({ ...newUser, city: e.target.value })} style={{ flex: 1 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-sm btn-outline" onClick={() => setShowCreateModal(false)}>Cancel</button>
+              <button
+                className="btn btn-sm btn-success"
+                onClick={() => onCreateSubmit({
+                  email: newUser.email,
+                  fullName: newUser.fullName,
+                  ...(newUser.password ? { password: newUser.password } : {}),
+                  graduationYear: newUser.graduationYear,
+                  ...(newUser.house ? { house: newUser.house } : {}),
+                  ...(newUser.profession ? { profession: newUser.profession } : {}),
+                  ...(newUser.country ? { country: newUser.country } : {}),
+                  ...(newUser.city ? { city: newUser.city } : {}),
+                  ...(newUser.nickname ? { nickname: newUser.nickname } : {}),
+                })}
+                disabled={action === 'create-user' || !newUser.email || !newUser.fullName}
+              >
+                {action === 'create-user' ? <span className="spinner" /> : 'Create Account'}
               </button>
             </div>
           </div>

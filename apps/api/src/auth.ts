@@ -65,6 +65,20 @@ export function registerAuthRoutes(app: FastifyInstance) {
     await prisma.user.update({where:{id:user.id}, data:{passwordHash}});
     return {ok:true};
   });
+
+  // User self-delete: requires password confirmation
+  app.delete('/auth/account', {preHandler:[app.authenticate]}, async (req:any, reply) => {
+    const body = z.object({password:z.string()}).parse(req.body);
+    const user = await prisma.user.findUnique({where:{id:req.user.sub}});
+    if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
+      return reply.code(401).send({error:'Password is incorrect'});
+    }
+    if (user.role === 'SUPER_ADMIN') {
+      return reply.code(403).send({error:'Super admins cannot self-delete. Ask another super admin to remove you.'});
+    }
+    await prisma.user.delete({where:{id:req.user.sub}});
+    return {ok:true};
+  });
 }
 
 export function safeUser(user:any){ const {passwordHash,...safe}=user; return safe; }

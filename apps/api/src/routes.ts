@@ -1099,6 +1099,63 @@ export function registerCoreRoutes(app:FastifyInstance){
     return updated;
   });
 
+  // Admin: create a regular member account
+  app.post('/admin/users',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply:any)=>{
+    const b=z.object({
+      email:z.string().email(),
+      fullName:z.string().min(2),
+      password:z.string().min(10).optional(),
+      graduationYear:z.number().int().min(1955).max(new Date().getFullYear()).optional(),
+      house:z.string().optional(),
+      profession:z.string().optional(),
+      country:z.string().optional(),
+      city:z.string().optional(),
+      nickname:z.string().optional(),
+      gender:z.enum(['MALE','FEMALE']).optional(),
+    }).parse(req.body);
+    const existing=await prisma.user.findUnique({where:{email:b.email.toLowerCase()}});
+    if(existing) return reply.code(409).send({error:'A user with this email already exists'});
+    const tempPassword=b.password||(Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+'A1!');
+    const passwordHash=await bcrypt.hash(tempPassword,12);
+    const user=await prisma.user.create({
+      data:{
+        email:b.email.toLowerCase(),
+        passwordHash,
+        role:'MEMBER',
+        verification:'VERIFIED',
+        profile:{
+          create:{
+            fullName:b.fullName,
+            nickname:b.nickname,
+            gender:b.gender,
+            graduationYear:b.graduationYear??new Date().getFullYear(),
+            house:b.house,
+            profession:b.profession,
+            country:b.country,
+            city:b.city,
+          },
+        },
+      },
+      select:{id:true,email:true,role:true,verification:true,profile:{select:{fullName:true}}},
+    });
+    const{sendEmail}=await import('./email.js');
+    sendEmail(b.email,'Welcome to OPASS CONNECT',`Your account has been created`,`<p>Hi ${b.fullName},</p><p>An admin has created your OPASS CONNECT account.</p><p><strong>Email:</strong> ${b.email}</p><p><strong>Temporary password:</strong> ${tempPassword}</p><p>Please log in at <a href="https://opass-connect.vercel.app/login">opass-connect.vercel.app</a> and change your password.</p>`).catch(()=>{});
+    return reply.code(201).send(user);
+  });
+
+  // Admin: delete a user account
+  app.delete('/admin/users/:userId',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any,reply:any)=>{
+    const target=await prisma.user.findUnique({where:{id:req.params.userId},select:{id:true,email:true,role:true,profile:{select:{fullName:true}}}});
+    if(!target) return reply.code(404).send({error:'User not found'});
+    if(target.role==='SUPER_ADMIN') return reply.code(403).send({error:'Cannot delete a super admin account'});
+    if(req.user.role!=='SUPER_ADMIN' && target.role==='ADMIN'){
+      return reply.code(403).send({error:'Only super admins can delete admin accounts'});
+    }
+    if(req.params.userId===req.user.sub) return reply.code(403).send({error:'You cannot delete your own account here. Use account settings.'});
+    await prisma.user.delete({where:{id:req.params.userId}});
+    return{ok:true,deleted:{id:target.id,email:target.email,name:target.profile?.fullName||'Unknown'}};
+  });
+
   // ===== Mamaa AI Archive (admin-only view of recorded conversations) =====
   app.get('/admin/mamaa/archive',{preHandler:[app.authenticate,requireRoles('ADMIN','SUPER_ADMIN')]},async(req:any)=>{
     const q=z.object({roomId:z.string().optional(),category:z.string().optional(),limit:z.coerce.number().int().min(1).max(200).default(50)}).parse(req.query);

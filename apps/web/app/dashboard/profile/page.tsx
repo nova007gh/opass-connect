@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { apiPatch, apiUpload } from '../../../lib/api';
+import { useRouter } from 'next/navigation';
+import { apiPatch, apiUpload, apiDelete } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
 import { RoleBadge, hasRoleBadge } from '../../../components/RoleBadge';
 
 export default function ProfilePage() {
-  const { user, refresh } = useAuth();
+  const { user, refresh, logout } = useAuth();
+  const router = useRouter();
   const [form, setForm] = useState({
     fullName: '', nickname: '', gender: '', graduationYear: '', house: '', className: '', positionHeld: '',
     country: '', city: '', profession: '', bio: '', avatarUrl: '', searchable: true,
@@ -22,6 +24,10 @@ export default function ProfilePage() {
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (user?.profile) {
@@ -302,6 +308,57 @@ export default function ProfilePage() {
               {loading ? <span className="spinner" /> : 'Save Changes'}
             </button>
           </form>
+        </div>
+
+        {/* Danger Zone */}
+        <div className="card" style={{ marginTop: 16, padding: 20, border: '1px solid #FECACA' }}>
+          <h3 style={{ color: '#DC2626', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Danger Zone</h3>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+            Permanently delete your account. This removes all your messages, posts, payments, and profile data. This action cannot be undone.
+          </p>
+          {!showDelete ? (
+            <button className="btn btn-sm" style={{ background: '#DC2626', color: 'white', border: 'none' }} onClick={() => setShowDelete(true)}>
+              Delete my account
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {deleteError && <div className="alert alert-error" style={{ margin: 0 }}>{deleteError}</div>}
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>Enter your password to confirm deletion:</p>
+              <input
+                className="input"
+                type="password"
+                value={deletePassword}
+                onChange={e => setDeletePassword(e.target.value)}
+                placeholder="Your password"
+                style={{ marginBottom: 0 }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: '#DC2626', color: 'white', border: 'none' }}
+                  disabled={deleting || !deletePassword}
+                  onClick={async () => {
+                    setDeleting(true);
+                    setDeleteError('');
+                    try {
+                      await apiDelete('/auth/account', { password: deletePassword });
+                      await logout();
+                      router.push('/login');
+                    } catch (err: any) {
+                      setDeleteError(err.message || 'Failed to delete account');
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  {deleting ? <span className="spinner" /> : 'Yes, delete my account'}
+                </button>
+                <button className="btn btn-sm" onClick={() => { setShowDelete(false); setDeletePassword(''); setDeleteError(''); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

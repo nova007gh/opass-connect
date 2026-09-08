@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiPatch, apiUpload, apiDelete } from '../../../lib/api';
+import { apiPatch, apiUpload, apiDelete, apiPost } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import Avatar from '../../../components/Avatar';
 import { RoleBadge, hasRoleBadge } from '../../../components/RoleBadge';
@@ -28,6 +28,11 @@ export default function ProfilePage() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '' });
+  const [changingPwd, setChangingPwd] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState(false);
 
   useEffect(() => {
     if (user?.profile) {
@@ -308,6 +313,69 @@ export default function ProfilePage() {
               {loading ? <span className="spinner" /> : 'Save Changes'}
             </button>
           </form>
+        </div>
+
+        {/* Change Password */}
+        <div className="card" style={{ marginTop: 16, padding: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Security</h3>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+            Change your password to keep your account secure.
+          </p>
+          {pwdSuccess ? (
+            <div className="alert alert-success" style={{ margin: 0 }}>
+              Password changed successfully! Use your new password next time you log in.
+            </div>
+          ) : !showChangePwd ? (
+            <button className="btn btn-sm btn-outline" onClick={() => setShowChangePwd(true)}>
+              Change password
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pwdError && <div className="alert alert-error" style={{ margin: 0 }}>{pwdError}</div>}
+              <input
+                className="input"
+                type="password"
+                placeholder="Current password"
+                value={pwdForm.currentPassword}
+                onChange={e => setPwdForm({ ...pwdForm, currentPassword: e.target.value })}
+                style={{ marginBottom: 0 }}
+              />
+              <input
+                className="input"
+                type="password"
+                placeholder="New password (min 10 characters)"
+                value={pwdForm.newPassword}
+                onChange={e => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
+                style={{ marginBottom: 0 }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-sm"
+                  disabled={changingPwd || !pwdForm.currentPassword || pwdForm.newPassword.length < 10}
+                  onClick={async () => {
+                    setChangingPwd(true);
+                    setPwdError('');
+                    try {
+                      await apiPost('/auth/change-password', pwdForm);
+                      setPwdSuccess(true);
+                      setShowChangePwd(false);
+                      setPwdForm({ currentPassword: '', newPassword: '' });
+                      setTimeout(() => setPwdSuccess(false), 5000);
+                    } catch (err: any) {
+                      setPwdError(err.message || 'Failed to change password');
+                    } finally {
+                      setChangingPwd(false);
+                    }
+                  }}
+                >
+                  {changingPwd ? <span className="spinner" /> : 'Update password'}
+                </button>
+                <button className="btn btn-sm btn-outline" onClick={() => { setShowChangePwd(false); setPwdForm({ currentPassword: '', newPassword: '' }); setPwdError(''); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Danger Zone */}

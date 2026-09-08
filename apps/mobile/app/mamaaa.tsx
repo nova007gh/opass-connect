@@ -1,65 +1,73 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
-
-const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { api } from '../lib/api';
 
 export default function Mamaaa() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Akwaaba! I am Mr. Atsu, also known as Mamaa AI. How can I help you today?' },
+    { role: 'assistant', text: 'Akwaaba! I am Mr. Atsu, your Mamaa AI assistant. Ask me about events, elections, projects, year groups, or anything OPASS!' },
   ]);
+  const [loading, setLoading] = useState(false);
 
   const send = async () => {
     if (!input.trim()) return;
-    const mine = input;
-    setMessages((m) => [...m, { role: 'user', text: mine }]);
+    const mine = input.trim();
+    setMessages(m => [...m, { role: 'user', text: mine }]);
     setInput('');
+    setLoading(true);
     try {
-      const r = await fetch(`${API}/ai/chat`, {
+      const d = await api('/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: mine }),
       });
-      const d = await r.json();
-      setMessages((m) => [...m, { role: 'assistant', text: d.message ?? 'I could not complete that request.' }]);
-    } catch {
-      setMessages((m) => [...m, { role: 'assistant', text: 'I cannot reach the OPASS service right now.' }]);
+      setMessages(m => [...m, { role: 'assistant', text: d.message ?? d.reply ?? 'I could not complete that request.' }]);
+    } catch (e: any) {
+      setMessages(m => [...m, { role: 'assistant', text: 'Sorry, I am having trouble right now. Please try again.' }]);
     }
+    setLoading(false);
   };
 
   return (
-    <View style={s.root}>
-      <View style={s.head}>
-        <Text style={s.title}>Mr. Atsu (Mamaa AI)</Text>
-        <Text style={s.sub}>AI Assistant · Secretary · Customer Service</Text>
-      </View>
-      <ScrollView style={s.chat} contentContainerStyle={{ gap: 10, padding: 16 }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.root}>
+      <ScrollView style={s.msgList} contentContainerStyle={s.msgContent}>
         {messages.map((m, i) => (
-          <View key={i} style={[s.bubble, m.role === 'user' ? s.user : s.ai]}>
-            <Text style={{ color: m.role === 'user' ? '#fff' : '#050505' }}>{m.text}</Text>
+          <View key={i} style={[s.msg, m.role === 'user' ? s.userMsg : s.botMsg]}>
+            {m.role === 'assistant' && <Text style={s.botIcon}>🎓</Text>}
+            <Text style={[s.msgText, m.role === 'user' ? s.userText : s.botText]}>{m.text}</Text>
           </View>
         ))}
+        {loading && <View style={[s.msg, s.botMsg]}><Text style={s.botIcon}>🎓</Text><ActivityIndicator color="#0B2D6B" /></View>}
       </ScrollView>
-      <View style={s.inputRow}>
-        <TextInput value={input} onChangeText={setInput} placeholder="Ask Mamaa AI…" style={s.input} />
-        <Pressable style={s.send} onPress={send}>
-          <Text style={{ color: '#fff', fontWeight: '900' }}>Send</Text>
+      <View style={s.inputBar}>
+        <TextInput
+          style={s.input}
+          placeholder="Ask Mamaa AI anything..."
+          placeholderTextColor="#9CA3AF"
+          value={input}
+          onChangeText={setInput}
+          multiline
+        />
+        <Pressable style={s.sendBtn} onPress={send} disabled={loading}>
+          <Text style={s.sendText}>Send</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f7f9fc' },
-  head: { backgroundColor: '#0B2D6B', padding: 18 },
-  title: { color: '#fff', fontSize: 22, fontWeight: '900' },
-  sub: { color: '#dbe7ff' },
-  chat: { flex: 1 },
-  bubble: { maxWidth: '84%', padding: 13, borderRadius: 16 },
-  user: { alignSelf: 'flex-end', backgroundColor: '#0B2D6B' },
-  ai: { alignSelf: 'flex-start', backgroundColor: '#fff', borderWidth: 1, borderColor: '#dfe6f2' },
-  inputRow: { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: '#fff' },
-  input: { flex: 1, borderWidth: 1, borderColor: '#cfd8e6', borderRadius: 14, paddingHorizontal: 14 },
-  send: { backgroundColor: '#0B2D6B', paddingHorizontal: 18, justifyContent: 'center', borderRadius: 14 },
+  msgList: { flex: 1, padding: 16 },
+  msgContent: { paddingBottom: 16, gap: 10 },
+  msg: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, maxWidth: '90%' },
+  userMsg: { alignSelf: 'flex-end', backgroundColor: '#0B2D6B', borderRadius: 16, borderBottomRightRadius: 4, padding: 12 },
+  botMsg: { alignSelf: 'flex-start', backgroundColor: '#fff', borderRadius: 16, borderBottomLeftRadius: 4, padding: 12, borderWidth: 1, borderColor: '#E5E7EB' },
+  botIcon: { fontSize: 22 },
+  msgText: { fontSize: 15, lineHeight: 20 },
+  userText: { color: '#fff' },
+  botText: { color: '#050505' },
+  inputBar: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', gap: 8, alignItems: 'flex-end' },
+  input: { flex: 1, backgroundColor: '#f7f9fc', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: '#E5E7EB', maxHeight: 100 },
+  sendBtn: { backgroundColor: '#0B2D6B', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 14 },
+  sendText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

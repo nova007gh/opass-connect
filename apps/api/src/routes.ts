@@ -148,6 +148,22 @@ async function processAndStoreAudio(buffer: Buffer, mimetype: string, id: string
 function canManageGroup(user:any,yg:any){return ['ADMIN','SUPER_ADMIN'].includes(user.role)||yg.creatorId===user.sub;}
 
 export function registerCoreRoutes(app:FastifyInstance){
+  // Public stats for mobile/dashboard
+  app.get('/stats',{preHandler:[app.authenticate]},async()=>{
+    const [users,events,projects,yearGroups]=await Promise.all([
+      prisma.user.count(),
+      prisma.event.count(),
+      prisma.project.count(),
+      prisma.yearGroup.count(),
+    ]);
+    return{users,events,projects,yearGroups};
+  });
+
+  // User payment history
+  app.get('/payments/history',{preHandler:[app.authenticate]},async(req:any)=>{
+    return prisma.payment.findMany({where:{userId:req.user.sub},orderBy:{createdAt:'desc'},take:50});
+  });
+
   app.get('/year-groups',{preHandler:[app.authenticate]},async(req:any)=>{
     const q=z.object({mine:z.coerce.boolean().optional(),search:z.string().optional()}).parse(req.query);
     const canManageAny=['ADMIN','SUPER_ADMIN'].includes(req.user.role);

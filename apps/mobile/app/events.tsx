@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from 'react-native';
 import { api } from '../lib/api';
+import { theme } from '../lib/theme';
 
 export default function Events() {
   const [data, setData] = useState<any[]>([]);
@@ -19,7 +20,7 @@ export default function Events() {
   useEffect(() => { load(); }, []);
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#0B2D6B" /></View>;
+  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color={theme.blue} /></View>;
 
   const upcoming = data.filter(e => new Date(e.startsAt) >= new Date());
   const past = data.filter(e => new Date(e.startsAt) < new Date());
@@ -56,21 +57,21 @@ export default function Events() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f7f9fc' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7f9fc' },
+  root: { flex: 1, backgroundColor: theme.bg },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#6B7280', fontSize: 15 },
-  sectionLabel: { fontSize: 14, fontWeight: '800', color: '#0B2D6B', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  card: { flexDirection: 'row', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  emptyText: { color: theme.muted, fontSize: 15 },
+  sectionLabel: { fontSize: 14, fontWeight: '800', color: theme.blue, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  card: { flexDirection: 'row', backgroundColor: theme.card, marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border },
   pastCard: { opacity: 0.6 },
-  dateBox: { width: 56, alignItems: 'center', backgroundColor: '#0B2D6B', borderRadius: 12, paddingVertical: 10, marginRight: 14 },
+  dateBox: { width: 56, alignItems: 'center', backgroundColor: theme.blueDark, borderRadius: 12, paddingVertical: 10, marginRight: 14 },
   dateDay: { color: '#fff', fontSize: 24, fontWeight: '900' },
-  dateMonth: { color: '#DCE8FF', fontSize: 11, fontWeight: '700' },
+  dateMonth: { color: theme.blue, fontSize: 11, fontWeight: '700' },
   cardBody: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: '#050505' },
-  cardDate: { fontSize: 13, color: '#6B7280', marginTop: 4 },
-  cardVenue: { fontSize: 13, color: '#0B2D6B', marginTop: 4, fontWeight: '600' },
-  cardDesc: { fontSize: 13, color: '#374151', marginTop: 6, lineHeight: 18 },
-  upcomingBadge: { marginTop: 8, backgroundColor: '#ECFDF5', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  upcomingText: { fontSize: 10, fontWeight: '800', color: '#22C55E' },
+  cardTitle: { fontSize: 16, fontWeight: '800', color: theme.text },
+  cardDate: { fontSize: 13, color: theme.muted, marginTop: 4 },
+  cardVenue: { fontSize: 13, color: theme.blue, marginTop: 4, fontWeight: '600' },
+  cardDesc: { fontSize: 13, color: theme.text, marginTop: 6, lineHeight: 18 },
+  upcomingBadge: { marginTop: 8, backgroundColor: 'rgba(52,211,153,0.15)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
+  upcomingText: { fontSize: 10, fontWeight: '800', color: theme.green },
 });

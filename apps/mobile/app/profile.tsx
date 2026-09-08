@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Pressable
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api } from '../lib/api';
+import { theme, roleColor as getRoleColor, roleLabel } from '../lib/theme';
 
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
@@ -14,13 +15,13 @@ export default function Profile() {
     });
   }, []);
 
-  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#0B2D6B" /></View>;
-  if (!user) return <View style={s.loading}><Text>No profile found</Text></View>;
+  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color={theme.blue} /></View>;
+  if (!user) return <View style={s.loading}><Text style={{ color: theme.text }}>No profile found</Text></View>;
 
   const p = user.profile || {};
   const fullName = p.fullName || 'Unnamed';
   const role = user.role || 'MEMBER';
-  const roleColor = role === 'SUPER_ADMIN' ? '#7C3AED' : role === 'ADMIN' ? '#2563EB' : role === 'EXECUTIVE' ? '#059669' : '#6B7280';
+  const roleColor = getRoleColor(role);
 
   const logout = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -53,7 +54,7 @@ export default function Profile() {
         {p.nickname && <Text style={s.nickname}>@{p.nickname}</Text>}
         <View style={s.badgeRow}>
           <View style={[s.roleBadge, { backgroundColor: roleColor + '22' }]}>
-            <Text style={[s.roleText, { color: roleColor }]}>{role.replace('_', ' ')}</Text>
+            <Text style={[s.roleText, { color: roleColor }]}>{roleLabel(role)}</Text>
           </View>
           {user.verification === 'VERIFIED' && (
             <View style={s.verifiedBadge}><Text style={s.verifiedText}>✓ Verified</Text></View>
@@ -97,32 +98,32 @@ export default function Profile() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f7f9fc' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7f9fc' },
-  cover: { height: 140, backgroundColor: '#0B2D6B' },
+  root: { flex: 1, backgroundColor: theme.bg },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
+  cover: { height: 140, backgroundColor: theme.blueDark },
   header: { alignItems: 'center', marginTop: -55, paddingBottom: 20 },
-  avatarWrap: { width: 110, height: 110, borderRadius: 55, backgroundColor: '#f7f9fc', padding: 4, marginBottom: 12 },
+  avatarWrap: { width: 110, height: 110, borderRadius: 55, backgroundColor: theme.bg, padding: 4, marginBottom: 12 },
   avatar: { width: '100%', height: '100%', borderRadius: 55 },
-  avatarPlaceholder: { width: '100%', height: '100%', borderRadius: 55, backgroundColor: '#0B2D6B', justifyContent: 'center', alignItems: 'center' },
+  avatarPlaceholder: { width: '100%', height: '100%', borderRadius: 55, backgroundColor: theme.blueDark, justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: '#fff', fontSize: 42, fontWeight: '900' },
-  name: { fontSize: 22, fontWeight: '900', color: '#050505' },
-  nickname: { fontSize: 15, color: '#6B7280', marginTop: 2 },
+  name: { fontSize: 22, fontWeight: '900', color: theme.text },
+  nickname: { fontSize: 15, color: theme.muted, marginTop: 2 },
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' },
   roleBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 99 },
   roleText: { fontSize: 12, fontWeight: '700' },
-  verifiedBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 99, backgroundColor: '#ECFDF5' },
-  verifiedText: { fontSize: 12, fontWeight: '700', color: '#22C55E' },
-  profession: { fontSize: 14, color: '#0B2D6B', fontWeight: '600', marginTop: 8 },
-  section: { backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#E5E7EB' },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#050505', marginBottom: 12 },
-  bio: { fontSize: 14, color: '#374151', lineHeight: 20, marginBottom: 14 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  infoLabel: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
-  infoValue: { fontSize: 14, color: '#050505', fontWeight: '600', textAlign: 'right' },
-  ygCard: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  ygName: { fontSize: 15, fontWeight: '700', color: '#0B2D6B' },
-  ygYear: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  leaderBadge: { fontSize: 12, color: '#F59E0B', fontWeight: '700', marginTop: 4 },
-  logoutBtn: { marginHorizontal: 16, marginBottom: 40, backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  logoutText: { color: '#DC2626', fontSize: 16, fontWeight: '800' },
+  verifiedBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 99, backgroundColor: 'rgba(52,211,153,0.15)' },
+  verifiedText: { fontSize: 12, fontWeight: '700', color: theme.green },
+  profession: { fontSize: 14, color: theme.blue, fontWeight: '600', marginTop: 8 },
+  section: { backgroundColor: theme.card, marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: theme.border },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: theme.text, marginBottom: 12 },
+  bio: { fontSize: 14, color: theme.text, lineHeight: 20, marginBottom: 14 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
+  infoLabel: { fontSize: 14, color: theme.muted, fontWeight: '600' },
+  infoValue: { fontSize: 14, color: theme.text, fontWeight: '600', textAlign: 'right' },
+  ygCard: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
+  ygName: { fontSize: 15, fontWeight: '700', color: theme.blue },
+  ygYear: { fontSize: 13, color: theme.muted, marginTop: 2 },
+  leaderBadge: { fontSize: 12, color: theme.amber, fontWeight: '700', marginTop: 4 },
+  logoutBtn: { marginHorizontal: 16, marginBottom: 40, backgroundColor: 'rgba(248,113,113,0.15)', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  logoutText: { color: theme.red, fontSize: 16, fontWeight: '800' },
 });

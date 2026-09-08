@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, TextInput, Pressable, RefreshControl } from 'react-native';
 import { api } from '../lib/api';
+import { theme } from '../lib/theme';
 
 export default function Assembly() {
   const [rooms, setRooms] = useState<any[]>([]);
@@ -47,7 +48,7 @@ export default function Assembly() {
     setSending(false);
   };
 
-  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#0B2D6B" /></View>;
+  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color={theme.blue} /></View>;
 
   if (activeRoom) {
     return (
@@ -61,7 +62,7 @@ export default function Assembly() {
           data={messages}
           keyExtractor={x => x.id}
           inverted
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadMessages(activeRoom.id)} colors={['#0B2D6B']} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadMessages(activeRoom.id)} tintColor={theme.blue} colors={[theme.blue]} />}
           ListEmptyComponent={<Text style={s.emptyMsg}>No messages yet. Say akwaaba!</Text>}
           renderItem={({ item }) => (
             <View style={[s.msg, item.userId === 'mamaaa-ai-bot' && s.botMsg]}>
@@ -75,7 +76,7 @@ export default function Assembly() {
           <TextInput
             style={s.input}
             placeholder="Type a message..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={theme.muted}
             value={input}
             onChangeText={setInput}
           />
@@ -109,30 +110,30 @@ export default function Assembly() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f7f9fc' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7f9fc' },
+  root: { flex: 1, backgroundColor: theme.bg },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#6B7280', fontSize: 15 },
-  sectionLabel: { fontSize: 14, fontWeight: '800', color: '#0B2D6B', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  card: { flexDirection: 'row', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' },
-  roomIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  emptyText: { color: theme.muted, fontSize: 15 },
+  sectionLabel: { fontSize: 14, fontWeight: '800', color: theme.blue, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  card: { flexDirection: 'row', backgroundColor: theme.card, marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border, alignItems: 'center' },
+  roomIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: theme.blue50, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   roomIconText: { fontSize: 22 },
   cardBody: { flex: 1 },
-  cardName: { fontSize: 16, fontWeight: '800', color: '#050505' },
-  cardCount: { fontSize: 13, color: '#6B7280', marginTop: 4 },
-  arrow: { fontSize: 20, color: '#9CA3AF' },
+  cardName: { fontSize: 16, fontWeight: '800', color: theme.text },
+  cardCount: { fontSize: 13, color: theme.muted, marginTop: 4 },
+  arrow: { fontSize: 20, color: theme.muted },
   backBtn: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  backText: { color: '#0B2D6B', fontSize: 15, fontWeight: '700' },
-  roomTitle: { fontSize: 20, fontWeight: '900', color: '#050505', paddingHorizontal: 16, paddingBottom: 8 },
+  backText: { color: theme.blue, fontSize: 15, fontWeight: '700' },
+  roomTitle: { fontSize: 20, fontWeight: '900', color: theme.text, paddingHorizontal: 16, paddingBottom: 8 },
   msgList: { flex: 1, paddingHorizontal: 16 },
-  emptyMsg: { textAlign: 'center', color: '#6B7280', padding: 20 },
-  msg: { backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB' },
-  botMsg: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
-  msgName: { fontSize: 13, fontWeight: '700', color: '#0B2D6B' },
-  msgBody: { fontSize: 14, color: '#050505', marginTop: 4, lineHeight: 20 },
-  msgTime: { fontSize: 11, color: '#9CA3AF', marginTop: 4, textAlign: 'right' },
-  inputBar: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', gap: 8 },
-  input: { flex: 1, backgroundColor: '#f7f9fc', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: '#E5E7EB' },
-  sendBtn: { backgroundColor: '#0B2D6B', borderRadius: 14, paddingHorizontal: 20, justifyContent: 'center' },
+  emptyMsg: { textAlign: 'center', color: theme.muted, padding: 20 },
+  msg: { backgroundColor: theme.card, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.border },
+  botMsg: { backgroundColor: theme.blue50, borderColor: theme.border },
+  msgName: { fontSize: 13, fontWeight: '700', color: theme.blue },
+  msgBody: { fontSize: 14, color: theme.text, marginTop: 4, lineHeight: 20 },
+  msgTime: { fontSize: 11, color: theme.muted, marginTop: 4, textAlign: 'right' },
+  inputBar: { flexDirection: 'row', padding: 12, backgroundColor: theme.card, borderTopWidth: 1, borderTopColor: theme.border, gap: 8 },
+  input: { flex: 1, backgroundColor: theme.bg, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: theme.border, color: theme.text },
+  sendBtn: { backgroundColor: theme.blueBright, borderRadius: 14, paddingHorizontal: 20, justifyContent: 'center' },
   sendText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

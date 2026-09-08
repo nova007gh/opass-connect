@@ -150,13 +150,14 @@ function canManageGroup(user:any,yg:any){return ['ADMIN','SUPER_ADMIN'].includes
 export function registerCoreRoutes(app:FastifyInstance){
   // Public stats for mobile/dashboard
   app.get('/stats',{preHandler:[app.authenticate]},async()=>{
-    const [users,events,projects,yearGroups]=await Promise.all([
+    const [users,events,projects,yearGroups,payments]=await Promise.all([
       prisma.user.count(),
       prisma.event.count(),
       prisma.project.count(),
       prisma.yearGroup.count(),
+      prisma.payment.aggregate({_sum:{amount:true},where:{status:'PAID'}}),
     ]);
-    return{users,events,projects,yearGroups};
+    return{users,events,projects,yearGroups,raised:payments._sum.amount??0};
   });
 
   // User payment history

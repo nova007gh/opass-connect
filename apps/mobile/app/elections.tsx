@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../lib/api';
+import { theme } from '../lib/theme';
 
 export default function Elections() {
   const [data, setData] = useState<any[]>([]);
@@ -19,14 +20,14 @@ export default function Elections() {
   useEffect(() => { load(); }, []);
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#0B2D6B" /></View>;
+  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color={theme.blue} /></View>;
 
   return (
     <FlatList
       style={s.root}
       data={data}
       keyExtractor={x => x.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0B2D6B']} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.blue} colors={[theme.blue]} />}
       ListEmptyComponent={<View style={s.empty}><Text style={s.emptyText}>No active elections.</Text></View>}
       renderItem={({ item }) => (
         <View style={s.card}>
@@ -42,7 +43,7 @@ export default function Elections() {
           </View>
           <View style={s.infoRow}>
             <Text style={s.infoLabel}>Status</Text>
-            <Text style={[s.infoValue, { color: item.status === 'OPEN' ? '#22C55E' : '#6B7280' }]}>{item.status}</Text>
+            <Text style={[s.infoValue, { color: item.status === 'OPEN' ? theme.green : theme.muted }]}>{item.status}</Text>
           </View>
           {item.endsAt && <Text style={s.endsAt}>Ends: {new Date(item.endsAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</Text>}
         </View>
@@ -52,15 +53,15 @@ export default function Elections() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f7f9fc' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7f9fc' },
+  root: { flex: 1, backgroundColor: theme.bg },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#6B7280', fontSize: 15 },
-  card: { backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#E5E7EB' },
-  title: { fontSize: 17, fontWeight: '800', color: '#050505' },
-  desc: { fontSize: 13, color: '#6B7280', marginTop: 6, lineHeight: 18 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', marginTop: 10 },
-  infoLabel: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
-  infoValue: { fontSize: 14, color: '#050505', fontWeight: '700' },
-  endsAt: { fontSize: 12, color: '#9CA3AF', marginTop: 10 },
+  emptyText: { color: theme.muted, fontSize: 15 },
+  card: { backgroundColor: theme.card, marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: theme.border },
+  title: { fontSize: 17, fontWeight: '800', color: theme.text },
+  desc: { fontSize: 13, color: theme.muted, marginTop: 6, lineHeight: 18 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border, marginTop: 10 },
+  infoLabel: { fontSize: 14, color: theme.muted, fontWeight: '600' },
+  infoValue: { fontSize: 14, color: theme.text, fontWeight: '700' },
+  endsAt: { fontSize: 12, color: theme.muted, marginTop: 10 },
 });

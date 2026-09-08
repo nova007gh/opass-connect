@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../lib/api';
+import { theme } from '../lib/theme';
 
 export default function Payments() {
   const [history, setHistory] = useState<any[]>([]);
@@ -19,7 +20,7 @@ export default function Payments() {
   useEffect(() => { load(); }, []);
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#0B2D6B" /></View>;
+  if (loading) return <View style={s.loading}><ActivityIndicator size="large" color={theme.blue} /></View>;
 
   return (
     <View style={s.root}>
@@ -31,7 +32,7 @@ export default function Payments() {
       <FlatList
         data={history}
         keyExtractor={x => x.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0B2D6B']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.blue} colors={[theme.blue]} />}
         ListEmptyComponent={<View style={s.empty}><Text style={s.emptyText}>No payments yet. Your dues help fund school projects.</Text></View>}
         renderItem={({ item }) => (
           <View style={s.card}>
@@ -53,24 +54,24 @@ export default function Payments() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f7f9fc' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7f9fc' },
-  hero: { backgroundColor: '#0B2D6B', padding: 24, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  root: { flex: 1, backgroundColor: theme.bg },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
+  hero: { backgroundColor: theme.blueDark, padding: 24, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   heroTitle: { color: '#fff', fontSize: 24, fontWeight: '900' },
-  heroSub: { color: '#DCE8FF', fontSize: 14, marginTop: 4 },
-  sectionLabel: { fontSize: 14, fontWeight: '800', color: '#0B2D6B', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  heroSub: { color: '#c7d8ff', fontSize: 14, marginTop: 4 },
+  sectionLabel: { fontSize: 14, fontWeight: '800', color: theme.blue, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#6B7280', fontSize: 14, textAlign: 'center' },
-  card: { flexDirection: 'row', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', justifyContent: 'space-between', alignItems: 'center' },
+  emptyText: { color: theme.muted, fontSize: 14, textAlign: 'center' },
+  card: { flexDirection: 'row', backgroundColor: theme.card, marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: theme.border, justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { flex: 1 },
   cardRight: { alignItems: 'flex-end' },
-  purpose: { fontSize: 15, fontWeight: '700', color: '#050505' },
-  date: { fontSize: 12, color: '#6B7280', marginTop: 4 },
-  amount: { fontSize: 16, fontWeight: '900', color: '#0B2D6B' },
+  purpose: { fontSize: 15, fontWeight: '700', color: theme.text },
+  date: { fontSize: 12, color: theme.muted, marginTop: 4 },
+  amount: { fontSize: 16, fontWeight: '900', color: theme.blue },
   statusBadge: { marginTop: 6, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 99 },
-  paidBadge: { backgroundColor: '#ECFDF5' },
-  pendingBadge: { backgroundColor: '#FEF3C7' },
+  paidBadge: { backgroundColor: 'rgba(52,211,153,0.15)' },
+  pendingBadge: { backgroundColor: 'rgba(251,191,36,0.15)' },
   statusText: { fontSize: 10, fontWeight: '800' },
-  paidText: { color: '#22C55E' },
-  pendingText: { color: '#D97706' },
+  paidText: { color: theme.green },
+  pendingText: { color: theme.amber },
 });

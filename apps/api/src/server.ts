@@ -21,7 +21,7 @@ await runSeedIfNeeded().catch(e => console.error('[seed] failed:', e));
 const app=Fastify({logger:{redact:['req.headers.authorization']},trustProxy:true,bodyLimit:10_000_000});
 await app.register(helmet,{global:true});
 const isDev = env.NODE_ENV !== 'production';
-const allowedOrigins = isDev ? true : [env.WEB_URL, 'https://opass-connect.vercel.app', 'https://opass-connect-*.vercel.app', 'http://localhost:*', 'http://127.0.0.1:*'];
+const allowedOrigins = isDev ? true : [env.WEB_URL, 'https://opass-connect.vercel.app', /^https:\/\/opass-connect-.*\.vercel\.app$/, /^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
 await app.register(cors,{origin: allowedOrigins, credentials:true});
 await app.register(rateLimit,{max:200,timeWindow:'1 minute'});
 await app.register(jwt,{secret:env.JWT_SECRET});
